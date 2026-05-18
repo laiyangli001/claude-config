@@ -25,7 +25,9 @@ cd ~/.claude/mcp-servers/deepseek-mcp && npm install
 
 # 3. 配置 settings.json（从模板复制，填入你的 API token）
 cp ~/.claude/settings.json.example ~/.claude/settings.json
-# 编辑 settings.json，将 sk-<your-api-token-here> 替换为真实 token
+# 编辑 settings.json：
+#   - 将 sk-<your-api-token-here> 替换为真实 token
+#   - 可按需修改 systemPrompt 和 effortLevel
 ```
 
 ## 首次使用 MCP 工具
@@ -88,6 +90,7 @@ git push
 ## 注意事项
 
 - `settings.json` 包含 API token，已被 `.gitignore` 排除，不会上传
+- `systemPrompt` 字段会注入到系统提示词最前端，优先级高于 `CLAUDE.md`，适合放置语言/身份约束
 - `mcp-servers/*/node_modules/` 已排除，克隆后需 `npm install`
 - 对话记录 `.jsonl` 包含在备份中，仓库设为 **Private**
 - 全局配置的 Agent Skills 默认值：Local Markdown + 默认标签 + Single-context
