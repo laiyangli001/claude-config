@@ -48,22 +48,33 @@ let page: Page | null = null;
 let isPageReady = false;
 let initPromise: Promise<{ page: Page; context: BrowserContext }> | null = null;
 
+async function closeBrowserResources() {
+  if (browserContext) {
+    try {
+      await browserContext.close();
+    } catch (e) {
+      log("Error closing browser:", e);
+    }
+    browserContext = null;
+    page = null;
+  }
+}
+
 async function ensureBrowser() {
   if (browserContext && page && !page.isClosed()) {
     return { page, context: browserContext };
   }
-  if (initPromise) return initPromise;
+  // Fix: page was closed but initPromise still cached — reset so we can recreate
+  if (initPromise) {
+    initPromise = null;
+  }
 
   initPromise = (async () => {
     try {
-      if (browserContext) {
-        await browserContext.close().catch(() => {});
-        browserContext = null;
-        page = null;
-      }
+      await closeBrowserResources();
+
       browserContext = await chromium.launchPersistentContext(USER_DATA_DIR, {
         headless: HEADLESS,
-        // no channel = default chromium
         viewport: { width: 1280, height: 800 },
         args: ["--disable-blink-features=AutomationControlled"],
       });
@@ -205,72 +216,114 @@ async function askChatGPT(
   question: string,
   attachments?: string[]
 ): Promise<string> {
-  const { page: pg } = await ensureBrowser();
+  let retries = 2;
+  let lastError: unknown;
 
-  if (!isPageReady) {
-    await pg.goto("https://chatgpt.com/", { waitUntil: "domcontentloaded" });
-    await pg.waitForTimeout(3000);
-    await pg.waitForSelector("#prompt-textarea", { timeout: 30000 });
-    isPageReady = true;
-  } else {
-    // Start new chat to avoid stale attachments from previous call
+  while (retries > 0) {
     try {
-      const newChatBtn = pg.locator(
-        'button:has-text("New chat"), [data-testid="new-chat-button"], a:has-text("New chat")'
-      ).first();
-      if ((await newChatBtn.count()) > 0 && (await newChatBtn.isVisible())) {
-        await newChatBtn.click();
-        await pg.waitForTimeout(1000);
-        await pg.waitForSelector("#prompt-textarea", { timeout: 10000 });
+      // Health check: reset if page died or unresponsive
+      if (isPageReady && (!page || page.isClosed() || !browserContext)) {
+        log("Page invalid, reinitializing");
+        await closeBrowserResources();
+        isPageReady = false;
       }
-    } catch { /* new chat button may not exist */ }
+      // Heartbeat — detect crashed-but-not-closed pages
+      if (isPageReady && page) {
+        try {
+          await page.evaluate("1+1", { timeout: 2000 });
+        } catch {
+          log("Page unresponsive, resetting");
+          await closeBrowserResources();
+          isPageReady = false;
+        }
+      }
+
+      const { page: pg } = await ensureBrowser();
+
+      if (!isPageReady) {
+        await pg.goto("https://chatgpt.com/", { waitUntil: "domcontentloaded" });
+        await pg.waitForTimeout(3000);
+        await pg.waitForSelector("#prompt-textarea", { timeout: 30000 });
+        isPageReady = true;
+      } else {
+        // Start new chat to avoid stale attachments from previous call
+        try {
+          const newChatBtn = pg.locator(
+            'button:has-text("New chat"), [data-testid="new-chat-button"], a:has-text("New chat")'
+          ).first();
+          if ((await newChatBtn.count()) > 0 && (await newChatBtn.isVisible())) {
+            await newChatBtn.click();
+            await pg.waitForTimeout(1000);
+            await pg.waitForSelector("#prompt-textarea", { timeout: 10000 });
+          }
+        } catch { /* new chat button may not exist */ }
+      }
+
+      if (attachments && attachments.length > 0) {
+        await uploadFilesToChatGPT(pg, attachments);
+      }
+
+      // Type into ProseMirror editor (clear first to prevent cross-request pollution)
+      const finalQuestion = ((question && question.trim()) || "Please analyze this file") + CONSTRAINTS;
+      await pg.locator("#prompt-textarea").first().evaluate((el) => {
+        (el as HTMLElement).innerText = "";
+      });
+      await pg.locator("#prompt-textarea").first().evaluate((el, text) => {
+        (el as HTMLElement).innerText = text;
+        el.dispatchEvent(new Event("input", { bubbles: true }));
+      }, finalQuestion);
+
+      // Record existing message count before sending
+      const prevMsgCount = await pg.locator(ANSWER_SELECTORS.join(", ")).count();
+
+      // Click send button (the submit button, changes from voice when text is entered)
+      await sleep(500); // let the send button switch from voice to send
+      const sendBtn = pg.locator(
+        'button.composer-submit-button-color, button[aria-label="Send"], [data-testid="send-button"]'
+      ).first();
+      if ((await sendBtn.count()) > 0 && (await sendBtn.isVisible())) {
+        await sendBtn.click();
+      } else {
+        // Fallback: trigger input event then Enter (ProseMirror needs input before Enter)
+        await pg.locator("#prompt-textarea").first().evaluate((el) => {
+          el.dispatchEvent(new Event("input", { bubbles: true }));
+        });
+        await pg.keyboard.press("Enter");
+        await sleep(200);
+      }
+
+      if (!HEADLESS) await pg.bringToFront();
+
+      await pg.waitForSelector(ANSWER_SELECTORS.join(", "), {
+        timeout: 300000,
+        state: "visible",
+      });
+      const answerSelector = await findAnswerSelector(pg);
+      await waitForAnswerComplete(pg, answerSelector);
+
+      const answerText = await extractNewAnswers(pg, ANSWER_SELECTORS.join(", "), prevMsgCount);
+      if (!answerText) throw new Error("Failed to extract ChatGPT answer");
+      return answerText;
+    } catch (error: unknown) {
+      lastError = error;
+      const msg = error instanceof Error ? error.message : String(error);
+      const recoverable = msg.includes("closed")
+        || msg.includes("Navigation timeout") || msg.includes("Target page");
+      if (recoverable && retries > 1) {
+        log(`Recoverable error, resetting and retrying: ${msg}`);
+        await closeBrowserResources();
+        isPageReady = false;
+        initPromise = null;
+        retries--;
+        continue;
+      }
+      isPageReady = false; // reset for fresh start on next call
+      throw error;
+    }
   }
-
-  if (attachments && attachments.length > 0) {
-    await uploadFilesToChatGPT(pg, attachments);
-  }
-
-  // Type into ProseMirror editor (clear first to prevent cross-request pollution)
-  const finalQuestion = ((question && question.trim()) || "Please analyze this file") + CONSTRAINTS;
-  await pg.locator("#prompt-textarea").first().evaluate((el) => {
-    (el as HTMLElement).innerText = "";
-  });
-  await pg.locator("#prompt-textarea").first().evaluate((el, text) => {
-    (el as HTMLElement).innerText = text;
-    el.dispatchEvent(new Event("input", { bubbles: true }));
-  }, finalQuestion);
-
-  // Record existing message count before sending
-  const prevMsgCount = await pg.locator(ANSWER_SELECTORS.join(", ")).count();
-
-  // Click send button (the submit button, changes from voice when text is entered)
-  await sleep(500); // let the send button switch from voice to send
-  const sendBtn = pg.locator(
-    'button.composer-submit-button-color, button[aria-label="Send"], [data-testid="send-button"]'
-  ).first();
-  if ((await sendBtn.count()) > 0 && (await sendBtn.isVisible())) {
-    await sendBtn.click();
-  } else {
-    // Fallback: trigger input event then Enter (ProseMirror needs input before Enter)
-    await pg.locator("#prompt-textarea").first().evaluate((el) => {
-      el.dispatchEvent(new Event("input", { bubbles: true }));
-    });
-    await pg.keyboard.press("Enter");
-    await sleep(200);
-  }
-
-  if (!HEADLESS) await pg.bringToFront();
-
-  await pg.waitForSelector(ANSWER_SELECTORS.join(", "), {
-    timeout: 300000,
-    state: "visible",
-  });
-  const answerSelector = await findAnswerSelector(pg);
-  await waitForAnswerComplete(pg, answerSelector);
-
-  const answerText = await extractNewAnswers(pg, ANSWER_SELECTORS.join(", "), prevMsgCount);
-  if (!answerText) throw new Error("Failed to extract ChatGPT answer");
-  return answerText;
+  // all retries exhausted — reset so next call starts fresh
+  isPageReady = false;
+  throw lastError;
 }
 
 // --- MCP Server ---
