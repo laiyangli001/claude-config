@@ -1,0 +1,3 @@
+- [Skill Reminders](memory/skill-reminders.md) — 在合适的编码场景主动提醒用户使用对应的 Matt Pocock skill
+- [System Config Reference](memory/system-config-reference.md) — 全局 MCP、skills、issue tracker 配置快照，便于恢复和参考
+- [Session Persistence Guide](memory/session-persistence-guide.md) — Claude Code 对话 session 保存与恢复的完整操作指南
