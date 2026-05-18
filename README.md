@@ -23,7 +23,11 @@ git clone https://github.com/laiyangli001/claude-config.git ~/.claude
 cd ~/.claude/mcp-servers/chatgpt-mcp && npm install
 cd ~/.claude/mcp-servers/deepseek-mcp && npm install
 
-# 3. 配置 settings.json（从模板复制，填入你的 API token）
+# 3. 下载 Chromium 浏览器（必须，约 300MB）
+cd ~/.claude/mcp-servers/chatgpt-mcp && npx playwright install chromium
+cd ~/.claude/mcp-servers/deepseek-mcp && npx playwright install chromium
+
+# 4. 配置 settings.json（从模板复制，填入你的 API token）
 cp ~/.claude/settings.json.example ~/.claude/settings.json
 # 编辑 settings.json：
 #   - 将 sk-<your-api-token-here> 替换为真实 token
@@ -32,7 +36,30 @@ cp ~/.claude/settings.json.example ~/.claude/settings.json
 
 ## 首次使用 MCP 工具
 
-首次调用 `ask_chatgpt` 或 `ask_deepseek` 时会自动弹出浏览器窗口，手动登录一次即可，会话持久保存。
+首次调用 `ask_chatgpt` 或 `ask_deepseek` 时，Playwright 会自动弹出 Chromium 窗口：
+
+1. **在弹出窗口中手动登录**（ChatGPT 或 DeepSeek）
+2. 登录后关闭窗口，session 会自动保存
+3. 以后调用不再需要重新登录
+
+**注意：** 两个服务使用不同的浏览器配置文件，需要分别登录一次。
+
+**网络要求：**
+- DeepSeek：国内网络可直接访问
+- ChatGPT：需要能访问 `chatgpt.com`（公司网络或自备）
+
+**Cloudflare 验证拦截：** 如果 Chromium 被拦截，可改用 Edge 浏览器——编辑 `mcp-servers/chatgpt-mcp/src/index.ts`，在 `launchPersistentContext` 参数中添加 `channel: "msedge"`。
+
+## MCP 环境变量
+
+| 变量 | 默认 | 说明 |
+|------|------|------|
+| `CHATGPT_HEADLESS` | `false` | 设为 `true` 隐藏 ChatGPT 浏览器 |
+| `CHATGPT_DEBUG` | `false` | ChatGPT 调试日志 |
+| `DEEPSEEK_HEADLESS` | `false` | 设为 `true` 隐藏 DeepSeek 浏览器 |
+| `DEEPSEEK_DEBUG` | `false` | DeepSeek 调试日志 |
+
+可在 `settings.json` 的 `env` 块中设置。
 
 ## 项目初始化
 
@@ -52,6 +79,19 @@ cp ~/.claude/settings.json.example ~/.claude/settings.json
 | `/caveman` | 大量编码，省 75% token |
 | `/improve-codebase-architecture` | 每周一次架构体检 |
 | `/zoom-out` | 代码变乱，不知从哪下手 |
+
+## CLAUDE.md 自动调用规则
+
+全局 `CLAUDE.md` 中已配置自动触发规则。当你自主处理任务时，满足以下任一条件会自动调用免费 MCP 工具：
+
+- 数据量超过 1500 token 或 3000 字符
+- 需要信息提取/统计/转换
+- 需要联网获取最新信息
+- 复杂推理（步骤超过 5 步）
+- 知识不足
+- 任务涉及文件分析（自动以附件上传）
+
+策略：优先 `ask_chatgpt`，失败自动回退 `ask_deepseek`。
 
 ## 记忆系统：对话持久化
 
@@ -92,5 +132,6 @@ git push
 - `settings.json` 包含 API token，已被 `.gitignore` 排除，不会上传
 - `systemPrompt` 字段会注入到系统提示词最前端，优先级高于 `CLAUDE.md`，适合放置语言/身份约束
 - `mcp-servers/*/node_modules/` 已排除，克隆后需 `npm install`
+- `mcp-servers/*/package-lock.json` 已排除，克隆后需 `npm install` 生成
 - 对话记录 `.jsonl` 包含在备份中，仓库设为 **Private**
 - 全局配置的 Agent Skills 默认值：Local Markdown + 默认标签 + Single-context
