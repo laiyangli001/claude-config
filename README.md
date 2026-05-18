@@ -1,0 +1,68 @@
+# Claude Code 全局配置
+
+个人 Claude Code 系统配置备份。克隆到 `~/.claude` 即用。
+
+## 包含内容
+
+| 组件 | 路径 | 说明 |
+|------|------|------|
+| **全局 CLAUDE.md** | `CLAUDE.md` | 身份定义、行为边界、工具规则、自动调用策略 |
+| **MCP 免费工具** | `mcp-servers/` | `ask_chatgpt` + `ask_deepseek`，浏览器自动化，不消耗 API token |
+| **Matt Pocock Skills** | `.agents/skills/` | 14 个工程纪律技能 |
+| **Agent Skills 配置** | `docs/agents/` | Issue Tracker / Triage Labels / Domain Docs |
+| **记忆文件** | `projects/claude-config/memory/` | 跨对话持久化的偏好和参考信息 |
+| **Skills（内建）** | `skills/` | Vercel、React 等内建技能包 |
+
+## 快速恢复
+
+```bash
+# 1. 克隆
+git clone https://github.com/laiyangli001/claude-config.git ~/.claude
+
+# 2. 安装 MCP 依赖
+cd ~/.claude/mcp-servers/chatgpt-mcp && npm install
+cd ~/.claude/mcp-servers/deepseek-mcp && npm install
+
+# 3. 配置 settings.json（从模板复制，填入你的 API token）
+cp ~/.claude/settings.json.example ~/.claude/settings.json
+# 编辑 settings.json，将 sk-<your-api-token-here> 替换为真实 token
+```
+
+## 首次使用 MCP 工具
+
+首次调用 `ask_chatgpt` 或 `ask_deepseek` 时会自动弹出浏览器窗口，手动登录一次即可，会话持久保存。
+
+## 项目初始化
+
+在新项目目录中打开 Claude Code，说：
+
+> 帮我初始化 mattpocock skills
+
+会自动探测项目状态、提问三个配置项、写入项目级配置。
+
+## 核心 Skills 速查
+
+| 技能 | 何时用 |
+|------|--------|
+| `/grill-me` | 新任务开始前，对齐需求 |
+| `/tdd` | 写新功能、修 bug |
+| `/diagnose` | bug 定位不清时 |
+| `/caveman` | 大量编码，省 75% token |
+| `/improve-codebase-architecture` | 每周一次架构体检 |
+| `/zoom-out` | 代码变乱，不知从哪下手 |
+
+## 备份修改
+
+```bash
+cd ~/.claude
+git add -A
+git commit -m "描述改动"
+git push
+```
+
+## 注意事项
+
+- `settings.json` 包含 API token，已被 `.gitignore` 排除，不会上传
+- `mcp-servers/*/node_modules/` 已排除，克隆后需 `npm install`
+- 对话记录 `.jsonl` 包含在备份中，仓库设为 **Private**
+- 全局配置的 Agent Skills 默认值：Local Markdown + 默认标签 + Single-context
