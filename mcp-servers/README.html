@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MCP服务 — Claude Code 省token小工具</title>
+<style>
+  body { font-family: -apple-system, 'Microsoft YaHei', sans-serif; max-width: 900px; margin: 0 auto; padding: 20px; color: #333; line-height: 1.7; }
+  h1 { border-bottom: 2px solid #2563eb; padding-bottom: 10px; }
+  h2 { color: #2563eb; margin-top: 30px; }
+  h3 { color: #444; }
+  pre { background: #1e293b; color: #e2e8f0; padding: 15px; border-radius: 8px; overflow-x: auto; font-size: 13px; white-space: pre-wrap; }
+  code { background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-size: 13px; }
+  pre code { background: none; padding: 0; }
+  .note { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 12px 16px; margin: 16px 0; border-radius: 4px; }
+  .warn { background: #fee2e2; border-left: 4px solid #ef4444; padding: 12px 16px; margin: 16px 0; border-radius: 4px; }
+  table { border-collapse: collapse; width: 100%; margin: 16px 0; }
+  th, td { border: 1px solid #ddd; padding: 8px 12px; text-align: left; }
+  th { background: #f8fafc; }
+  a { color: #2563eb; }
+  ol li, ul li { margin: 6px 0; }
+</style>
+</head>
+<body>
+
+<h1>MCP服务 — Claude Code 省token小工具</h1>
+
+<p>两个基于 <strong>Model Context Protocol (MCP)</strong> 的服务器，通过 Playwright 浏览器自动化访问 ChatGPT 和 DeepSeek 网页版。调用时<strong>不消耗 API token</strong>，支持上传附件。</p>
+
+<h2> 包含的服务</h2>
+<table>
+  <tr><th>服务</th><th>来源</th><th>说明</th></tr>
+  <tr>
+    <td><code>ask_chatgpt</code></td>
+    <td>ChatGPT 网页版</td>
+    <td><strong>优先使用</strong>。自动导航、上传文件、提问、提取回答。</td>
+  </tr>
+  <tr>
+    <td><code>ask_deepseek</code></td>
+    <td>DeepSeek 网页版</td>
+    <td><strong>备选</strong>。ChatGPT 失败时自动回退到此服务。</td>
+  </tr>
+</table>
+
+<h2> 前置要求</h2>
+<ul>
+  <li><strong>Node.js 18+</strong> — <a href="https://nodejs.org/" target="_blank">下载安装</a></li>
+</ul>
+
+<h2> 安装步骤</h2>
+
+<div class="note"><strong>懒人模式：</strong>以下全部步骤都可以让 Claude Code 自动完成。直接把压缩包解压到任意目录，然后对 Claude Code 说：<br>
+<code>帮我进入 mcp-servers 目录，分别进入 deepseek-mcp 和 chatgpt-mcp 各执行 npm install，然后配置 ~/.claude.json 添加两 mcpServers：chatgpt=node args=[当前目录]/chatgpt-mcp/dist/index.js，deepseek=node args=[当前目录]/deepseek-mcp/dist/index.js</code><br>
+Claude Code 会一步步执行完所有操作，你只需要在首次调用的弹出浏览器里登录一次即可。</div>
+
+<h3>1. 解压并安装依赖</h3>
+<pre><code># 进入解压后的目录
+cd mcp-servers
+
+# 安装 deepseek-mcp
+cd deepseek-mcp
+npm install
+cd ..
+
+# 安装 chatgpt-mcp
+cd chatgpt-mcp
+npm install
+cd ..</code></pre>
+
+<div class="note"><strong>Chromium 浏览器：</strong>首次使用需下载 Chromium（约 300MB），由 Playwright 自动管理。两个服务共用同一个浏览器，无需重复下载。</div>
+
+<h3>2. 首次登录</h3>
+<p>两个工具使用不同的浏览器配置文件，需要分别登录一次：</p>
+<ul>
+  <li>首次调用 <code>ask_deepseek</code> 时，会自动弹出 Chromium 窗口 → 手动登录 DeepSeek</li>
+  <li>首次调用 <code>ask_chatgpt</code> 时，会自动弹出 Chromium 窗口 → 手动登录 ChatGPT</li>
+</ul>
+<p>登录后关闭窗口即可，会话会持久保存。</p>
+
+<div class="warn"><strong>ChatGPT 用户注意：</strong>如果 Cloudflare 验证拦截了 Chromium，可改为 Edge 浏览器 — 编辑 <code>src/index.ts</code>，在 <code>launchPersistentContext</code> 参数中添加 <code>channel: "msedge"</code>。</div>
+
+<h3>3. 配置 Claude Code</h3>
+
+<h4>方式一：让 Claude Code 自动配置（推荐）</h4>
+<p>直接在 Claude Code 对话框里说：</p>
+<pre><code>帮我配置两个 MCP 服务：
+- chatgpt-mcp，命令 node，参数 [当前目录]/chatgpt-mcp/dist/index.js
+- deepseek-mcp，命令 node，参数 [当前目录]/deepseek-mcp/dist/index.js
+写到 ~/.claude.json 里</code></pre>
+
+<h4>方式二：手动编辑配置文件</h4>
+<p>配置文件位置：<code>~/.claude.json</code>（全局）或 <code>.mcp.json</code>（项目级）</p>
+<pre><code>{
+  "mcpServers": {
+    "chatgpt": {
+      "command": "node",
+      "args": ["/你的路径/mcp-servers/chatgpt-mcp/dist/index.js"]
+    },
+    "deepseek": {
+      "command": "node",
+      "args": ["/你的路径/mcp-servers/deepseek-mcp/dist/index.js"]
+    }
+  }
+}</code></pre>
+<div class="note">Windows 路径使用正斜杠，如 <code>d:/mcp-servers/deepseek-mcp/dist/index.js</code></div>
+
+<h3>4. 配置自动调用规则（CLAUDE.md）</h3>
+<p>MCP 服务安装后不会自动被调用，需要在全局 <code>~/.claude/CLAUDE.md</code> 中添加触发规则。对 Claude Code 说：</p>
+<pre><code>帮我在全局 CLAUDE.md 末尾添加以下内容</code></pre>
+<pre>## 自动省 token 工具调用策略
+
+你已连接两个免费的 MCP 工具，均不消耗 API token，支持文件附件上传：
+
+1. **`ask_chatgpt`（优先）** — ChatGPT 网页版
+2. **`ask_deepseek`（备选）** — DeepSeek 网页版
+
+### 触发条件（自动判断，无需用户指令）
+
+当你**自主处理任务**时，若满足**任一**条件，必须自动调用免费工具：
+
+1. **数据量过大**：需要分析超过 1500 token 或 3000 字符的原始数据。
+2. **信息提取/统计**：需要从长文本中提取、统计、转换信息。
+3. **联网需求**：需要获取最新技术信息。
+4. **复杂推理**：问题解决步骤超过 5 步。
+5. **知识不足**：你自己对当前问题不确定答案。
+6. **文件分析**：任务涉及分析文件时，必须以附件形式上传。
+
+### 调用策略
+
+- **优先使用 `ask_chatgpt`**，若失败自动回退到 `ask_deepseek`。
+- 两个都失败后，降级到自身能力。
+
+### 绝对禁止
+
+- 禁止询问用户是否需要调用。
+- 禁止主观预判"可能失败"而跳过。
+- 有文件时必须附件上传，不要粘贴文本。
+
+### 自动执行流程
+
+1. 静默调用 `ask_chatgpt`（question + attachments）。
+2. 若失败，自动调用 `ask_deepseek`（同样参数）。
+3. 若再失败，回退自身能力。
+4. 基于结果生成方案，编辑前弹确认窗。</pre>
+<p>Claude Code 会自动写入规则文件。之后每次对话遇到符合条件的任务，就会自动调用免费工具。</p>
+
+<h3>5. 重新加载 Claude Code</h3>
+<ul>
+  <li><strong>VSCode：</strong> <code>Ctrl+Shift+P</code> → <code>Reload Window</code></li>
+</ul>
+
+<h3>6. 验证安装</h3>
+<p>在 Claude Code 对话框中输入：</p>
+<pre><code>用 ask_chatgpt 回答：1+1等于几？</code></pre>
+<p>如果返回了 ChatGPT 的回答，说明配置成功。</p>
+
+<h2> 文件结构</h2>
+<pre><code>mcp-servers/
+├── README.html
+├── deepseek-mcp/
+│   ├── package.json
+│   ├── tsconfig.json
+│   ├── dist/
+│   │   └── index.js
+│   └── src/
+│       └── index.ts
+└── chatgpt-mcp/
+    ├── package.json
+    ├── tsconfig.json
+    ├── dist/
+    │   └── index.js
+    └── src/
+        └── index.ts</code></pre>
+
+<h2> 自行编译</h2>
+<pre><code>cd deepseek-mcp  # 或 chatgpt-mcp
+npm run build     # 执行 tsc 编译 TypeScript</code></pre>
+
+<h2> 环境变量（可选）</h2>
+<table>
+  <tr><th>变量</th><th>默认</th><th>说明</th></tr>
+  <tr><td><code>DEEPSEEK_HEADLESS</code></td><td>false</td><td>设为 true 隐藏 DeepSeek 浏览器</td></tr>
+  <tr><td><code>DEEPSEEK_DEBUG</code></td><td>false</td><td>调试日志</td></tr>
+  <tr><td><code>CHATGPT_HEADLESS</code></td><td>false</td><td>设为 true 隐藏 ChatGPT 浏览器</td></tr>
+  <tr><td><code>CHATGPT_DEBUG</code></td><td>false</td><td>调试日志</td></tr>
+</table>
+
+<hr>
+<p style="color: #94a3b8; text-align: center; margin-top: 40px;">MCP Servers v1.0 · Zero API Token · Open Source</p>
+
+</body>
+</html>

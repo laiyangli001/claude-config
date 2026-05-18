@@ -30,5 +30,18 @@ plans/
 mcp-servers/*/node_modules/
 mcp-servers/*/package-lock.json
 
+# MCP 浏览器配置文件
+mcp-servers/*/.chatgpt-chrome-profile/
+mcp-servers/*/.deepseek-chrome-profile/
+
+# 临时工具
+gh.exe
+
+# 旧的 projects（已迁移到 claude-config）
+projects/C--Users-LaiYangLi/
+projects/c--Users-LaiYangLi--claude/
+projects/c--page/
+projects/d--AI-2D-to-3D-4-LC700X-Desktop2Stereo-Desktop2Stereo-v2-4-1-Windows-NVIDIA/
+
 # 压缩包
 mcp-servers.zip
