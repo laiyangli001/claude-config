@@ -30,9 +30,9 @@ plans/
 mcp-servers/*/node_modules/
 mcp-servers/*/package-lock.json
 
-# MCP 浏览器配置文件
-mcp-servers/*/.chatgpt-chrome-profile/
-mcp-servers/*/.deepseek-chrome-profile/
+# MCP 浏览器配置文件和数据
+mcp-servers/*/.chatgpt-chrome-profile*/
+mcp-servers/*/.deepseek-browser-profile*/
 
 # 临时工具
 gh.exe

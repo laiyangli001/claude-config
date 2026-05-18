@@ -67,7 +67,12 @@ cd chatgpt-mcp
 npm install
 cd ..</code></pre>
 
-<div class="note"><strong>Chromium 浏览器：</strong>首次使用需下载 Chromium（约 300MB），由 Playwright 自动管理。两个服务共用同一个浏览器，无需重复下载。</div>
+<div class="warn"><strong>必须步骤：</strong>安装依赖后还需下载 Chromium 浏览器（约 300MB）。两个服务共用，只需执行一次：</div>
+
+<pre><code># 下载 Chromium 浏览器
+npx playwright install chromium</code></pre>
+
+<div class="note"><strong>Chromium 浏览器：</strong>由 Playwright 自动管理，下载到 <code>%LOCALAPPDATA%\ms-playwright\</code></div>
 
 <h3>2. 首次登录</h3>
 <p>两个工具使用不同的浏览器配置文件，需要分别登录一次：</p>
