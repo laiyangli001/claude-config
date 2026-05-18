@@ -16,5 +16,11 @@
     "effort": "high/max"
   },
   "includeCoAuthoredBy": false,
-  "effortLevel": "high"
+  "effortLevel": "high",
+  "permissions": {
+    "allow": [
+      "mcp__chatgpt__ask_chatgpt",
+      "mcp__deepseek__ask_deepseek"
+    ]
+  }
 }
