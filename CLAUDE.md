@@ -158,7 +158,7 @@
 
 ### 调用策略
 
-- **优先使用 `ask_chatgpt`**，若失败（错误/超时/无结果），自动回退到 `ask_deepseek`。
+- **优先使用 `ask_chatgpt_mirror`**，若失败（错误/超时/无结果），自动回退到 `ask_chatgpt`，再失败回退到 `ask_deepseek`。
 - 两个都失败后，降级到自身能力。
 
 ### 🚫 绝对禁止
@@ -169,9 +169,10 @@
 
 ### 自动执行流程
 
-1. 静默调用 `ask_chatgpt`（question + attachments）。
-2. 若失败，自动调用 `ask_deepseek`（同样参数）。
-3. 若再失败，回退自身能力。
+1. 静默调用 `ask_chatgpt_mirror`（question + attachments）。
+2. 若失败，自动调用 `ask_chatgpt`（同样参数）。
+3. 若再失败，自动调用 `ask_deepseek`。
+4. 若再失败，回退自身能力。
 4. 基于结果生成方案，编辑前弹确认窗。
 
 ## Agent skills

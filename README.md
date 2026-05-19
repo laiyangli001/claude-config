@@ -117,7 +117,7 @@ MCP 工具内置自动角色检测。首次调用时，根据问题内容自动�
 - 知识不足
 - 任务涉及文件分析（自动以附件上传）
 
-策略：优先 `ask_chatgpt`，失败自动回退 `ask_deepseek`。
+策略：优先 `ask_chatgpt_mirror` → 失败回退 `ask_chatgpt` → 再失败回退 `ask_deepseek`。
 
 ## 记忆系统：对话持久化
 
