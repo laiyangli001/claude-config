@@ -1,0 +1,45 @@
+{
+  "unpinOpus47LaunchEffort": true,
+  "firstStartTime": "2026-05-11T09:33:52.305Z",
+  "opusProMigrationComplete": true,
+  "sonnet1m45MigrationComplete": true,
+  "seenNotifications": {},
+  "migrationVersion": 13,
+  "userID": "d455528ac6e42e79b6a18d45904518a7b9acfb98d03b4366fedb478d4be8cc79",
+  "mcpServers": {
+    "deepseek": {
+      "command": "cmd",
+      "args": [
+        "/c",
+        "node",
+        "c:/Users/LaiYangLi/.claude/mcp-servers/deepseek-mcp/dist/index.js"
+      ]
+    },
+    "chatgpt": {
+      "command": "cmd",
+      "args": [
+        "/c",
+        "node",
+        "c:/Users/LaiYangLi/.claude/mcp-servers/chatgpt-mcp/dist/index.js"
+      ]
+    },
+    "chatgptmirror": {
+      "command": "cmd",
+      "args": [
+        "/c",
+        "node",
+        "c:/Users/LaiYangLi/.claude/mcp-servers/chatgpt-mirror-mcp/dist/index.js"
+      ]
+    }
+  },
+  "skillUsage": {
+    "init": {
+      "usageCount": 1,
+      "lastUsedAt": 1778492184025
+    },
+    "find-skills": {
+      "usageCount": 2,
+      "lastUsedAt": 1779085505244
+    }
+  }
+}
