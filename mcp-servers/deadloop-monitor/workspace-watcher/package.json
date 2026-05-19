@@ -1,0 +1,10 @@
+{
+  "name": "deadloop-workspace-watcher",
+  "version": "1.0.0",
+  "description": "Auto-starts deadloop-monitor for each VS Code workspace",
+  "activationEvents": ["onStartupFinished"],
+  "main": "./extension.js",
+  "engines": {
+    "vscode": "^1.85.0"
+  }
+}

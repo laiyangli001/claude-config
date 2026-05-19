@@ -301,30 +301,50 @@ async function askChatGPTMirror(
       if (!isPageReady) {
         // === Mirror site navigation flow ===
         log("Opening mirror start page...");
+
+        // 提前注册 popup 监听器和轮询，不遗漏事件
+        let chatPagePromise = null;
+        const popupPromise = new Promise<Page>((resolve) => {
+          pg.once("popup", (p) => { log("popup event fired"); resolve(p); });
+        });
+        const pollPromise = new Promise<Page>((resolve) => {
+          const initialCount = browserContext!.pages().length;
+          const iv = setInterval(() => {
+            const pages = browserContext!.pages();
+            for (const p of pages) {
+              if (p !== pg) {
+                // 通过 URL 或标题确认是新的聊天页面
+                try {
+                  const url = p.url();
+                  if (url && url !== "about:blank") { clearInterval(iv); resolve(p); return; }
+                } catch { /* 页面未就绪 */ }
+              }
+            }
+            // 如果页面数量增加但没有匹配到 URL，取最后一个
+            if (pages.length > initialCount) {
+              const candidate = pages[pages.length - 1];
+              if (candidate !== pg) { clearInterval(iv); resolve(candidate); return; }
+            }
+          }, 1000);
+        });
+
         await pg.goto("https://2233.ai/?code=FC8XHSCH", { waitUntil: "domcontentloaded" });
         await pg.waitForTimeout(3000);
 
-        // Wait for user to click "立即开始" — this opens a new tab (popup)
         if (!HEADLESS) await pg.bringToFront();
         console.error("=== 请点击「立即开始」按钮，等待新标签页打开 ===");
         log("Waiting for popup (new tab) event...");
-        // target="_blank" links fire the "popup" event on the page, not on browserContext
-        const chatPage = await new Promise<Page>((resolve, reject) => {
-          pg.once("popup", (popupPage) => resolve(popupPage));
-          // Also poll as fallback
-          const iv = setInterval(() => {
-            for (const p of browserContext!.pages()) {
-              if (p !== pg) { clearInterval(iv); resolve(p); }
-            }
-          }, 2000);
-          setTimeout(() => {
-            clearInterval(iv);
-            reject(new Error("New tab not detected — did you click 立即开始?"));
-          }, 300000);
-        });
+
+        const chatPage = await Promise.race([
+          popupPromise,
+          pollPromise,
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error("New tab not detected — did you click 立即开始?")), 300000)
+          ),
+        ]);
         log("New tab detected, switching pg to popup page...");
         pg = chatPage;
-        page = chatPage; // also update module-level ref
+        page = chatPage;
         await chatPage.waitForURL(/chatgpt\.2233\.ai/, { timeout: 60000 });
         log(`Chat page URL: ${chatPage.url()}`);
         await chatPage.waitForLoadState("domcontentloaded");

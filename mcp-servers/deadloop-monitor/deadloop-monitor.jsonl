@@ -1,0 +1,94 @@
+{"t":"2026-05-19T07:22:33.064Z","level":"info","msg":"starting","version":"1.0.0"}
+{"t":"2026-05-19T07:22:33.073Z","level":"info","msg":"connecting","vsc":"http://localhost:60100/sse","help":"node"}
+{"t":"2026-05-19T07:24:11.479Z","level":"info","msg":"starting","version":"1.0.0"}
+{"t":"2026-05-19T07:24:11.488Z","level":"info","msg":"connecting","vsc":"http://localhost:60100/sse","help":"node"}
+{"t":"2026-05-19T07:24:11.663Z","level":"info","msg":"vsc-mcp connected"}
+{"t":"2026-05-19T07:24:12.797Z","level":"info","msg":"help mcp connected"}
+{"t":"2026-05-19T07:24:12.853Z","level":"warn","msg":"terminal not found, retrying..."}
+{"t":"2026-05-19T07:24:17.915Z","level":"warn","msg":"terminal not found, retrying..."}
+{"t":"2026-05-19T07:24:22.965Z","level":"warn","msg":"terminal not found, retrying..."}
+{"t":"2026-05-19T07:28:19.889Z","level":"info","msg":"starting","version":"1.0.0"}
+{"t":"2026-05-19T07:28:19.900Z","level":"info","msg":"connecting","vsc":"http://localhost:60100/sse"}
+{"t":"2026-05-19T07:28:21.259Z","level":"info","msg":"all connected"}
+{"t":"2026-05-19T07:28:36.461Z","level":"warn","msg":"terminal not found"}
+{"t":"2026-05-19T07:29:42.241Z","level":"info","msg":"starting","version":"1.0.0"}
+{"t":"2026-05-19T07:29:42.249Z","level":"info","msg":"connecting","vsc":"http://localhost:60100/sse"}
+{"t":"2026-05-19T07:29:43.599Z","level":"info","msg":"all connected"}
+{"t":"2026-05-19T08:32:52.454Z","level":"info","msg":"starting"}
+{"t":"2026-05-19T08:32:52.469Z","level":"info","msg":"session file","path":"C:\\Users\\LaiYangLi\\.claude\\projects\\c--Users-LaiYangLi--claude\\d6ab17f0-b242-461f-83ef-2ae163d79668.jsonl"}
+{"t":"2026-05-19T08:32:53.725Z","level":"info","msg":"help mcp connected"}
+{"t":"2026-05-19T08:32:53.725Z","level":"info","msg":"state","state":"MONITORING"}
+{"t":"2026-05-19T08:37:18.073Z","level":"info","msg":"starting"}
+{"t":"2026-05-19T08:37:18.087Z","level":"info","msg":"session file","path":"C:\\Users\\LaiYangLi\\.claude\\projects\\c--Users-LaiYangLi--claude\\d6ab17f0-b242-461f-83ef-2ae163d79668.jsonl"}
+{"t":"2026-05-19T08:37:19.318Z","level":"info","msg":"help mcp connected"}
+{"t":"2026-05-19T08:37:19.318Z","level":"info","msg":"state","state":"MONITORING"}
+{"t":"2026-05-19T08:40:56.849Z","level":"info","msg":"starting"}
+{"t":"2026-05-19T08:40:56.861Z","level":"info","msg":"session file","path":"C:\\Users\\LaiYangLi\\.claude\\projects\\c--Users-LaiYangLi--claude\\d6ab17f0-b242-461f-83ef-2ae163d79668.jsonl"}
+{"t":"2026-05-19T08:40:58.047Z","level":"info","msg":"help mcp connected"}
+{"t":"2026-05-19T08:40:58.047Z","level":"info","msg":"state","state":"MONITORING"}
+{"t":"2026-05-19T08:48:15.689Z","level":"info","msg":"starting"}
+{"t":"2026-05-19T08:48:15.701Z","level":"info","msg":"session file","path":"C:\\Users\\LaiYangLi\\.claude\\projects\\c--Users-LaiYangLi--claude\\d6ab17f0-b242-461f-83ef-2ae163d79668.jsonl"}
+{"t":"2026-05-19T08:48:16.918Z","level":"info","msg":"help mcp connected"}
+{"t":"2026-05-19T08:48:16.919Z","level":"info","msg":"state","state":"MONITORING"}
+{"t":"2026-05-19T08:50:28.360Z","level":"info","msg":"starting"}
+{"t":"2026-05-19T08:50:28.377Z","level":"info","msg":"session file","path":"C:\\Users\\LaiYangLi\\.claude\\projects\\c--Users-LaiYangLi--claude\\d6ab17f0-b242-461f-83ef-2ae163d79668.jsonl"}
+{"t":"2026-05-19T08:50:29.588Z","level":"info","msg":"help mcp connected"}
+{"t":"2026-05-19T08:50:29.588Z","level":"info","msg":"state","state":"MONITORING"}
+{"t":"2026-05-19T08:53:52.558Z","level":"info","msg":"starting"}
+{"t":"2026-05-19T08:53:52.570Z","level":"info","msg":"session file","path":"C:\\Users\\LaiYangLi\\.claude\\projects\\c--Users-LaiYangLi--claude\\d6ab17f0-b242-461f-83ef-2ae163d79668.jsonl"}
+{"t":"2026-05-19T08:53:53.858Z","level":"info","msg":"help mcp connected"}
+{"t":"2026-05-19T08:53:53.859Z","level":"info","msg":"state","state":"MONITORING"}
+{"t":"2026-05-19T08:55:25.148Z","level":"info","msg":"starting"}
+{"t":"2026-05-19T08:55:25.161Z","level":"info","msg":"session file","path":"C:\\Users\\LaiYangLi\\.claude\\projects\\c--Users-LaiYangLi--claude\\d6ab17f0-b242-461f-83ef-2ae163d79668.jsonl"}
+{"t":"2026-05-19T08:55:26.393Z","level":"info","msg":"help mcp connected"}
+{"t":"2026-05-19T08:55:26.394Z","level":"info","msg":"state","state":"MONITORING"}
+{"t":"2026-05-19T08:56:52.835Z","level":"info","msg":"starting"}
+{"t":"2026-05-19T08:56:52.848Z","level":"info","msg":"session file","path":"C:\\Users\\LaiYangLi\\.claude\\projects\\c--Users-LaiYangLi--claude\\d6ab17f0-b242-461f-83ef-2ae163d79668.jsonl"}
+{"t":"2026-05-19T08:56:54.047Z","level":"info","msg":"help mcp connected"}
+{"t":"2026-05-19T08:56:54.047Z","level":"info","msg":"state","state":"MONITORING"}
+{"t":"2026-05-19T09:06:40.374Z","level":"info","msg":"starting"}
+{"t":"2026-05-19T09:06:40.389Z","level":"info","msg":"session file","path":"C:\\Users\\LaiYangLi\\.claude\\projects\\c--Users-LaiYangLi--claude\\d6ab17f0-b242-461f-83ef-2ae163d79668.jsonl"}
+{"t":"2026-05-19T09:06:41.726Z","level":"info","msg":"help mcp connected"}
+{"t":"2026-05-19T09:06:41.726Z","level":"info","msg":"state","state":"MONITORING"}
+{"t":"2026-05-19T09:06:43.906Z","level":"warn","msg":"loop detected"}
+{"t":"2026-05-19T09:06:43.907Z","level":"info","msg":"state","state":"HELPING"}
+{"t":"2026-05-19T09:06:43.908Z","level":"info","msg":"sending help","count":1}
+{"t":"2026-05-19T09:06:43.909Z","level":"info","msg":"summary built","len":2108}
+{"t":"2026-05-19T09:06:45.642Z","level":"info","msg":"help received","len":53}
+{"t":"2026-05-19T09:06:45.646Z","level":"info","msg":"advice saved","file":".deadloop_advice.md"}
+{"t":"2026-05-19T09:06:45.646Z","level":"info","msg":"state","state":"COOLDOWN","until":"2026-05-19T09:06:55.646Z"}
+{"t":"2026-05-19T09:06:55.687Z","level":"info","msg":"state","state":"MONITORING (cooldown ended)"}
+{"t":"2026-05-19T09:09:44.544Z","level":"info","msg":"starting"}
+{"t":"2026-05-19T09:09:44.561Z","level":"info","msg":"session file","path":"C:\\Users\\LaiYangLi\\.claude\\projects\\c--Users-LaiYangLi--claude\\d6ab17f0-b242-461f-83ef-2ae163d79668.jsonl"}
+{"t":"2026-05-19T09:09:45.788Z","level":"info","msg":"help mcp connected"}
+{"t":"2026-05-19T09:09:45.788Z","level":"info","msg":"state","state":"MONITORING"}
+{"t":"2026-05-19T09:09:47.974Z","level":"warn","msg":"loop detected"}
+{"t":"2026-05-19T09:09:47.975Z","level":"info","msg":"state","state":"HELPING"}
+{"t":"2026-05-19T09:09:47.975Z","level":"info","msg":"sending help","count":1}
+{"t":"2026-05-19T09:09:47.976Z","level":"info","msg":"summary built","len":2108}
+{"t":"2026-05-19T09:10:47.983Z","level":"error","msg":"MCP error -32001: Request timed out"}
+{"t":"2026-05-19T09:10:47.983Z","level":"info","msg":"state","state":"COOLDOWN","until":"2026-05-19T09:10:57.983Z"}
+{"t":"2026-05-19T09:10:58.013Z","level":"info","msg":"state","state":"MONITORING (cooldown ended)"}
+{"t":"2026-05-19T09:13:39.321Z","level":"info","msg":"starting"}
+{"t":"2026-05-19T09:13:39.335Z","level":"info","msg":"session file","path":"C:\\Users\\LaiYangLi\\.claude\\projects\\c--Users-LaiYangLi--claude\\d6ab17f0-b242-461f-83ef-2ae163d79668.jsonl"}
+{"t":"2026-05-19T09:13:40.481Z","level":"info","msg":"help mcp connected"}
+{"t":"2026-05-19T09:13:40.482Z","level":"info","msg":"state","state":"MONITORING"}
+{"t":"2026-05-19T09:13:42.644Z","level":"warn","msg":"loop detected"}
+{"t":"2026-05-19T09:13:42.644Z","level":"info","msg":"state","state":"HELPING"}
+{"t":"2026-05-19T09:13:42.645Z","level":"info","msg":"sending help","count":1}
+{"t":"2026-05-19T09:13:42.646Z","level":"info","msg":"summary built","len":2108}
+{"t":"2026-05-19T09:14:42.656Z","level":"error","msg":"MCP error -32001: Request timed out"}
+{"t":"2026-05-19T09:14:42.657Z","level":"info","msg":"state","state":"COOLDOWN","until":"2026-05-19T09:14:52.657Z"}
+{"t":"2026-05-19T09:14:52.698Z","level":"info","msg":"state","state":"MONITORING (cooldown ended)"}
+{"t":"2026-05-19T09:15:49.931Z","level":"info","msg":"starting"}
+{"t":"2026-05-19T09:15:49.945Z","level":"info","msg":"session file","path":"C:\\Users\\LaiYangLi\\.claude\\projects\\c--Users-LaiYangLi--claude\\d6ab17f0-b242-461f-83ef-2ae163d79668.jsonl"}
+{"t":"2026-05-19T09:15:51.087Z","level":"info","msg":"help mcp connected"}
+{"t":"2026-05-19T09:15:51.088Z","level":"info","msg":"state","state":"MONITORING"}
+{"t":"2026-05-19T09:15:53.284Z","level":"warn","msg":"loop detected"}
+{"t":"2026-05-19T09:15:53.285Z","level":"info","msg":"state","state":"HELPING"}
+{"t":"2026-05-19T09:15:53.285Z","level":"info","msg":"sending help","count":1}
+{"t":"2026-05-19T09:15:53.286Z","level":"info","msg":"summary built","len":2108}
+{"t":"2026-05-19T09:17:39.369Z","level":"info","msg":"help received","len":90}
+{"t":"2026-05-19T09:17:39.375Z","level":"info","msg":"advice saved","file":".deadloop_advice.md"}
+{"t":"2026-05-19T09:17:39.380Z","level":"info","msg":"state","state":"COOLDOWN","until":"2026-05-19T09:17:49.380Z"}
+{"t":"2026-05-19T09:17:49.416Z","level":"info","msg":"state","state":"MONITORING (cooldown ended)"}
