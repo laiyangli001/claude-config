@@ -33,6 +33,7 @@ mcp-servers/*/package-lock.json
 # MCP 浏览器配置文件和数据
 mcp-servers/*/.chatgpt-chrome-profile*/
 mcp-servers/*/.deepseek-browser-profile*/
+mcp-servers/*/.chatgpt-mirror-profile*/
 
 # 临时工具
 gh.exe
