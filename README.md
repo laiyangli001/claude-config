@@ -24,10 +24,12 @@ git clone https://github.com/laiyangli001/claude-config.git ~/.claude
 # 2. 安装 MCP 依赖
 cd ~/.claude/mcp-servers/chatgpt-mcp && npm install
 cd ~/.claude/mcp-servers/deepseek-mcp && npm install
+cd ~/.claude/mcp-servers/chatgpt-mirror-mcp && npm install
 
 # 3. 下载 Chromium 浏览器（必须，约 300MB）
 cd ~/.claude/mcp-servers/chatgpt-mcp && npx playwright install chromium
 cd ~/.claude/mcp-servers/deepseek-mcp && npx playwright install chromium
+cd ~/.claude/mcp-servers/chatgpt-mirror-mcp && npx playwright install chromium
 
 # 4. 配置 settings.json（从模板复制，填入你的 API token）
 cp ~/.claude/settings.json.example ~/.claude/settings.json
@@ -48,14 +50,14 @@ cp ~/.claude/claude.json.example ~/.claude.json
 2. 登录后关闭窗口，session 会自动保存
 3. 以后调用不再需要重新登录
 
-**注意：** 每个服务使用独立的浏览器配置文件，需要分别登录一次。
+**注意：** 三个服务使用独立的浏览器配置文件，需要分别登录一次。
 
 **网络要求：**
 - `ask_chatgpt`：需要能访问 `chatgpt.com`
 - `ask_chatgpt_mirror`：访问镜像站 `chatgpt.2233.ai`，需联网
 - `ask_deepseek`：国内网络可直接访问
 
-**镜像站特殊流程：** 首次调用 `ask_chatgpt_mirror` 时会自动导航到车队列表页，选择第一个可用车队后跳转到登录页。登录后自动进入对话页。
+**镜像站特殊流程：** 首次调用 `ask_chatgpt_mirror` 时会打开邀请码页面，点击 **「立即开始」** 按钮后自动打开新标签页并跳转到对话页。已登录则直接开始对话。
 
 ## MCP 环境变量
 
