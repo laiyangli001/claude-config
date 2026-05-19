@@ -7,7 +7,9 @@
 | 组件 | 路径 | 说明 |
 |------|------|------|
 | **全局 CLAUDE.md** | `CLAUDE.md` | 身份定义、行为边界、工具规则、自动调用策略 |
-| **MCP 免费工具** | `mcp-servers/` | `ask_chatgpt` + `ask_deepseek`，浏览器自动化，不消耗 API token |
+| **MCP 免费工具** | `mcp-servers/` | `ask_chatgpt` + `ask_chatgpt_mirror` + `ask_deepseek`，浏览器自动化，不消耗 API token |
+| **角色系统** | `mcp-servers/roles/` | 自动检测问题类型，首次调用发送角色模板（如 python_tutor）|
+| **MCP 模板配置** | `claude.json.example` | `~/.claude.json` 的参考模板（MCP 服务器注册） |
 | **Matt Pocock Skills** | `.agents/skills/` | 14 个工程纪律技能 |
 | **Agent Skills 配置** | `docs/agents/` | Issue Tracker / Triage Labels / Domain Docs |
 | **记忆文件** | `projects/claude-config/memory/` | 跨对话持久化的偏好和参考信息 |
@@ -32,29 +34,34 @@ cp ~/.claude/settings.json.example ~/.claude/settings.json
 # 编辑 settings.json：
 #   - 将 sk-<your-api-token-here> 替换为真实 token
 #   - 可按需修改 systemPrompt 和 effortLevel
+
+# 5. 配置全局 MCP 服务器（从模板复制）
+cp ~/.claude/claude.json.example ~/.claude.json
+# 编辑 ~/.claude.json，修正各 MCP 服务的路径
 ```
 
 ## 首次使用 MCP 工具
 
-首次调用 `ask_chatgpt` 或 `ask_deepseek` 时，Playwright 会自动弹出 Chromium 窗口：
+首次调用任意 MCP 工具时，Playwright 会自动弹出 Chromium 窗口：
 
-1. **在弹出窗口中手动登录**（ChatGPT 或 DeepSeek）
+1. **在弹出窗口中手动登录**（ChatGPT / 镜像站 / DeepSeek）
 2. 登录后关闭窗口，session 会自动保存
 3. 以后调用不再需要重新登录
 
-**注意：** 两个服务使用不同的浏览器配置文件，需要分别登录一次。
+**注意：** 每个服务使用独立的浏览器配置文件，需要分别登录一次。
 
 **网络要求：**
-- DeepSeek：国内网络可直接访问
-- ChatGPT：需要能访问 `chatgpt.com`（公司网络或自备）
+- `ask_chatgpt`：需要能访问 `chatgpt.com`
+- `ask_chatgpt_mirror`：访问镜像站 `chatgpt.2233.ai`，需联网
+- `ask_deepseek`：国内网络可直接访问
 
-**Cloudflare 验证拦截：** 如果 Chromium 被拦截，可改用 Edge 浏览器——编辑 `mcp-servers/chatgpt-mcp/src/index.ts`，在 `launchPersistentContext` 参数中添加 `channel: "msedge"`。
+**镜像站特殊流程：** 首次调用 `ask_chatgpt_mirror` 时会自动导航到车队列表页，选择第一个可用车队后跳转到登录页。登录后自动进入对话页。
 
 ## MCP 环境变量
 
 | 变量 | 默认 | 说明 |
 |------|------|------|
-| `CHATGPT_HEADLESS` | `false` | 设为 `true` 隐藏 ChatGPT 浏览器 |
+| `CHATGPT_HEADLESS` | `false` | 设为 `true` 隐藏 ChatGPT / 镜像站浏览器 |
 | `CHATGPT_DEBUG` | `false` | ChatGPT 调试日志 |
 | `DEEPSEEK_HEADLESS` | `false` | 设为 `true` 隐藏 DeepSeek 浏览器 |
 | `DEEPSEEK_DEBUG` | `false` | DeepSeek 调试日志 |
@@ -79,6 +86,23 @@ cp ~/.claude/settings.json.example ~/.claude/settings.json
 | `/caveman` | 大量编码，省 75% token |
 | `/improve-codebase-architecture` | 每周一次架构体检 |
 | `/zoom-out` | 代码变乱，不知从哪下手 |
+
+## 角色系统
+
+MCP 工具内置自动角色检测。首次调用时，根据问题内容自动匹配并发送角色模板（作为第一条消息设定 AI 身份），同一会话后续调用不重复发送。
+
+当前可用角色：
+
+| 角色文件 | 触发关键词 | 说明 |
+|----------|-----------|------|
+| `python_tutor.md` | python, django, flask, pandas, asyncio, 装饰器等 | Python 编程导师，教学风格 |
+
+也可在调用时显式指定角色：
+```
+用 ask_chatgpt（角色 python_tutor）问：解释异步编程
+```
+
+在 `mcp-servers/roles/` 中添加新的 `.md` 文件并更新 `detectRole()` 即可扩展角色。
 
 ## CLAUDE.md 自动调用规则
 
@@ -135,3 +159,5 @@ git push
 - `mcp-servers/*/package-lock.json` 已排除，克隆后需 `npm install` 生成
 - 对话记录 `.jsonl` 包含在备份中，仓库设为 **Private**
 - 全局配置的 Agent Skills 默认值：Local Markdown + 默认标签 + Single-context
+- `claude.json.example` 是 `~/.claude.json` 的参考模板，新机器需根据实际路径修正 MCP 参数
+- MCP 服务器配置在 `~/.claude.json`（全局），不在 `settings.json` 中
