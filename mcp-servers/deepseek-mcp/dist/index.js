@@ -23,6 +23,20 @@ const CONSTRAINTS = `
 2. 禁止编造：没看到的文件/API 不要假设存在，不确定就先问。
 3. 安全红线：禁止拼接 SQL，禁止 XSS，禁止硬编码密钥。
 4. 输出格式：先给修复后的代码块，再简述改了什么。不要问候语。`;
+// --- Role system ---
+const ROLES_DIR = path.resolve(PROJECT_ROOT, "..", "roles");
+function loadRole(roleName) {
+    const filePath = path.join(ROLES_DIR, `${roleName}.md`);
+    if (!fs.existsSync(filePath))
+        return null;
+    return fs.readFileSync(filePath, "utf-8");
+}
+function detectRole(question) {
+    const q = question.toLowerCase();
+    if (/python|django|flask|pep\s*8|pandas|numpy|asyncio|装饰器/.test(q))
+        return "python_tutor";
+    return null;
+}
 function log(...args) {
     if (DEBUG)
         console.error("[ask_deepseek]", ...args);
@@ -43,6 +57,7 @@ let browserContext = null;
 let page = null;
 let isPageReady = false;
 let initPromise = null;
+let activeRole = null;
 // Close browser resources before nulling state
 async function closeBrowserResources() {
     if (browserContext) {
@@ -69,6 +84,51 @@ function cleanup() {
 }
 process.on("SIGINT", cleanup);
 process.on("SIGTERM", cleanup);
+// --- Role dispatch ---
+async function sendRoleTemplate(pg, roleName) {
+    const template = loadRole(roleName);
+    if (!template) {
+        log(`Role file not found: ${roleName}`);
+        return;
+    }
+    log(`Sending role template: ${roleName}`);
+    const inputSelector = 'textarea, [contenteditable="true"]';
+    const inputEl = pg.locator(inputSelector).first();
+    // Clear and type role template
+    await inputEl.evaluate((el) => { el.innerText = ""; }).catch(() => { });
+    try {
+        await inputEl.fill("");
+    }
+    catch { /* not a fillable element */ }
+    const isContentEditableDiv = await inputEl.evaluate((el) => {
+        return el.tagName === "DIV" && el.getAttribute("contenteditable") === "true";
+    });
+    if (isContentEditableDiv) {
+        await inputEl.evaluate((el, text) => { el.innerText = text; }, template);
+    }
+    else {
+        await inputEl.fill(template);
+    }
+    // Send
+    const sendBtn = pg.locator('button[type="submit"], button:has-text("Send"), button:has-text("发送")').first();
+    const hasSendBtn = (await sendBtn.count()) > 0 && (await sendBtn.isVisible());
+    if (hasSendBtn) {
+        await sendBtn.click();
+        log("Clicked send button for role template");
+    }
+    else if (isContentEditableDiv) {
+        await pg.keyboard.press("Control+Enter");
+    }
+    else {
+        await pg.keyboard.press("Enter");
+    }
+    // Wait for response
+    await pg.waitForSelector(ANSWER_SELECTORS.join(", "), { timeout: 300000, state: "visible" });
+    const answerSelector = await findAnswerSelector(pg);
+    await waitForAnswerComplete(pg, answerSelector);
+    activeRole = roleName;
+    log(`Role template sent: ${roleName}`);
+}
 // Fix 2: reset initPromise on error so future calls can retry
 async function ensureBrowser() {
     if (browserContext && page && !page.isClosed()) {
@@ -223,7 +283,7 @@ async function extractNewAnswers(page, answerSelector, startIndex) {
     }, { sel: answerSelector, start: startIndex });
 }
 // --- Core ---
-async function askFree(question, attachments) {
+async function askFree(question, attachments, role) {
     let retries = 2;
     let lastError;
     while (retries > 0) {
@@ -264,6 +324,17 @@ async function askFree(question, attachments) {
                 await pg.waitForSelector(inputSelector, { timeout: 30000 });
                 isPageReady = true;
             }
+            // --- Role dispatch (first call or role change) ---
+            const effectiveRole = role || detectRole(question) || null;
+            if (effectiveRole && effectiveRole !== activeRole) {
+                log(`Role switch: ${activeRole} → ${effectiveRole}`);
+                // Reset page to get a fresh conversation
+                await pg.goto("https://chat.deepseek.com/", { waitUntil: "networkidle" });
+                await pg.waitForSelector(inputSelector, { timeout: 30000 });
+                await sendRoleTemplate(pg, effectiveRole);
+            }
+            // Count messages AFTER role template (so we don't extract it as answer)
+            let prevMsgCount = 0;
             if (attachments && attachments.length > 0) {
                 await uploadFilesToDeepseek(pg, attachments);
             }
@@ -285,8 +356,7 @@ async function askFree(question, attachments) {
             else {
                 await inputEl.fill(finalQuestion);
             }
-            // Record existing message count before sending
-            const prevMsgCount = await pg.locator(ANSWER_SELECTORS.join(", ")).count();
+            prevMsgCount = await pg.locator(ANSWER_SELECTORS.join(", ")).count();
             // Prefer send button, fallback to Enter / Ctrl+Enter
             const sendBtn = pg.locator('button[type="submit"], button:has-text("Send"), button:has-text("发送")').first();
             const hasSendBtn = (await sendBtn.count()) > 0 && (await sendBtn.isVisible());
@@ -355,6 +425,10 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
                         items: { type: "string" },
                         description: "Optional absolute file paths to upload as attachments. DeepSeek web supports up to 100MB total.",
                     },
+                    role: {
+                        type: "string",
+                        description: "角色文件名（不含 .md），如 python_tutor。留空则自动检测。",
+                    },
                 },
                 required: [],
             },
@@ -369,6 +443,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const raw = request.params.arguments;
     let question;
     let attachments;
+    let role;
     if (raw && typeof raw === "object" && !Array.isArray(raw)) {
         if ("question" in raw) {
             question = typeof raw.question === "string"
@@ -381,13 +456,16 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                 .filter((v) => typeof v === "string" && v.trim().length > 0)
                 .map((v) => v.trim());
         }
+        if ("role" in raw && typeof raw.role === "string" && raw.role.trim()) {
+            role = raw.role.trim();
+        }
     }
     if (!question && (!attachments || attachments.length === 0)) {
         throw new Error("At least one of 'question' or 'attachments' is required");
     }
     return withLock(async () => {
         try {
-            const answer = await askFree(question || "", attachments);
+            const answer = await askFree(question || "", attachments, role);
             let source = "";
             if (attachments && attachments.length > 0) {
                 const names = attachments.map((fp) => path.basename(fp)).join(", ");

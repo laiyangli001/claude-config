@@ -25,6 +25,21 @@ const CONSTRAINTS = `
 3. 安全红线：禁止拼接 SQL，禁止 XSS，禁止硬编码密钥。
 4. 输出格式：先给修复后的代码块，再简述改了什么。不要问候语。`;
 
+// --- Role system ---
+const ROLES_DIR = path.resolve(PROJECT_ROOT, "..", "roles");
+
+function loadRole(roleName: string): string | null {
+  const filePath = path.join(ROLES_DIR, `${roleName}.md`);
+  if (!fs.existsSync(filePath)) return null;
+  return fs.readFileSync(filePath, "utf-8");
+}
+
+function detectRole(question: string): string | null {
+  const q = question.toLowerCase();
+  if (/python|django|flask|pep\s*8|pandas|numpy|asyncio|装饰器/.test(q)) return "python_tutor";
+  return null;
+}
+
 function log(...args: unknown[]) {
   if (DEBUG) console.error("[ask_chatgpt]", ...args);
 }
@@ -47,6 +62,7 @@ let browserContext: BrowserContext | null = null;
 let page: Page | null = null;
 let isPageReady = false;
 let initPromise: Promise<{ page: Page; context: BrowserContext }> | null = null;
+let activeRole: string | null = null;
 
 async function closeBrowserResources() {
   if (browserContext) {
@@ -102,6 +118,47 @@ function cleanup() {
 }
 process.on("SIGINT", cleanup);
 process.on("SIGTERM", cleanup);
+
+// --- Role dispatch ---
+
+async function sendRoleTemplate(pg: Page, roleName: string): Promise<void> {
+  const template = loadRole(roleName);
+  if (!template) {
+    log(`Role file not found: ${roleName}`);
+    return;
+  }
+
+  log(`Sending role template: ${roleName}`);
+  await pg.locator("#prompt-textarea").first().evaluate((el) => {
+    (el as HTMLElement).innerText = "";
+  });
+  await pg.locator("#prompt-textarea").first().evaluate((el, text) => {
+    (el as HTMLElement).innerText = text;
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+  }, template);
+
+  await sleep(500);
+
+  const sendBtn = pg.locator(
+    'button.composer-submit-button-color, button[aria-label="Send"], [data-testid="send-button"]'
+  ).first();
+  if ((await sendBtn.count()) > 0 && (await sendBtn.isVisible())) {
+    await sendBtn.click();
+  } else {
+    await pg.locator("#prompt-textarea").first().evaluate((el) => {
+      el.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await pg.keyboard.press("Enter");
+    await sleep(200);
+  }
+
+  await pg.waitForSelector(ANSWER_SELECTORS.join(", "), { timeout: 300000, state: "visible" });
+  const answerSelector = await findAnswerSelector(pg);
+  await waitForAnswerComplete(pg, answerSelector);
+
+  activeRole = roleName;
+  log(`Role template sent: ${roleName}`);
+}
 
 // --- Upload ---
 async function uploadFilesToChatGPT(page: Page, filePaths: string[]): Promise<void> {
@@ -214,7 +271,8 @@ async function extractNewAnswers(
 // --- Core ---
 async function askChatGPT(
   question: string,
-  attachments?: string[]
+  attachments?: string[],
+  role?: string
 ): Promise<string> {
   let retries = 2;
   let lastError: unknown;
@@ -259,6 +317,28 @@ async function askChatGPT(
         } catch { /* new chat button may not exist */ }
       }
 
+      // --- Role dispatch (first call or role change) ---
+      const effectiveRole = role || detectRole(question) || null;
+      if (effectiveRole && effectiveRole !== activeRole) {
+        log(`Role switch: ${activeRole} → ${effectiveRole}`);
+        // Fresh conversation for new role
+        try {
+          const newChatBtn = pg.locator(
+            'button:has-text("New chat"), [data-testid="new-chat-button"], a:has-text("New chat")'
+          ).first();
+          if ((await newChatBtn.count()) > 0 && (await newChatBtn.isVisible())) {
+            await newChatBtn.click();
+            await pg.waitForTimeout(1000);
+            await pg.waitForSelector("#prompt-textarea", { timeout: 10000 });
+          }
+        } catch { /* ignore */ }
+        await sendRoleTemplate(pg, effectiveRole);
+      }
+
+      // Count messages AFTER role template (so we don't extract it as answer)
+      // Reset count after role template message if role was sent
+      let prevMsgCount = 0;
+
       if (attachments && attachments.length > 0) {
         await uploadFilesToChatGPT(pg, attachments);
       }
@@ -273,8 +353,7 @@ async function askChatGPT(
         el.dispatchEvent(new Event("input", { bubbles: true }));
       }, finalQuestion);
 
-      // Record existing message count before sending
-      const prevMsgCount = await pg.locator(ANSWER_SELECTORS.join(", ")).count();
+	    prevMsgCount = await pg.locator(ANSWER_SELECTORS.join(", ")).count();
 
       // Click send button (the submit button, changes from voice when text is entered)
       await sleep(500); // let the send button switch from voice to send
@@ -346,6 +425,10 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
             items: { type: "string" },
             description: "Optional absolute file paths to upload as attachments.",
           },
+          role: {
+            type: "string",
+            description: "角色文件名（不含 .md），如 python_tutor。留空则自动检测。",
+          },
         },
         required: [],
       },
@@ -361,6 +444,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const raw = request.params.arguments;
   let question: string | undefined;
   let attachments: string[] | undefined;
+  let role: string | undefined;
 
   if (raw && typeof raw === "object" && !Array.isArray(raw)) {
     if ("question" in raw) {
@@ -371,6 +455,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         .filter((v): v is string => typeof v === "string" && v.trim().length > 0)
         .map((v) => v.trim());
     }
+    if ("role" in raw && typeof raw.role === "string" && raw.role.trim()) {
+      role = raw.role.trim();
+    }
   }
 
   if (!question && (!attachments || attachments.length === 0)) {
@@ -379,7 +466,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
   return withLock(async () => {
     try {
-      const answer = await askChatGPT(question || "", attachments);
+      const answer = await askChatGPT(question || "", attachments, role);
       let source = "";
       if (attachments && attachments.length > 0) {
         source = ` (${attachments.length} attachment(s))`;
