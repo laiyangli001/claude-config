@@ -237,14 +237,14 @@ async function main() {
     if (state === STATE.COOLDOWN || state === STATE.PAUSED) {
       // 冷却/暂停期间也发心跳给扩展（带 tokenCount）
       const st = state === STATE.COOLDOWN ? "cooling" : state.toLowerCase();
-      console.log(JSON.stringify({ status: st, tokenCount: 0 }));
+      console.log(JSON.stringify({ status: st, tokenCount: cumulativeTokens }));
       continue;
     }
 
     const detected = processAndCheck();
     if (detected === null) {
-      // 无新内容，发送心跳
-      console.log(JSON.stringify({ status: "monitoring", tokenCount: 0 }));
+      // 无新内容，发送心跳（保留累计 token）
+      console.log(JSON.stringify({ status: "monitoring", tokenCount: cumulativeTokens }));
       continue;
     }
     if (detected === false) continue; // 有新内容但无循环
