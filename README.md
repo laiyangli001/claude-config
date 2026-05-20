@@ -8,6 +8,7 @@
 |------|------|------|
 | **全局 CLAUDE.md** | `CLAUDE.md` | 身份定义、行为边界、工具规则、自动调用策略 |
 | **MCP 免费工具** | `mcp-servers/` | `ask_chatgpt` + `ask_chatgpt_mirror` + `ask_deepseek`，浏览器自动化，不消耗 API token |
+| **死循环监控** | `mcp-servers/deadloop-monitor/` | 检测 Claude Code 输出死循环 → 自动打断 → 摘要求助 |
 | **角色系统** | `mcp-servers/roles/` | 自动检测问题类型，首次调用发送角色模板（如 python_tutor）|
 | **MCP 模板配置** | `claude.json.example` | `~/.claude.json` 的参考模板（MCP 服务器注册） |
 | **Matt Pocock Skills** | `.agents/skills/` | 14 个工程纪律技能 |
@@ -25,6 +26,7 @@ git clone https://github.com/laiyangli001/claude-config.git ~/.claude
 cd ~/.claude/mcp-servers/chatgpt-mcp && npm install
 cd ~/.claude/mcp-servers/deepseek-mcp && npm install
 cd ~/.claude/mcp-servers/chatgpt-mirror-mcp && npm install
+cd ~/.claude/mcp-servers/deadloop-monitor && npm install
 
 # 3. 下载 Chromium 浏览器（必须，约 300MB）
 cd ~/.claude/mcp-servers/chatgpt-mcp && npx playwright install chromium
@@ -98,6 +100,7 @@ MCP 工具内置自动角色检测。首次调用时，根据问题内容自动�
 | 角色文件 | 触发关键词 | 说明 |
 |----------|-----------|------|
 | `python_tutor.md` | python, django, flask, pandas, asyncio, 装饰器等 | Python 编程导师，教学风格 |
+| `nodejs_tutor.md` | node.js, javascript, express, typescript, 异步, event loop 等 | Node.js/JS 编程导师，教学风格 |
 
 也可在调用时显式指定角色：
 ```
@@ -118,6 +121,27 @@ MCP 工具内置自动角色检测。首次调用时，根据问题内容自动�
 - 任务涉及文件分析（自动以附件上传）
 
 策略：优先 `ask_chatgpt_mirror` → 失败回退 `ask_chatgpt` → 再失败回退 `ask_deepseek`。
+
+## 死循环监控（Dead Loop Monitor）
+
+监控 Claude Code 输出是否陷入重复循环，自动打断并求助第三方 AI 协助脱困。
+
+**架构：**
+- `monitor.mjs` — 独立进程，轮询 `.jsonl` 对话文件，通过三个检测器（重复代码块、反转词密度、信息增量率）识别循环
+- `workspace-watcher/extension.js` — VS Code 扩展，状态栏显示监控状态，检测到循环时右下角弹通知
+- 检测到循环 → 发 Ctrl+C 打断 → 确认停止 → 注入摘要指令 → 冷却后继续监控
+
+**进程保活：** monitor 每 2 秒写心跳文件 `.deadloop-heartbeat`，扩展每 3 秒轮询 mtime，超 10 秒判定进程死亡并更新状态栏。
+
+**状态栏操作：** 左键点击弹出菜单：暂停/恢复/停止监控、查看日志。
+
+**VS Code 扩展安装：**
+```bash
+cd ~/.claude/mcp-servers/deadloop-monitor
+npm install         # 自动通过 postinstall 脚本安装扩展
+# 或手动安装：
+code --install-extension workspace-watcher/laiyangli.deadloop-workspace-watcher-1.0.0.vsix
+```
 
 ## 记忆系统：对话持久化
 
