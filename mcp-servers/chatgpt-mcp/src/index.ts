@@ -8,6 +8,7 @@ import { chromium, BrowserContext, Page } from "playwright";
 import * as path from "path";
 import * as fs from "fs";
 import { fileURLToPath } from "url";
+import { execSync } from "child_process";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(__dirname, "..");
@@ -37,7 +38,17 @@ function loadRole(roleName: string): string | null {
   return fs.readFileSync(filePath, "utf-8");
 }
 
-function detectRole(question: string): string | null {
+function detectRole(question: string, attachments?: string[]): string | null {
+  // 从附件文件名判断
+  if (attachments) {
+    for (const fp of attachments) {
+      const ext = path.extname(fp).toLowerCase();
+      const name = path.basename(fp).toLowerCase();
+      if (/\.(py|pyw)$/.test(ext) || /(django|flask)/.test(name)) return "python_tutor";
+      if (/\.(js|mjs|cjs|ts|tsx|jsx|vue)$/.test(ext) || /(node|npm|express)/.test(name)) return "nodejs_tutor";
+    }
+  }
+  // 从问题文本判断
   const q = question.toLowerCase();
   if (/python|django|flask|pep\s*8|pandas|numpy|asyncio|装饰器/.test(q)) return "python_tutor";
   if (/node\.js|nodejs|javascript|express|nestjs|typescript|npm|js\b|回调|异步|event loop/.test(q)) return "nodejs_tutor";
@@ -80,15 +91,24 @@ async function closeBrowserResources() {
   }
 }
 
+async function findChatPageChatGpt(ctx: BrowserContext): Promise<Page | null> {
+  for (const p of ctx.pages()) {
+    try {
+      const url = p.url();
+      if (!url || url === "about:blank") continue;
+      if (url.includes("chatgpt.com") && (await p.locator("#prompt-textarea").count()) > 0) {
+        return p;
+      }
+    } catch { /* page not ready */ }
+  }
+  return null;
+}
+
 async function ensureBrowser() {
   if (browserContext && page && !page.isClosed()) {
     return { page, context: browserContext };
   }
-  // Fix: page was closed but initPromise still cached — reset so we can recreate
-  if (initPromise) {
-    initPromise = null;
-  }
-
+  initPromise = null;
   initPromise = (async () => {
     try {
       await closeBrowserResources();
@@ -98,12 +118,48 @@ async function ensureBrowser() {
         viewport: { width: 1280, height: 800 },
         args: ["--disable-blink-features=AutomationControlled"],
       });
+
+      // 等持久化页面还原
+      await sleep(3000);
+
+      const existing = await findChatPageChatGpt(browserContext);
+      if (existing) {
+        page = existing;
+        isPageReady = true;
+        log(`Reusing existing page: ${existing.url()}`);
+        return { page, context: browserContext };
+      }
+
       page = await browserContext.newPage();
       isPageReady = false;
       return { page, context: browserContext };
-    } catch {
-      initPromise = null;
-      throw new Error("Failed to launch browser.");
+    } catch (firstErr) {
+      log("First launch failed, killing chrome and retrying...");
+      try { execSync("taskkill /f /im chrome.exe 2>nul"); } catch {}
+      try { execSync("taskkill /f /im chromium.exe 2>nul"); } catch {}
+      await new Promise(r => setTimeout(r, 2000));
+      try {
+        await closeBrowserResources();
+        browserContext = await chromium.launchPersistentContext(USER_DATA_DIR, {
+          headless: HEADLESS,
+          viewport: { width: 1280, height: 800 },
+          args: ["--disable-blink-features=AutomationControlled"],
+        });
+        await sleep(3000);
+        const existing = await findChatPageChatGpt(browserContext);
+        if (existing) {
+          page = existing;
+          isPageReady = true;
+          log(`Reusing page after retry: ${existing.url()}`);
+          return { page, context: browserContext };
+        }
+        page = await browserContext.newPage();
+        isPageReady = false;
+        return { page, context: browserContext };
+      } catch {
+        initPromise = null;
+        throw new Error("Failed to launch browser.");
+      }
     }
   })();
 
@@ -313,7 +369,7 @@ async function askChatGPT(
       }
 
       // --- Role dispatch (first call or role change) ---
-      const effectiveRole = role || detectRole(question) || null;
+      const effectiveRole = role || detectRole(question, attachments) || null;
       if (effectiveRole && effectiveRole !== activeRole) {
         log(`Role switch: ${activeRole} → ${effectiveRole}`);
         // Fresh conversation for new role

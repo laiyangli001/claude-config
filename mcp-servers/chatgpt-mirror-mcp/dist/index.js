@@ -30,7 +30,19 @@ function loadRole(roleName) {
         return null;
     return fs.readFileSync(filePath, "utf-8");
 }
-function detectRole(question) {
+function detectRole(question, attachments) {
+    // 从附件文件名判断
+    if (attachments) {
+        for (const fp of attachments) {
+            const ext = path.extname(fp).toLowerCase();
+            const name = path.basename(fp).toLowerCase();
+            if (/\.(py|pyw)$/.test(ext) || /(django|flask)/.test(name))
+                return "python_tutor";
+            if (/\.(js|mjs|cjs|ts|tsx|jsx|vue)$/.test(ext) || /(node|npm|express)/.test(name))
+                return "nodejs_tutor";
+        }
+    }
+    // 从问题文本判断
     const q = question.toLowerCase();
     if (/python|django|flask|pep\s*8|pandas|numpy|asyncio|装饰器/.test(q))
         return "python_tutor";
@@ -70,14 +82,25 @@ async function closeBrowserResources() {
         page = null;
     }
 }
+async function findChatPage(ctx) {
+    for (const p of ctx.pages()) {
+        try {
+            const url = p.url();
+            if (!url || url === "about:blank")
+                continue;
+            if (url.includes("chatgpt.2233.ai") && (await p.locator("#prompt-textarea").count()) > 0) {
+                return p;
+            }
+        }
+        catch { /* page not ready */ }
+    }
+    return null;
+}
 async function ensureBrowser() {
     if (browserContext && page && !page.isClosed()) {
         return { page, context: browserContext };
     }
-    // Fix: page was closed but initPromise still cached — reset so we can recreate
-    if (initPromise) {
-        initPromise = null;
-    }
+    initPromise = null;
     initPromise = (async () => {
         try {
             await closeBrowserResources();
@@ -86,12 +109,21 @@ async function ensureBrowser() {
                 viewport: { width: 1280, height: 800 },
                 args: ["--disable-blink-features=AutomationControlled"],
             });
+            // 等持久化页面还原
+            await sleep(3000);
+            // 先找已有对话页
+            const existing = await findChatPage(browserContext);
+            if (existing) {
+                page = existing;
+                isPageReady = true;
+                log(`Reusing existing page: ${existing.url()}`);
+                return { page, context: browserContext };
+            }
             page = await browserContext.newPage();
             isPageReady = false;
             return { page, context: browserContext };
         }
         catch (firstErr) {
-            // 首次失败可能是旧进程残留，杀进程后重试
             log("First launch failed, killing chrome and retrying...");
             try {
                 execSync("taskkill /f /im chrome.exe 2>nul");
@@ -109,6 +141,14 @@ async function ensureBrowser() {
                     viewport: { width: 1280, height: 800 },
                     args: ["--disable-blink-features=AutomationControlled"],
                 });
+                await sleep(3000);
+                const existing = await findChatPage(browserContext);
+                if (existing) {
+                    page = existing;
+                    isPageReady = true;
+                    log(`Reusing page after retry: ${existing.url()}`);
+                    return { page, context: browserContext };
+                }
                 page = await browserContext.newPage();
                 isPageReady = false;
                 return { page, context: browserContext };
@@ -284,19 +324,32 @@ async function askChatGPTMirror(question, attachments, role) {
                     isPageReady = false;
                 }
             }
-            let { page: pg } = await ensureBrowser();
-            if (!isPageReady) {
-                // 在所有页面中查找已有的对话页
-                let foundPage = null;
-                for (const p of browserContext.pages()) {
-                    try {
-                        if (p.url().includes("chatgpt.2233.ai") && await p.locator("#prompt-textarea").count() > 0) {
-                            foundPage = p;
-                            break;
+            // Session expiry detection
+            if (isPageReady && page) {
+                try {
+                    const expired = await page.locator("#modal-expired-session, .login-required, [data-testid*=\"login\"]").first().isVisible().catch(() => false);
+                    if (expired || page.url().includes("/list")) {
+                        log("Session expired, waiting for re-login...");
+                        console.error("=== 镜像站会话已过期，请在浏览器中重新登录 ===");
+                        try {
+                            await page.waitForSelector("#prompt-textarea", { timeout: 300000 });
+                            isPageReady = true;
+                            log("Session restored after re-login");
+                        }
+                        catch {
+                            throw new Error("Session expired. Please log in again in the browser window.");
                         }
                     }
-                    catch { }
                 }
+                catch (e) {
+                    if (e instanceof Error && !e.message.includes("Session expired"))
+                        throw e;
+                }
+            }
+            let { page: pg } = await ensureBrowser();
+            if (!isPageReady) {
+                // 在所有页面中查找已有的对话页（每次重新查找，不依赖缓存）
+                let foundPage = await findChatPage(browserContext);
                 if (foundPage) {
                     pg = foundPage;
                     page = foundPage;
@@ -304,72 +357,80 @@ async function askChatGPTMirror(question, attachments, role) {
                     log("Reusing existing chat page");
                 }
                 else {
-                    // === Mirror site navigation flow ===
-                    // 先尝试直接访问对话页
+                    // === 直接导航到镜像站对话页 ===
                     await pg.goto("https://chatgpt.2233.ai/", { waitUntil: "domcontentloaded" });
-                    await pg.waitForTimeout(3000);
+                    await pg.waitForTimeout(5000);
                     if ((await pg.locator("#prompt-textarea").count().catch(() => 0)) > 0) {
                         isPageReady = true;
                         log("Direct access OK");
                     }
                     else {
-                        // 没有 session，走邀请码流程
-                        log("Opening mirror start page...");
-                        // 提前注册 popup 监听器和轮询，不遗漏事件
-                        let chatPagePromise = null;
-                        const popupPromise = new Promise((resolve) => {
-                            pg.once("popup", (p) => { log("popup event fired"); resolve(p); });
-                        });
-                        const pollPromise = new Promise((resolve) => {
-                            const initialCount = browserContext.pages().length;
-                            const iv = setInterval(() => {
-                                const pages = browserContext.pages();
-                                for (const p of pages) {
-                                    if (p !== pg) {
-                                        // 通过 URL 或标题确认是新的聊天页面
-                                        try {
-                                            const url = p.url();
-                                            if (url && url !== "about:blank") {
-                                                clearInterval(iv);
-                                                resolve(p);
-                                                return;
+                        // 没有 session，尝试等待页面加载完成
+                        log("Waiting for page to settle...");
+                        await pg.waitForTimeout(10000);
+                        if ((await pg.locator("#prompt-textarea").count().catch(() => 0)) > 0) {
+                            isPageReady = true;
+                            log("Page settled with chat input");
+                        }
+                        else {
+                            // 没有 session，走邀请码流程
+                            log("Opening mirror start page...");
+                            // 提前注册 popup 监听器和轮询，不遗漏事件
+                            let chatPagePromise = null;
+                            const popupPromise = new Promise((resolve) => {
+                                pg.once("popup", (p) => { log("popup event fired"); resolve(p); });
+                            });
+                            const pollPromise = new Promise((resolve) => {
+                                const initialCount = browserContext.pages().length;
+                                const iv = setInterval(() => {
+                                    const pages = browserContext.pages();
+                                    for (const p of pages) {
+                                        if (p !== pg) {
+                                            // 通过 URL 或标题确认是新的聊天页面
+                                            try {
+                                                const url = p.url();
+                                                if (url && url !== "about:blank") {
+                                                    clearInterval(iv);
+                                                    resolve(p);
+                                                    return;
+                                                }
                                             }
+                                            catch { /* 页面未就绪 */ }
                                         }
-                                        catch { /* 页面未就绪 */ }
                                     }
-                                }
-                                // 如果页面数量增加但没有匹配到 URL，取最后一个
-                                if (pages.length > initialCount) {
-                                    const candidate = pages[pages.length - 1];
-                                    if (candidate !== pg) {
-                                        clearInterval(iv);
-                                        resolve(candidate);
-                                        return;
+                                    // 如果页面数量增加但没有匹配到 URL，取最后一个
+                                    if (pages.length > initialCount) {
+                                        const candidate = pages[pages.length - 1];
+                                        if (candidate !== pg) {
+                                            clearInterval(iv);
+                                            resolve(candidate);
+                                            return;
+                                        }
                                     }
-                                }
-                            }, 1000);
-                        });
-                        await pg.goto("https://2233.ai/?code=FC8XHSCH", { waitUntil: "domcontentloaded" });
-                        await pg.waitForTimeout(3000);
-                        if (!HEADLESS)
-                            await pg.bringToFront();
-                        console.error("=== 请点击「立即开始」按钮，等待新标签页打开 ===");
-                        log("Waiting for popup (new tab) event...");
-                        const chatPage = await Promise.race([
-                            popupPromise,
-                            pollPromise,
-                            new Promise((_, reject) => setTimeout(() => reject(new Error("New tab not detected — did you click 立即开始?")), 300000)),
-                        ]);
-                        log("New tab detected, switching pg to popup page...");
-                        pg = chatPage;
-                        page = chatPage;
-                        await chatPage.waitForURL(/chatgpt\.2233\.ai/, { timeout: 60000 });
-                        log(`Chat page URL: ${chatPage.url()}`);
-                        await chatPage.waitForLoadState("domcontentloaded");
-                        await chatPage.waitForTimeout(3000);
-                        isPageReady = true;
-                        log("Mirror site navigation complete");
-                    } // close no-session else
+                                }, 1000);
+                            });
+                            await pg.goto("https://2233.ai/?code=FC8XHSCH", { waitUntil: "domcontentloaded" });
+                            await pg.waitForTimeout(3000);
+                            if (!HEADLESS)
+                                await pg.bringToFront();
+                            console.error("=== 请点击「立即开始」按钮，等待新标签页打开 ===");
+                            log("Waiting for popup (new tab) event...");
+                            const chatPage = await Promise.race([
+                                popupPromise,
+                                pollPromise,
+                                new Promise((_, reject) => setTimeout(() => reject(new Error("New tab not detected — did you click 立即开始?")), 300000)),
+                            ]);
+                            log("New tab detected, switching pg to popup page...");
+                            pg = chatPage;
+                            page = chatPage;
+                            await chatPage.waitForURL(/chatgpt\.2233\.ai/, { timeout: 60000 });
+                            log(`Chat page URL: ${chatPage.url()}`);
+                            await chatPage.waitForLoadState("domcontentloaded");
+                            await chatPage.waitForTimeout(3000);
+                            isPageReady = true;
+                            log("Mirror site navigation complete");
+                        } // close settle else
+                    } // close direct nav else
                 } // close no-foundPage else
             }
             else {
@@ -377,7 +438,7 @@ async function askChatGPTMirror(question, attachments, role) {
                 await pg.waitForSelector("#prompt-textarea", { timeout: 10000 });
             }
             // --- Role dispatch (first call or role change) ---
-            const effectiveRole = role || detectRole(question) || null;
+            const effectiveRole = role || detectRole(question, attachments) || null;
             if (effectiveRole && effectiveRole !== activeRole) {
                 log(`Role switch: ${activeRole} → ${effectiveRole}`);
                 // Fresh conversation for new role
@@ -440,8 +501,7 @@ async function askChatGPTMirror(question, attachments, role) {
             lastError = error;
             const msg = error instanceof Error ? error.message : String(error);
             const recoverable = msg.includes("closed")
-                || msg.includes("Navigation timeout") || msg.includes("Target page")
-                || msg.includes("waitForURL") || msg.includes("car");
+                || msg.includes("Navigation timeout") || msg.includes("Target page");
             if (recoverable && retries > 1) {
                 log(`Recoverable error, resetting and retrying: ${msg}`);
                 await closeBrowserResources();

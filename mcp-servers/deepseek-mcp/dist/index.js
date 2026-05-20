@@ -33,7 +33,17 @@ function loadRole(roleName) {
         return null;
     return fs.readFileSync(filePath, "utf-8");
 }
-function detectRole(question) {
+function detectRole(question, attachments) {
+    if (attachments) {
+        for (const fp of attachments) {
+            const ext = path.extname(fp).toLowerCase();
+            const name = path.basename(fp).toLowerCase();
+            if (/\.(py|pyw)$/.test(ext) || /(django|flask)/.test(name))
+                return "python_tutor";
+            if (/\.(js|mjs|cjs|ts|tsx|jsx|vue)$/.test(ext) || /(node|npm|express)/.test(name))
+                return "nodejs_tutor";
+        }
+    }
     const q = question.toLowerCase();
     if (/python|django|flask|pep\s*8|pandas|numpy|asyncio|装饰器/.test(q))
         return "python_tutor";
@@ -329,7 +339,7 @@ async function askFree(question, attachments, role) {
                 isPageReady = true;
             }
             // --- Role dispatch (first call or role change) ---
-            const effectiveRole = role || detectRole(question) || null;
+            const effectiveRole = role || detectRole(question, attachments) || null;
             if (effectiveRole && effectiveRole !== activeRole) {
                 log(`Role switch: ${activeRole} → ${effectiveRole}`);
                 // Reset page to get a fresh conversation
