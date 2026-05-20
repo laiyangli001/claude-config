@@ -42,21 +42,6 @@ function loadRole(roleName: string): string | null {
   return fs.readFileSync(filePath, "utf-8");
 }
 
-function detectRole(question: string, attachments?: string[]): string | null {
-  if (attachments) {
-    for (const fp of attachments) {
-      const ext = path.extname(fp).toLowerCase();
-      const name = path.basename(fp).toLowerCase();
-      if (/\.(py|pyw)$/.test(ext) || /(django|flask)/.test(name)) return "python_tutor";
-      if (/\.(js|mjs|cjs|ts|tsx|jsx|vue)$/.test(ext) || /(node|npm|express)/.test(name)) return "nodejs_tutor";
-    }
-  }
-  const q = question.toLowerCase();
-  if (/python|django|flask|pep\s*8|pandas|numpy|asyncio|装饰器/.test(q)) return "python_tutor";
-  if (/node\.js|nodejs|javascript|express|nestjs|typescript|npm|js\b|回调|异步|event loop/.test(q)) return "nodejs_tutor";
-  return null;
-}
-
 function log(...args: unknown[]) {
   if (DEBUG) console.error("[ask_deepseek]", ...args);
 }
@@ -395,7 +380,7 @@ async function askFree(
       }
 
       // --- Role dispatch (first call or role change) ---
-      const effectiveRole = role || detectRole(question, attachments) || null;
+      const effectiveRole = role || null;
       if (effectiveRole && effectiveRole !== activeRole) {
         log(`Role switch: ${activeRole} → ${effectiveRole}`);
         // Reset page to get a fresh conversation
