@@ -9,6 +9,7 @@ import {
   JsonlReader,
   DialogWindow,
   injectToTerminal,
+  sendCtrlC,
   checkStopReason,
 } from "./helpers.mjs";
 import {
@@ -40,11 +41,6 @@ let loopSample = "";
 let helpCount = 0;
 let cooldownUntil = 0;
 let cumulativeTokens = 0;
-
-// ── 发送 Ctrl+C 中断 ──
-function sendCtrlC() {
-  return injectToTerminal(""); // 空输入 + Enter 在某些终端下表现同 Ctrl+C
-}
 
 // ── stdin 控制命令（与 workspace-watcher 通信） ──
 function setupStdin() {

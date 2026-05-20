@@ -168,10 +168,19 @@ export function injectToTerminal(text) {
   }
 }
 
+function buildEscScript() {
+  const escKeys = `# 发送 ESC 中断（已验证可打断 Claude Code）
+(New-Object -ComObject WScript.Shell).SendKeys('{ESC}')
+Start-Sleep -Milliseconds 500
+Write-Host "OK"
+`;
+  const base = PS_PRE.replace(/# Ctrl\+A[\s\S]*/, "");
+  return base + escKeys;
+}
+
 export function sendCtrlC() {
-  const ps = PS_PRE.replace("^a{DEL}^v~", "^(c)");
-  const tmpFile = os.tmpdir() + "/deadloop_ctrlc.ps1";
-  fs.writeFileSync(tmpFile, "﻿" + ps);
+  const tmpFile = os.tmpdir() + "/deadloop_esc.ps1";
+  fs.writeFileSync(tmpFile, "﻿" + buildEscScript());
   try {
     execSync(`powershell -ExecutionPolicy Bypass -File "${tmpFile}"`, { timeout: 10000 });
     return true;
