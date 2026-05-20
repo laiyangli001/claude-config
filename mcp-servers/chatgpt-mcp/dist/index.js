@@ -266,16 +266,8 @@ async function askChatGPT(question, attachments, role) {
                 isPageReady = true;
             }
             else {
-                // Start new chat to avoid stale attachments from previous call
-                try {
-                    const newChatBtn = pg.locator('button:has-text("New chat"), [data-testid="new-chat-button"], a:has-text("New chat")').first();
-                    if ((await newChatBtn.count()) > 0 && (await newChatBtn.isVisible())) {
-                        await newChatBtn.click();
-                        await pg.waitForTimeout(1000);
-                        await pg.waitForSelector("#prompt-textarea", { timeout: 10000 });
-                    }
-                }
-                catch { /* new chat button may not exist */ }
+                // 继续使用当前对话，不点 New chat
+                await pg.waitForSelector("#prompt-textarea", { timeout: 10000 });
             }
             // --- Role dispatch (first call or role change) ---
             const effectiveRole = role || detectRole(question) || null;
