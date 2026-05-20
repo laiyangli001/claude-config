@@ -60,7 +60,7 @@ class StatusBarManager {
       "监控文件: " + (file || "未知"),
       "检测器: " + ds,
       lastPoll ? "最后轮询: " + lastPoll : "",
-      "本轮 token: " + tokenCount.toLocaleString() + " / 10,000",
+      "本轮 token: " + tokenCount.toLocaleString(),
       lastTrigger ? "最近触发: " + lastTrigger : "最近触发: 暂无",
       cooldownLeft > 0 ? "冷却剩余: " + cooldownLeft + " 秒" : "",
       stopReason ? "停止原因: " + stopReason : "",
