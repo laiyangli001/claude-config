@@ -25,6 +25,9 @@ const CONSTRAINTS = `
 3. 安全红线：禁止拼接 SQL，禁止 XSS，禁止硬编码密钥。
 4. 输出格式：先给修复后的代码块，再简述改了什么。不要问候语。`;
 
+const CODE_MODIFY_RE = /写代码|帮我写|修复|改\b|修改|重构|优化|实现|加个|删掉|替换|调整|改下|修下|补一下|添加|移除|fix(?:ing|es)?|implement(?:s|ing|ed)?|refactor(?:s|ing|ed)?|modify(?:ing|ed)?|change[sd]?|updat[esd]|rewrite[sdn]?|correct(?:s|ing|ed)?|add[sd]?|remov[esd]|delet[esd]|replac[esd]|optimiz[esd]|patch(?:es|ing|ed)?|debug(?:s|ing|ed)?|(?:write|code)\s+(?:this|the|some|a|code)|review\s+this\s+(?:code|file)/i;
+const EXPLAIN_ONLY_RE = /解释|说明|分析原因|为什么|是什么|怎么回事|什么意思|作用|原理|how\s+does|what\s+does|explain|clarify/i;
+
 // --- Role system ---
 const ROLES_DIR = path.resolve(PROJECT_ROOT, "..", "roles");
 
@@ -344,7 +347,10 @@ async function askChatGPT(
       }
 
       // Type into ProseMirror editor (clear first to prevent cross-request pollution)
-      const finalQuestion = ((question && question.trim()) || "Please analyze this file") + CONSTRAINTS;
+      // 只在代码修改意图时加 CONSTRAINTS（纯解释类不加）
+      const q = (question && question.trim()) || "Please analyze this file";
+      const needC = !EXPLAIN_ONLY_RE.test(q) && CODE_MODIFY_RE.test(q);
+      const finalQuestion = q + (needC ? CONSTRAINTS : "");
       await pg.locator("#prompt-textarea").first().evaluate((el) => {
         (el as HTMLElement).innerText = "";
       });

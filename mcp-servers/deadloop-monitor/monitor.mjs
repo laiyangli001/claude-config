@@ -60,7 +60,7 @@ function setupStdin() {
       } else if (cmd.command === "resume") {
         if (state === STATE.PAUSED) {
           state = STATE.MONITORING;
-          console.log(JSON.stringify({ status: "resumed" }));
+          console.log(JSON.stringify({ status: "monitoring" }));
           info("resumed by user");
         }
       } else if (cmd.command === "stop") {
@@ -100,10 +100,10 @@ function autoDiscoverSessionFile() {
   return latest;
 }
 
-// ── 读取增量并逐条检测 ──
+// ── 读取增量并逐条检测（返回 null=无新内容, false=无循环, true=有循环）─
 function processAndCheck() {
   const lines = reader.readLines();
-  if (lines.length === 0) return false;
+  if (lines.length === 0) return null;
 
   let totalTokens = 0;
   let detected = false;
@@ -128,6 +128,10 @@ function processAndCheck() {
     }
   }
 
+  // 有新内容时输出 tokenCount（无论是否检测到循环）
+  if (totalTokens > 0) {
+    console.log(JSON.stringify({ status: state.toLowerCase(), tokenCount: totalTokens }));
+  }
   if (totalTokens > CFG.maxTokensPerCycle) {
     warn("cpu protection", { tokens: totalTokens });
   }
@@ -209,6 +213,8 @@ async function main() {
   info("session file", { path: sessionFile });
 
   reader = new JsonlReader(sessionFile);
+  // 跳过历史内容，只检测启动后的新输出
+  reader.lastSize = fs.statSync(sessionFile).size;
   state = STATE.MONITORING;
   info("state", { state });
 
@@ -221,10 +227,20 @@ async function main() {
       info("cooldown ended");
     }
 
-    if (state === STATE.COOLDOWN || state === STATE.PAUSED) continue;
+    if (state === STATE.COOLDOWN || state === STATE.PAUSED) {
+      // 冷却/暂停期间也发心跳给扩展（带 tokenCount）
+      const st = state === STATE.COOLDOWN ? "cooling" : state.toLowerCase();
+      console.log(JSON.stringify({ status: st, tokenCount: 0 }));
+      continue;
+    }
 
     const detected = processAndCheck();
-    if (!detected) continue;
+    if (detected === null) {
+      // 无新内容，发送心跳
+      console.log(JSON.stringify({ status: "monitoring", tokenCount: 0 }));
+      continue;
+    }
+    if (detected === false) continue; // 有新内容但无循环
     if (state !== STATE.MONITORING) continue;
 
     // ── 检测到死循环 ──
@@ -249,6 +265,8 @@ async function main() {
     cooldownUntil = Date.now() + CFG.cooldownMs;
     info("state", { state: "COOLDOWN" });
     resetDetectors();
+    // 跳过冷却期间写入的内容（包括注入消息等）
+    try { reader.lastSize = fs.statSync(reader.filePath).size; } catch {}
   }
 }
 

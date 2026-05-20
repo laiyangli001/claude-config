@@ -99,38 +99,87 @@ export class JsonlReader {
 
 // ── PowerShell SendKeys 注入 ──
 import { execSync } from "child_process";
+import os from "os";
+
+const PS_PRE = `
+Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+public class Win32 {
+    [DllImport("user32.dll")] public static extern bool EnumWindows(EnumWindowsProc lpEnumFunc, IntPtr lParam);
+    [DllImport("user32.dll")] public static extern int GetWindowText(IntPtr hWnd, System.Text.StringBuilder lpString, int nMaxCount);
+    [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd);
+    [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+    [DllImport("user32.dll")] public static extern bool IsIconic(IntPtr hWnd);
+    public delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
+}
+'@
+
+$result = @([IntPtr]::Zero)
+$cb = {
+    param($hWnd, $lParam)
+    $sb = New-Object System.Text.StringBuilder(256)
+    [Win32]::GetWindowText($hWnd, $sb, 256)
+    if ($sb.ToString() -match "- Visual Studio Code$$") {
+        $result[0] = $hWnd
+        return $false
+    }
+    return $true
+}
+[Win32]::EnumWindows($cb, [IntPtr]::Zero)
+$hwnd = $result[0]
+if ($hwnd -eq [IntPtr]::Zero) { Write-Host "NOT_FOUND"; exit 1 }
+if ([Win32]::IsIconic($hwnd)) { [Win32]::ShowWindow($hwnd, 9) }
+[Win32]::SetForegroundWindow($hwnd)
+Start-Sleep -Milliseconds 300
+# Ctrl+A 全选（清除当前输入），然后粘贴，延时后按 Enter
+(New-Object -ComObject WScript.Shell).SendKeys('^a')
+Start-Sleep -Milliseconds 200
+(New-Object -ComObject WScript.Shell).SendKeys('^v')
+Start-Sleep -Milliseconds 800
+(New-Object -ComObject WScript.Shell).SendKeys('~^~')
+Start-Sleep -Milliseconds 200
+Write-Host "OK"
+`;
 
 export function injectToTerminal(text) {
-  const psScript = `
-$wshell = New-Object -ComObject WScript.Shell
-$wshell.AppActivate("Visual Studio Code")
-Start-Sleep -Milliseconds 300
-$wshell.SendKeys("${escapeForPS(text)}~")
-`;
-  const tmpFile = ".deadloop_inject.ps1";
-  fs.writeFileSync(tmpFile, psScript, "utf-8");
+  // 步骤 1: 把文本写入剪贴板（UTF-8 编码文件 + Get-Content -Encoding UTF8）
+  const tmpText = os.tmpdir() + "/deadloop_text.txt";
+  fs.writeFileSync(tmpText, text, "utf-8");
   try {
-    execSync(`powershell -File "${tmpFile}"`, { timeout: 5000 });
+    execSync(
+      `powershell -ExecutionPolicy Bypass -Command "Get-Content -Encoding UTF8 -Path '${tmpText}' | Set-Clipboard"`,
+      { timeout: 5000 }
+    );
+  } catch {
+    try { fs.unlinkSync(tmpText); } catch {}; return false;
+  }
+  // 步骤 2: 激活 VSCode 窗口 + Ctrl+A + Ctrl+V + Enter
+  const tmpFile = os.tmpdir() + "/deadloop_inject.ps1";
+  fs.writeFileSync(tmpFile, "﻿" + PS_PRE);
+  try {
+    execSync(`powershell -ExecutionPolicy Bypass -File "${tmpFile}"`, { timeout: 10000 });
+    return true;
+  } catch {
+    return false;
+  } finally {
+    try { fs.unlinkSync(tmpFile); } catch {}
+    try { fs.unlinkSync(tmpText); } catch {}
+  }
+}
+
+export function sendCtrlC() {
+  const ps = PS_PRE.replace("^a{DEL}^v~", "^(c)");
+  const tmpFile = os.tmpdir() + "/deadloop_ctrlc.ps1";
+  fs.writeFileSync(tmpFile, "﻿" + ps);
+  try {
+    execSync(`powershell -ExecutionPolicy Bypass -File "${tmpFile}"`, { timeout: 10000 });
     return true;
   } catch {
     return false;
   } finally {
     try { fs.unlinkSync(tmpFile); } catch {}
   }
-}
-
-export function sendCtrlC() {
-  return injectToTerminal(""); // 空输入 + Enter = 在非输出状态下就是中断
-}
-
-function escapeForPS(s) {
-  return s
-    .replace(/`/g, "``")
-    .replace(/"/g, '`"')
-    .replace(/\$/g, "`$")
-    .replace(/\(/g, "`(")
-    .replace(/\)/g, "`)")
-    .replace(/\n/g, "~");
 }
 
 // ── 停止确认检查 ──

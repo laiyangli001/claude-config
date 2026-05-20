@@ -5,6 +5,7 @@ import { chromium } from "playwright";
 import * as path from "path";
 import * as fs from "fs";
 import { fileURLToPath } from "url";
+import { execSync } from "child_process";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(__dirname, "..");
 const USER_DATA_DIR = path.join(PROJECT_ROOT, ".chatgpt-mirror-profile");
@@ -18,6 +19,9 @@ const CONSTRAINTS = `
 2. 禁止编造：没看到的文件/API 不要假设存在，不确定就先问。
 3. 安全红线：禁止拼接 SQL，禁止 XSS，禁止硬编码密钥。
 4. 输出格式：先给修复后的代码块，再简述改了什么。不要问候语。`;
+// 需要施加约束的代码修改意图关键词
+const CODE_MODIFY_RE = /写代码|帮我写|修复|改\b|修改|重构|优化|实现|加个|删掉|替换|调整|改下|修下|补一下|添加|移除|fix(?:ing|es)?|implement(?:s|ing|ed)?|refactor(?:s|ing|ed)?|modify(?:ing|ed)?|change[sd]?|updat[esd]|rewrite[sdn]?|correct(?:s|ing|ed)?|add[sd]?|remov[esd]|delet[esd]|replac[esd]|optimiz[esd]|patch(?:es|ing|ed)?|debug(?:s|ing|ed)?|(?:write|code)\s+(?:this|the|some|a|code)|review\s+this\s+(?:code|file)/i;
+const EXPLAIN_ONLY_RE = /解释|说明|分析原因|为什么|是什么|怎么回事|什么意思|作用|原理|how\s+does|what\s+does|explain|clarify/i;
 // --- Role system ---
 const ROLES_DIR = path.resolve(PROJECT_ROOT, "..", "roles");
 function loadRole(roleName) {
@@ -84,9 +88,33 @@ async function ensureBrowser() {
             isPageReady = false;
             return { page, context: browserContext };
         }
-        catch {
-            initPromise = null;
-            throw new Error("Failed to launch browser.");
+        catch (firstErr) {
+            // 首次失败可能是旧进程残留，杀进程后重试
+            log("First launch failed, killing chrome and retrying...");
+            try {
+                execSync("taskkill /f /im chrome.exe 2>nul");
+            }
+            catch { }
+            try {
+                execSync("taskkill /f /im chromium.exe 2>nul");
+            }
+            catch { }
+            await new Promise(r => setTimeout(r, 2000));
+            try {
+                await closeBrowserResources();
+                browserContext = await chromium.launchPersistentContext(USER_DATA_DIR, {
+                    headless: HEADLESS,
+                    viewport: { width: 1280, height: 800 },
+                    args: ["--disable-blink-features=AutomationControlled"],
+                });
+                page = await browserContext.newPage();
+                isPageReady = false;
+                return { page, context: browserContext };
+            }
+            catch {
+                initPromise = null;
+                throw new Error("Failed to launch browser.");
+            }
         }
     })();
     return initPromise;
@@ -256,62 +284,91 @@ async function askChatGPTMirror(question, attachments, role) {
             }
             let { page: pg } = await ensureBrowser();
             if (!isPageReady) {
-                // === Mirror site navigation flow ===
-                log("Opening mirror start page...");
-                // 提前注册 popup 监听器和轮询，不遗漏事件
-                let chatPagePromise = null;
-                const popupPromise = new Promise((resolve) => {
-                    pg.once("popup", (p) => { log("popup event fired"); resolve(p); });
-                });
-                const pollPromise = new Promise((resolve) => {
-                    const initialCount = browserContext.pages().length;
-                    const iv = setInterval(() => {
-                        const pages = browserContext.pages();
-                        for (const p of pages) {
-                            if (p !== pg) {
-                                // 通过 URL 或标题确认是新的聊天页面
-                                try {
-                                    const url = p.url();
-                                    if (url && url !== "about:blank") {
+                // 在所有页面中查找已有的对话页
+                let foundPage = null;
+                for (const p of browserContext.pages()) {
+                    try {
+                        if (p.url().includes("chatgpt.2233.ai") && await p.locator("#prompt-textarea").count() > 0) {
+                            foundPage = p;
+                            break;
+                        }
+                    }
+                    catch { }
+                }
+                if (foundPage) {
+                    pg = foundPage;
+                    page = foundPage;
+                    isPageReady = true;
+                    log("Reusing existing chat page");
+                }
+                else {
+                    // === Mirror site navigation flow ===
+                    // 先尝试直接访问对话页
+                    await pg.goto("https://chatgpt.2233.ai/", { waitUntil: "domcontentloaded" });
+                    await pg.waitForTimeout(3000);
+                    if ((await pg.locator("#prompt-textarea").count().catch(() => 0)) > 0) {
+                        isPageReady = true;
+                        log("Direct access OK");
+                    }
+                    else {
+                        // 没有 session，走邀请码流程
+                        log("Opening mirror start page...");
+                        // 提前注册 popup 监听器和轮询，不遗漏事件
+                        let chatPagePromise = null;
+                        const popupPromise = new Promise((resolve) => {
+                            pg.once("popup", (p) => { log("popup event fired"); resolve(p); });
+                        });
+                        const pollPromise = new Promise((resolve) => {
+                            const initialCount = browserContext.pages().length;
+                            const iv = setInterval(() => {
+                                const pages = browserContext.pages();
+                                for (const p of pages) {
+                                    if (p !== pg) {
+                                        // 通过 URL 或标题确认是新的聊天页面
+                                        try {
+                                            const url = p.url();
+                                            if (url && url !== "about:blank") {
+                                                clearInterval(iv);
+                                                resolve(p);
+                                                return;
+                                            }
+                                        }
+                                        catch { /* 页面未就绪 */ }
+                                    }
+                                }
+                                // 如果页面数量增加但没有匹配到 URL，取最后一个
+                                if (pages.length > initialCount) {
+                                    const candidate = pages[pages.length - 1];
+                                    if (candidate !== pg) {
                                         clearInterval(iv);
-                                        resolve(p);
+                                        resolve(candidate);
                                         return;
                                     }
                                 }
-                                catch { /* 页面未就绪 */ }
-                            }
-                        }
-                        // 如果页面数量增加但没有匹配到 URL，取最后一个
-                        if (pages.length > initialCount) {
-                            const candidate = pages[pages.length - 1];
-                            if (candidate !== pg) {
-                                clearInterval(iv);
-                                resolve(candidate);
-                                return;
-                            }
-                        }
-                    }, 1000);
-                });
-                await pg.goto("https://2233.ai/?code=FC8XHSCH", { waitUntil: "domcontentloaded" });
-                await pg.waitForTimeout(3000);
-                if (!HEADLESS)
-                    await pg.bringToFront();
-                console.error("=== 请点击「立即开始」按钮，等待新标签页打开 ===");
-                log("Waiting for popup (new tab) event...");
-                const chatPage = await Promise.race([
-                    popupPromise,
-                    pollPromise,
-                    new Promise((_, reject) => setTimeout(() => reject(new Error("New tab not detected — did you click 立即开始?")), 300000)),
-                ]);
-                log("New tab detected, switching pg to popup page...");
-                pg = chatPage;
-                page = chatPage;
-                await chatPage.waitForURL(/chatgpt\.2233\.ai/, { timeout: 60000 });
-                log(`Chat page URL: ${chatPage.url()}`);
-                await chatPage.waitForLoadState("domcontentloaded");
-                await chatPage.waitForTimeout(3000);
-                isPageReady = true;
-                log("Mirror site navigation complete");
+                            }, 1000);
+                        });
+                        await pg.goto("https://2233.ai/?code=FC8XHSCH", { waitUntil: "domcontentloaded" });
+                        await pg.waitForTimeout(3000);
+                        if (!HEADLESS)
+                            await pg.bringToFront();
+                        console.error("=== 请点击「立即开始」按钮，等待新标签页打开 ===");
+                        log("Waiting for popup (new tab) event...");
+                        const chatPage = await Promise.race([
+                            popupPromise,
+                            pollPromise,
+                            new Promise((_, reject) => setTimeout(() => reject(new Error("New tab not detected — did you click 立即开始?")), 300000)),
+                        ]);
+                        log("New tab detected, switching pg to popup page...");
+                        pg = chatPage;
+                        page = chatPage;
+                        await chatPage.waitForURL(/chatgpt\.2233\.ai/, { timeout: 60000 });
+                        log(`Chat page URL: ${chatPage.url()}`);
+                        await chatPage.waitForLoadState("domcontentloaded");
+                        await chatPage.waitForTimeout(3000);
+                        isPageReady = true;
+                        log("Mirror site navigation complete");
+                    } // close no-session else
+                } // close no-foundPage else
             }
             else {
                 // Start new chat to avoid stale attachments from previous call
@@ -347,7 +404,10 @@ async function askChatGPTMirror(question, attachments, role) {
                 await uploadFilesToChatGPT(pg, attachments);
             }
             // Type into ProseMirror editor (clear first to prevent cross-request pollution)
-            const finalQuestion = ((question && question.trim()) || "Please analyze this file") + CONSTRAINTS;
+            // 只在代码修改意图时加 CONSTRAINTS（纯解释类不加）
+            const q = (question && question.trim()) || "Please analyze this file";
+            const needC = !EXPLAIN_ONLY_RE.test(q) && CODE_MODIFY_RE.test(q);
+            const finalQuestion = q + (needC ? CONSTRAINTS : "");
             await pg.locator("#prompt-textarea").first().evaluate((el) => {
                 el.innerText = "";
             });
