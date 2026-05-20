@@ -1,13 +1,15 @@
 import fs from "fs";
 import path from "path";
+import readline from "readline";
 import config from "./config.mjs";
 import { info, warn, error } from "./logger.mjs";
 import {
-  createStdioMcpClient,
   cleanAssistantOutput,
   parseJsonlLine,
   JsonlReader,
   DialogWindow,
+  injectToTerminal,
+  checkStopReason,
 } from "./helpers.mjs";
 import {
   RepeatDetector,
@@ -17,7 +19,16 @@ import {
 import { buildSummary } from "./summarizer.mjs";
 
 const CFG = config;
-let helpClient = null;
+
+const STATE = {
+  IDLE: "IDLE",
+  MONITORING: "MONITORING",
+  HELPING: "HELPING",
+  COOLDOWN: "COOLDOWN",
+  PAUSED: "PAUSED",
+};
+
+let state = STATE.IDLE;
 let reader = null;
 let dialog = new DialogWindow(5);
 
@@ -27,17 +38,55 @@ const infoDet = new InfoStallDetector();
 
 let loopSample = "";
 let helpCount = 0;
-let state = "WAITING"; // WAITING → MONITORING → HELPING → COOLDOWN → MONITORING
+let cooldownUntil = 0;
+
+// ── 发送 Ctrl+C 中断 ──
+function sendCtrlC() {
+  return injectToTerminal(""); // 空输入 + Enter 在某些终端下表现同 Ctrl+C
+}
+
+// ── stdin 控制命令（与 workspace-watcher 通信） ──
+function setupStdin() {
+  const rl = readline.createInterface({ input: process.stdin });
+  rl.on("line", (line) => {
+    try {
+      const cmd = JSON.parse(line);
+      if (cmd.command === "pause") {
+        if (state === STATE.MONITORING) {
+          state = STATE.PAUSED;
+          console.log(JSON.stringify({ status: "paused" }));
+          info("paused by user");
+        }
+      } else if (cmd.command === "resume") {
+        if (state === STATE.PAUSED) {
+          state = STATE.MONITORING;
+          console.log(JSON.stringify({ status: "resumed" }));
+          info("resumed by user");
+        }
+      } else if (cmd.command === "stop") {
+        console.log(JSON.stringify({ status: "stopping" }));
+        info("stopped by user");
+        process.exit(0);
+      } else if (cmd.command === "status") {
+        console.log(JSON.stringify({
+          status: state.toLowerCase(),
+          pid: process.pid,
+        }));
+      }
+    } catch { /* 忽略无效指令 */ }
+  });
+  // stdin 关闭不退出，保持监控运行
+}
 
 // ── 自动发现 .jsonl 文件 ──
 function autoDiscoverSessionFile() {
   if (CFG.sessionFile && fs.existsSync(CFG.sessionFile)) return CFG.sessionFile;
-
-  const projectsDir = path.join(process.env.HOME || process.env.USERPROFILE, ".claude", "projects");
+  const projectsDir = path.join(
+    process.env.HOME || process.env.USERPROFILE,
+    ".claude", "projects"
+  );
   if (!fs.existsSync(projectsDir)) return "";
-
-  let latest = "";
-  let latestMtime = 0;
+  let latest = "", latestMtime = 0;
   for (const slug of fs.readdirSync(projectsDir)) {
     const dir = path.join(projectsDir, slug);
     if (!fs.statSync(dir).isDirectory()) continue;
@@ -51,12 +100,6 @@ function autoDiscoverSessionFile() {
   return latest;
 }
 
-// ── 连接求助 MCP ──
-async function connectHelp() {
-  helpClient = await createStdioMcpClient(CFG.helpMcp.command, CFG.helpMcp.args, "deadloop-monitor", CFG.helpMcp.requestTimeoutMs);
-  info("help mcp connected");
-}
-
 // ── 读取增量并逐条检测 ──
 function processAndCheck() {
   const lines = reader.readLines();
@@ -64,78 +107,79 @@ function processAndCheck() {
 
   let totalTokens = 0;
   let detected = false;
-  let lastAssistantContent = "";
 
   for (const line of lines) {
     const parsed = parseJsonlLine(line);
     if (!parsed) continue;
-
     dialog.add(parsed.role, parsed.content);
-
     if (parsed.role !== "assistant") continue;
-
     const cleaned = cleanAssistantOutput(parsed.content);
     if (!cleaned || cleaned.length < 20) continue;
-
     totalTokens += cleaned.split(/\s+/).length;
-    lastAssistantContent = cleaned;
 
-    // 每条 assistant 消息分别 feed 检测器
     let signals = 0;
     if (repeatDet.feed(cleaned)) signals++;
     if (reversalDet.feed(cleaned)) signals++;
     if (infoDet.feed(cleaned)) signals++;
-
     if (signals >= 2) {
       loopSample = cleaned.slice(-1000);
       detected = true;
-      break; // 已检测到，不需要再处理后续消息
+      break;
     }
   }
 
   if (totalTokens > CFG.maxTokensPerCycle) {
     warn("cpu protection", { tokens: totalTokens });
   }
-
   return detected;
 }
 
-// ── 求助 ──
-async function sendHelp() {
-  helpCount++;
-  info("sending help", { count: helpCount });
+// ── 等待停止确认（轮询 .jsonl 的 stop_reason） ──
+async function waitForStop() {
+  const maxWait = 60000;
+  const interval = 1000;
+  let elapsed = 0;
 
+  // 先发一个空行确保提交
+  const sent = injectToTerminal("");
+  if (!sent) {
+    warn("SendKeys failed, skip stop wait");
+    return true;
+  }
+
+  while (elapsed < maxWait) {
+    await sleep(interval);
+    elapsed += interval;
+
+    const lines = reader.readLines();
+    for (const line of lines) {
+      const reason = checkStopReason(line);
+      if (reason === "stopped" || reason === "interrupted") {
+        info("stop confirmed", { reason, elapsed });
+        return true;
+      }
+    }
+  }
+
+  warn("stop not confirmed after 60s");
+  return false;
+}
+
+// ── 注入摘要指令 ──
+function injectSummary() {
   const msgs = dialog.getRecent();
   const summary = buildSummary(msgs, loopSample);
-  info("summary built", { len: summary.length });
+  info("injecting summary", { len: summary.length });
 
-  try {
-    const r = await helpClient.callTool({
-      name: CFG.helpMcp.toolName,
-      arguments: { question: summary },
-    }, undefined, { timeout: CFG.helpMcp.requestTimeoutMs });
-    const advice = typeof r.content?.[0]?.text === "string"
-      ? r.content[0].text
-      : JSON.stringify(r);
+  const instruction =
+    "你刚才的输出陷入了重复循环。请用第三人称，简洁总结以下内容（仅用于向另一个AI求助）：\n" +
+    "1. 用户的原始需求与关键约束\n" +
+    "2. 已经尝试过的方案及其明确结果\n" +
+    "3. 当前卡住的循环表现（比如反复输出某段代码，或来回推翻自己）\n" +
+    "4. 最需要被解决的一个具体问题\n" +
+    "注意：只输出总结，不要道歉，不要继续之前的输出。";
 
-    info("help received", { len: advice.length });
-
-    // 覆盖写入建议文件
-    const header = `# 死循环建议（${new Date().toISOString()}）\n\n`;
-    fs.writeFileSync(CFG.adviceFile, header + advice, "utf-8");
-    info("advice saved", { file: CFG.adviceFile });
-
-    // 桌面通知
-    try {
-      const { execSync } = await import("child_process");
-      execSync(
-        `msg * "检测到死循环！建议已写入 ${CFG.adviceFile}，请查看"`,
-        { timeout: 3000 }
-      );
-    } catch { /* 通知失败不影响主流程 */ }
-  } catch (err) {
-    error("help failed", { msg: err.message });
-  }
+  return injectToTerminal(instruction);
 }
 
 function resetDetectors() {
@@ -146,65 +190,69 @@ function resetDetectors() {
   loopSample = "";
 }
 
+function sleep(ms) {
+  return new Promise(r => setTimeout(r, ms));
+}
+
 // ── 主入口 ──
 async function main() {
-  info("starting");
+  info("starting", { pid: process.pid });
 
-  // 找到 .jsonl 文件
+  setupStdin();
+
   let sessionFile = autoDiscoverSessionFile();
   while (!sessionFile) {
-    warn("no session file found, retrying in 5s");
+    warn("no session file, retrying in 5s");
     await sleep(5000);
     sessionFile = autoDiscoverSessionFile();
   }
   info("session file", { path: sessionFile });
 
   reader = new JsonlReader(sessionFile);
-  await connectHelp();
-
-  state = "MONITORING";
+  state = STATE.MONITORING;
   info("state", { state });
-
-  let cooldownUntil = 0;
 
   while (true) {
     await sleep(CFG.pollInterval);
 
-    if (state === "COOLDOWN") {
-      if (Date.now() >= cooldownUntil) {
-        state = "MONITORING";
-        info("state", { state: "MONITORING (cooldown ended)" });
-      }
-      continue;
+    // 处理冷却期
+    if (state === STATE.COOLDOWN && Date.now() >= cooldownUntil) {
+      state = STATE.MONITORING;
+      info("cooldown ended");
     }
 
-    if (state !== "MONITORING") continue;
+    if (state === STATE.COOLDOWN || state === STATE.PAUSED) continue;
 
     const detected = processAndCheck();
-    if (detected) {
-      warn("loop detected");
-      // 桌面通知
-      try {
-        const { execSync } = await import("child_process");
-        execSync(`msg * "Claude Code 检测到死循环，正在自动修复..."`, { timeout: 3000 });
-      } catch { /* 忽略 */ }
-      state = "HELPING";
-      info("state", { state });
+    if (!detected) continue;
+    if (state !== STATE.MONITORING) continue;
 
-      await sendHelp();
+    // ── 检测到死循环 ──
+    warn("loop detected");
+    console.log("DEADLOOP_DETECTED");
+    state = STATE.HELPING;
+    info("state", { state });
 
-      // 进入冷却期
-      state = "COOLDOWN";
-      cooldownUntil = Date.now() + CFG.cooldownMs;
-      info("state", { state: "COOLDOWN", until: new Date(cooldownUntil).toISOString() });
-      resetDetectors();
+    await sendCtrlC();
+
+    const stopped = await waitForStop();
+    if (stopped) {
+      injectSummary();
+      await sleep(500);
+      injectToTerminal(""); // 发 Enter 提交
+    } else {
+      warn("manual intervention required");
+      console.log("NEEDS_MANUAL");
     }
+
+    state = STATE.COOLDOWN;
+    cooldownUntil = Date.now() + CFG.cooldownMs;
+    info("state", { state: "COOLDOWN" });
+    resetDetectors();
   }
 }
 
-function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
-
 main().catch(err => {
-  error("fatal", { msg: err.message, stack: err.stack });
+  error("fatal", { msg: err.message });
   process.exit(1);
 });

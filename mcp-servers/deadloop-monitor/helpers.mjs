@@ -97,6 +97,60 @@ export class JsonlReader {
   }
 }
 
+// ── PowerShell SendKeys 注入 ──
+import { execSync } from "child_process";
+
+export function injectToTerminal(text) {
+  const psScript = `
+$wshell = New-Object -ComObject WScript.Shell
+$wshell.AppActivate("Visual Studio Code")
+Start-Sleep -Milliseconds 300
+$wshell.SendKeys("${escapeForPS(text)}~")
+`;
+  const tmpFile = ".deadloop_inject.ps1";
+  fs.writeFileSync(tmpFile, psScript, "utf-8");
+  try {
+    execSync(`powershell -File "${tmpFile}"`, { timeout: 5000 });
+    return true;
+  } catch {
+    return false;
+  } finally {
+    try { fs.unlinkSync(tmpFile); } catch {}
+  }
+}
+
+export function sendCtrlC() {
+  return injectToTerminal(""); // 空输入 + Enter = 在非输出状态下就是中断
+}
+
+function escapeForPS(s) {
+  return s
+    .replace(/`/g, "``")
+    .replace(/"/g, '`"')
+    .replace(/\$/g, "`$")
+    .replace(/\(/g, "`(")
+    .replace(/\)/g, "`)")
+    .replace(/\n/g, "~");
+}
+
+// ── 停止确认检查 ──
+export function checkStopReason(line) {
+  try {
+    const j = JSON.parse(line);
+    const sr = j.message?.stop_reason;
+    const interrupted = j.interrupted;
+    // stop_reason 为 end_turn → 自然结束
+    // stop_reason 为 undefined 且 interrupted=true → 被打断
+    if (sr === "end_turn") return "stopped";
+    if (interrupted === true) return "interrupted";
+    if (sr === "tool_use") return "running";
+    if (!sr) return "interrupted"; // 未完成的流式输出
+    return "unknown";
+  } catch {
+    return "unknown";
+  }
+}
+
 // ── 对话窗口 ──
 export class DialogWindow {
   constructor(maxRounds = 5) {

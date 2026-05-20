@@ -1,8 +1,12 @@
 {
   "name": "deadloop-workspace-watcher",
+  "displayName": "Dead Loop Monitor Watcher",
   "version": "1.0.0",
+  "publisher": "laiyangli",
   "description": "Auto-starts deadloop-monitor for each VS Code workspace",
-  "activationEvents": ["onStartupFinished"],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
   "main": "./extension.js",
   "engines": {
     "vscode": "^1.85.0"
