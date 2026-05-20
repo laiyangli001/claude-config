@@ -135,13 +135,18 @@ MCP 工具内置自动角色检测。首次调用时，根据问题内容自动�
 
 **状态栏操作：** 左键点击弹出菜单：暂停/恢复/停止监控、查看日志。
 
-**VS Code 扩展安装：**
+**VS Code 扩展安装（二选一）：**
+
 ```bash
+# 方式一：npm install 自动安装（推荐）
 cd ~/.claude/mcp-servers/deadloop-monitor
-npm install         # 自动通过 postinstall 脚本安装扩展
-# 或手动安装：
-code --install-extension workspace-watcher/laiyangli.deadloop-workspace-watcher-1.0.0.vsix
+npm install
+
+# 方式二：直接安装 VSIX
+code --install-extension ~/.claude/mcp-servers/deadloop-monitor/workspace-watcher/deadloop-workspace-watcher-1.0.0.vsix
 ```
+
+安装后需重载 VS Code 窗口（`Ctrl+Shift+P` → `Developer: Reload Window`）。
 
 ## 记忆系统：对话持久化
 

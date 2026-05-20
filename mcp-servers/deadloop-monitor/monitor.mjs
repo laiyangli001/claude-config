@@ -39,6 +39,7 @@ const infoDet = new InfoStallDetector();
 let loopSample = "";
 let helpCount = 0;
 let cooldownUntil = 0;
+let cumulativeTokens = 0;
 
 // ── 发送 Ctrl+C 中断 ──
 function sendCtrlC() {
@@ -105,8 +106,8 @@ function processAndCheck() {
   const lines = reader.readLines();
   if (lines.length === 0) return null;
 
-  let totalTokens = 0;
   let detected = false;
+  let newTokens = 0;
 
   for (const line of lines) {
     const parsed = parseJsonlLine(line);
@@ -115,7 +116,9 @@ function processAndCheck() {
     if (parsed.role !== "assistant") continue;
     const cleaned = cleanAssistantOutput(parsed.content);
     if (!cleaned || cleaned.length < 20) continue;
-    totalTokens += cleaned.split(/\s+/).length;
+    const tokens = cleaned.split(/\s+/).length;
+    newTokens += tokens;
+    cumulativeTokens += tokens;
 
     let signals = 0;
     if (repeatDet.feed(cleaned)) signals++;
@@ -129,11 +132,11 @@ function processAndCheck() {
   }
 
   // 有新内容时输出 tokenCount（无论是否检测到循环）
-  if (totalTokens > 0) {
-    console.log(JSON.stringify({ status: state.toLowerCase(), tokenCount: totalTokens }));
+  if (newTokens > 0) {
+    console.log(JSON.stringify({ status: state.toLowerCase(), tokenCount: cumulativeTokens }));
   }
-  if (totalTokens > CFG.maxTokensPerCycle) {
-    warn("cpu protection", { tokens: totalTokens });
+  if (newTokens > CFG.maxTokensPerCycle) {
+    warn("cpu protection", { tokens: newTokens });
   }
   return detected;
 }
@@ -192,6 +195,7 @@ function resetDetectors() {
   infoDet.reset();
   dialog.reset();
   loopSample = "";
+  cumulativeTokens = 0;
 }
 
 function sleep(ms) {
