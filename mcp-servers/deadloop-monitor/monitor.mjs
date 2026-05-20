@@ -221,6 +221,9 @@ async function main() {
   while (true) {
     await sleep(CFG.pollInterval);
 
+    // 每轮更新心跳文件（扩展读此文件 mtime 判断进程存活）
+    try { fs.writeFileSync(".deadloop-heartbeat", String(Date.now())); } catch {}
+
     // 处理冷却期
     if (state === STATE.COOLDOWN && Date.now() >= cooldownUntil) {
       state = STATE.MONITORING;

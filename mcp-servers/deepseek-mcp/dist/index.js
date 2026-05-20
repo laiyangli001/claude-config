@@ -37,6 +37,8 @@ function detectRole(question) {
     const q = question.toLowerCase();
     if (/python|django|flask|pep\s*8|pandas|numpy|asyncio|装饰器/.test(q))
         return "python_tutor";
+    if (/node\.js|nodejs|javascript|express|nestjs|typescript|npm|js\b|回调|异步|event loop/.test(q))
+        return "nodejs_tutor";
     return null;
 }
 function log(...args) {
