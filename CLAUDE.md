@@ -149,6 +149,16 @@
 1. **`ask_chatgpt`（优先）** — ChatGPT 网页版
 2. **`ask_deepseek`（备选）** — DeepSeek 网页版
 
+### 角色系统
+
+MCP 工具支持 `role` 参数（如 `role: "python_tutor"`），首次调用时以角色模板设定 AI 身份。你应根据**文件类型和问题内容**自行判断角色并显式传递，不得依赖 MCP 服务的关键词匹配。
+
+当前可用角色：
+- `python_tutor` — 问题涉及 Python/数据分析/Django/Flask
+- `nodejs_tutor` — 问题涉及 JavaScript/TypeScript/Node.js/前端
+
+角色文件定义在 `mcp-servers/roles/` 目录下。
+
 ### 触发条件（自动判断，无需用户指令）
 
 当你**自主处理任务**时，若满足**任一**条件，必须自动调用免费工具：
