@@ -1,4 +1,6 @@
 import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 
@@ -178,11 +180,78 @@ Write-Host "OK"
   return base + escKeys;
 }
 
-export function sendCtrlC() {
+export function sendEsc() {
   const tmpFile = os.tmpdir() + "/deadloop_esc.ps1";
   fs.writeFileSync(tmpFile, "﻿" + buildEscScript());
   try {
     execSync(`powershell -ExecutionPolicy Bypass -File "${tmpFile}"`, { timeout: 10000 });
+    return true;
+  } catch {
+    return false;
+  } finally {
+    try { fs.unlinkSync(tmpFile); } catch {}
+  }
+}
+
+// ── 通过扩展发 ESC（vs code API）──
+export function sendEscViaExtension() {
+  console.log(JSON.stringify({ action: "sendEsc" }));
+}
+
+export function sendInjectTextViaExtension(text) {
+  console.log(JSON.stringify({ action: "injectText", text }));
+}
+
+// ── AutoIt 方式（最可靠，编译后不需安装 AutoIt）──
+const AUTOIT_EXE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "deadloop_control.exe");
+
+export function sendEscViaAutoIt() {
+  try {
+    execSync(`"${AUTOIT_EXE}" esc`, { timeout: 10000 });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function setClipboard(text) {
+  const tmpFile = os.tmpdir() + "/deadloop_clip.txt";
+  fs.writeFileSync(tmpFile, text, "utf-8");
+  try {
+    execSync(
+      `powershell -ExecutionPolicy Bypass -Command "Get-Content -Encoding UTF8 -Path '${tmpFile}' | Set-Clipboard"`,
+      { timeout: 10000 }
+    );
+    return true;
+  } catch {
+    return false;
+  } finally {
+    try { fs.unlinkSync(tmpFile); } catch {}
+  }
+}
+
+function writeTempFile(text) {
+  const tmpFile = path.resolve(path.dirname(AUTOIT_EXE), "deadloop_msg_" + Date.now() + ".txt");
+  fs.writeFileSync(tmpFile, text, "utf-8");
+  return tmpFile;
+}
+
+export function injectViaAutoIt(text) {
+  const tmpFile = writeTempFile(text);
+  try {
+    execSync(`"${AUTOIT_EXE}" inject_file "${tmpFile}"`, { timeout: 10000 });
+    return true;
+  } catch {
+    return false;
+  } finally {
+    try { fs.unlinkSync(tmpFile); } catch {}
+  }
+}
+
+export function pasteViaAutoIt(text) {
+  const tmpFile = writeTempFile(text);
+  try {
+    execSync(`"${AUTOIT_EXE}" paste_file "${tmpFile}"`, { timeout: 10000 });
     return true;
   } catch {
     return false;
@@ -197,15 +266,37 @@ export function checkStopReason(line) {
     const j = JSON.parse(line);
     const sr = j.message?.stop_reason;
     const interrupted = j.interrupted;
-    // stop_reason 为 end_turn → 自然结束
-    // stop_reason 为 undefined 且 interrupted=true → 被打断
     if (sr === "end_turn") return "stopped";
     if (interrupted === true) return "interrupted";
     if (sr === "tool_use") return "running";
-    if (!sr) return "interrupted"; // 未完成的流式输出
+    // stop_reason 为 null/undefined 是流式中间 chunk，不当作 interrupted
     return "unknown";
   } catch {
     return "unknown";
+  }
+}
+
+// ── 全量扫描文件末尾检查停止（不依赖增量读取）──
+export function checkFileForStop(filePath) {
+  try {
+    const stat = fs.statSync(filePath);
+    if (stat.size === 0) return false;
+    // 读取末尾 64KB（覆盖长 thinking/tool_result 把 stop_reason 挤出窗口）
+    const bufSize = Math.min(stat.size, 65536);
+    const fd = fs.openSync(filePath, "r");
+    const buf = Buffer.alloc(bufSize);
+    fs.readSync(fd, buf, 0, bufSize, stat.size - bufSize);
+    fs.closeSync(fd);
+    const tail = buf.toString("utf-8").trim().split("\n");
+    // 倒序扫描，优先取最新状态
+    for (let i = tail.length - 1; i >= 0; i--) {
+      const reason = checkStopReason(tail[i]);
+      if (reason === "stopped" || reason === "interrupted") return true;
+      if (reason === "running") return false; // 最新的行还在跑
+    }
+    return false;
+  } catch {
+    return false;
   }
 }
 

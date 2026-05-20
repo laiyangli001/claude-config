@@ -10,13 +10,13 @@ export default {
   // 信号1: 重复代码块检测
   repeat: {
     windowTokens: 500,
-    maxHits: 2,
+    maxHits: 1,
   },
 
   // 信号2: 逻辑反转词检测（绝对计数）
   reversal: {
     windowTokens: 200,
-    minCount: 8,
+    minCount: 5,
     words: [
       // 中文反转词
       "不对","不过","然而","可能","但是",

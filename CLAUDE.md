@@ -25,7 +25,9 @@
 
 ## ChatGPT/DeepSeek 代码建议处理
 
-当 ChatGPT（ask_chatgpt）/ DeepSeek（ask_deepseek）审查代码后给出修改代码时，**直接复制或参考执行**，无需先询问用户是否执行。
+当 ask_chatgpt_mirror / ask_chatgpt / ask_deepseek 审查代码后给出修改代码时，**直接复制或参考执行**，无需先询问用户是否执行。
+
+优先级顺序：ask_chatgpt_mirror（优先）→ ask_chatgpt（回退）→ ask_deepseek（再回退）。
 
 # 行为边界（红线）
 以下行为严格禁止：
@@ -202,3 +204,71 @@ Default triage labels: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-f
 ### Domain docs
 
 Single-context layout — one `CONTEXT.md` + `docs/adr/` at repo root. See `docs/agents/domain.md`.
+
+## 🔧 模拟鼠标键盘操作规范（AutoIt + 无窗口编译）
+当需要实现模拟鼠标键盘动作、发送按键消息、自动化控制外部程序等操作时，建议优先使用以下技术方案。
+
+1. 脚本语言建议
+建议优先使用 AutoIt3 脚本语言，文件扩展名为 .au3
+
+其他方式（如 VBS、Python 的 pyautogui、PowerShell 等）也能实现类似功能，但在静默编译和稳定性方面 AutoIt 更具优势
+
+2. 编译方式（强制要求：无窗口静默编译）
+必须使用 Aut2exe_x64.exe 将 .au3 编译为 .exe
+
+Aut2exe_x64.exe 的路径为：.claude 根目录下的 @Aut2Exe/Aut2exe_x64.exe
+
+例如：C:\Users\你的用户名\.claude\Aut2Exe\Aut2exe_x64.exe
+
+必须通过 cmd //c 调用该工具
+
+必须添加 /console 参数
+
+三者缺一不可，否则编译过程会弹出 GUI 窗口，无法实现静默编译
+
+✅ 正确命令格式（使用相对路径符号 @）
+cmd //c "@Aut2Exe/Aut2exe_x64.exe /in 你的.au3脚本完整路径 /out 输出的.exe完整路径 /console"
+
+说明：@ 符号代表 .claude 根目录（即 %USERPROFILE%\.claude\ 或 ~/.claude/）。脚本路径和输出路径请使用绝对路径，例如：
+
+实际示例：
+cmd //c "@Aut2Exe/Aut2exe_x64.exe /in C:\Users\LaiYangLi\.claude\mcp-servers\deadloop-monitor\deadloop_control.au3 /out C:\Users\LaiYangLi\.claude\mcp-servers\deadloop-monitor\deadloop_control.exe /console"
+
+❌ 错误示例（会弹出窗口，禁止使用）
+直接双击 Aut2exe_x64.exe
+使用 start 命令调用
+不加 /console 参数
+不通过 cmd //c 调用
+
+3. 安全软件处理
+编译或运行生成的 .exe 时，如果被 360、腾讯管家、火绒、Defender 等安全软件拦截或删除：
+
+必须手动将文件添加至信任区（白名单）
+
+可临时关闭实时防护，编译完成并确认安全后立即恢复
+
+不添加信任可能导致程序被静默删除，无法执行
+
+4. 执行原则
+编译成功后，建议使用绝对路径调用生成的 .exe
+
+脚本内部应避免无限循环无退出条件，必要时增加超时或热键退出机制
+
+## 🔄 死循环监控工作流
+
+死循环监控（Dead Loop Monitor）是完全自动化的系统，检测到死循环后的流程：
+
+1. **ESC 中断** — AutoIt 长按 ESC 5 秒，最多 3 次
+2. **确认停止** — 全量扫描 .jsonl 末尾检查 `stop_reason: "end_turn"` 或 `interrupted: true`
+3. **确认到停止** → `inject_file` 粘贴注入消息 + 自动提交（Enter + Ctrl+Enter）
+4. **未确认到停止** → `paste_file` 只粘贴不发送，等人眼确认后手动提交
+5. 进入冷却 → 恢复监控 → **流程结束**
+
+**收到注入消息后的角色：** 我就是 Claude Code。收到注入消息后：
+
+1. 按注入消息的 4 点要求生成总结摘要
+2. 按 ## ChatGPT/DeepSeek 代码建议处理 规则，调用浏览器发送问题
+3. 收到回答后，如果对方能提供参考代码，要求对方提供完整代码
+4. 按照建议修改 bug
+
+**例外：** 用户明确要求我帮忙时，不受上述自动流程限制，按用户指令执行。

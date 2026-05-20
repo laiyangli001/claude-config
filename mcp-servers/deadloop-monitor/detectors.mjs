@@ -10,7 +10,9 @@ export class RepeatDetector {
   }
 
   feed(text) {
-    if (!text || text.length < 50) return false;
+    if (!text || text.length < 50) {
+      return { fired: false, detail: { hits: 0, threshold: this.maxHits } };
+    }
 
     const lines = text.split("\n");
     let hits = 0;
@@ -31,7 +33,7 @@ export class RepeatDetector {
         if (!key || key.length < 5) continue;
 
         this.lineCounts[key] = (this.lineCounts[key] || 0) + 1;
-        if (this.lineCounts[key] >= 4) {  // 同一行出现 4 次以上
+        if (this.lineCounts[key] >= 3) {  // 同一行出现 3 次以上
           hits++;
         }
       }
@@ -42,11 +44,12 @@ export class RepeatDetector {
       this.lineCounts = {};
     }
 
-    return hits >= 2;  // 至少 2 行代码重复 4 次以上
+    const fired = hits >= this.maxHits;
+    return { fired, detail: { hits, threshold: this.maxHits } };
   }
 
   reset() {
-    this.consecutiveHits = 0;
+    this.lineCounts = {};
   }
 }
 
@@ -69,11 +72,15 @@ export class ReversalDetector {
   }
 
   feed(text) {
-    if (!text || text.length < 100) return false;
+    if (!text || text.length < 100) {
+      return { fired: false, detail: { count: 0, threshold: this.minCount, windowSize: this.windowSize } };
+    }
 
     // 将文本按空格/换行分割为"块"，每个块包含多个中文字符
     const blocks = text.split(/\s+/).filter(Boolean);
-    if (blocks.length < 10) return false;
+    if (blocks.length < 10) {
+      return { fired: false, detail: { count: 0, threshold: this.minCount, windowSize: this.windowSize } };
+    }
 
     // 在原始文本中直接搜索反转词子串（避免单字拆分问题）
     const halfW = Math.floor(this.windowSize / 2);
@@ -105,14 +112,14 @@ export class ReversalDetector {
       debug("reversal", { count: reversalCount, offset: start });
 
       if (reversalCount >= this.minCount) {
-        return true;
+        return { fired: true, detail: { count: reversalCount, threshold: this.minCount, windowSize: this.windowSize } };
       }
     }
-    return false;
+    return { fired: false, detail: { count: 0, threshold: this.minCount, windowSize: this.windowSize } };
   }
 
   reset() {
-    this.buffer = [];
+    // ReversalDetector 每次 feed 独立分析窗口，无需重置状态
   }
 }
 
@@ -169,10 +176,13 @@ export class InfoStallDetector {
       this.stallCount = 0;
     }
 
-    return this.stallCount >= this.maxStallCount;
+    const fired = this.stallCount >= this.maxStallCount;
+    return { fired, detail: { stallCount: this.stallCount, threshold: this.maxStallCount, currentInfo: info } };
   }
 
   reset() {
     this.stallCount = 0;
+    this.seenLines.clear();
+    this.buffer = [];
   }
 }

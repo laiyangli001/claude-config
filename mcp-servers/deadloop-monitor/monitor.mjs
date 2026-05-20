@@ -8,9 +8,10 @@ import {
   parseJsonlLine,
   JsonlReader,
   DialogWindow,
-  injectToTerminal,
-  sendCtrlC,
-  checkStopReason,
+  sendEscViaAutoIt,
+  injectViaAutoIt,
+  pasteViaAutoIt,
+  checkFileForStop,
 } from "./helpers.mjs";
 import {
   RepeatDetector,
@@ -41,6 +42,8 @@ let loopSample = "";
 let helpCount = 0;
 let cooldownUntil = 0;
 let cumulativeTokens = 0;
+let lastDetectorDetails = null;
+let heartbeatFile = "";
 
 // ── stdin 控制命令（与 workspace-watcher 通信） ──
 function setupStdin() {
@@ -78,23 +81,21 @@ function setupStdin() {
 // ── 自动发现 .jsonl 文件 ──
 function autoDiscoverSessionFile() {
   if (CFG.sessionFile && fs.existsSync(CFG.sessionFile)) return CFG.sessionFile;
-  const projectsDir = path.join(
-    process.env.HOME || process.env.USERPROFILE,
-    ".claude", "projects"
-  );
-  if (!fs.existsSync(projectsDir)) return "";
-  let latest = "", latestMtime = 0;
-  for (const slug of fs.readdirSync(projectsDir)) {
-    const dir = path.join(projectsDir, slug);
-    if (!fs.statSync(dir).isDirectory()) continue;
-    for (const file of fs.readdirSync(dir)) {
-      if (!file.endsWith(".jsonl")) continue;
-      const fp = path.join(dir, file);
-      const mtime = fs.statSync(fp).mtimeMs;
-      if (mtime > latestMtime) { latest = fp; latestMtime = mtime; }
+  // 用传入的工作区路径匹配 projects 子目录
+  const wsPath = process.argv[2] || process.cwd();
+  if (wsPath) {
+    const slug = wsPath.replace(/[:\\/.]/g, '-').toLowerCase();
+    const sessionDir = path.join(
+      process.env.HOME || process.env.USERPROFILE,
+      ".claude", "projects", slug
+    );
+    if (fs.existsSync(sessionDir)) {
+      for (const file of fs.readdirSync(sessionDir)) {
+        if (file.endsWith(".jsonl")) return path.join(sessionDir, file);
+      }
     }
   }
-  return latest;
+  return "";
 }
 
 // ── 读取增量并逐条检测（返回 null=无新内容, false=无循环, true=有循环）─
@@ -117,9 +118,16 @@ function processAndCheck() {
     cumulativeTokens += tokens;
 
     let signals = 0;
-    if (repeatDet.feed(cleaned)) signals++;
-    if (reversalDet.feed(cleaned)) signals++;
-    if (infoDet.feed(cleaned)) signals++;
+    const r = repeatDet.feed(cleaned);
+    const rev = reversalDet.feed(cleaned);
+    const inf = infoDet.feed(cleaned);
+    if (r.fired) signals++;
+    if (rev.fired) signals++;
+    if (inf.fired) signals++;
+    if (signals > 0) {
+      lastDetectorDetails = { repeat: r.detail, reversal: rev.detail, infoStall: inf.detail, signals };
+      warn("detect signal", { repeat: r.fired, reversal: rev.fired, infoStall: inf.fired, signals, tokens, preview: cleaned.slice(0, 100) });
+    }
     if (signals >= 2) {
       loopSample = cleaned.slice(-1000);
       detected = true;
@@ -137,38 +145,37 @@ function processAndCheck() {
   return detected;
 }
 
-// ── 等待停止确认（轮询 .jsonl 的 stop_reason） ──
+// ── 发送 ESC + 重试等待停止（先尝试扩展 API，回退 PowerShell）──
 async function waitForStop() {
-  const maxWait = 60000;
-  const interval = 1000;
-  let elapsed = 0;
-
-  // 先发一个空行确保提交
-  const sent = injectToTerminal("");
-  if (!sent) {
-    warn("SendKeys failed, skip stop wait");
+  // 先全量扫描文件末尾，可能已经 stopped
+  if (checkFileForStop(reader.filePath)) {
+    info("already stopped");
     return true;
   }
 
-  while (elapsed < maxWait) {
-    await sleep(interval);
-    elapsed += interval;
+  for (let i = 0; i < 3; i++) {
+    sendEscViaAutoIt(); // 阻塞 5 秒（AutoIt 长按 ESC）
+    await sleep(5000);  // 再等 5 秒让写入落盘
 
-    const lines = reader.readLines();
-    for (const line of lines) {
-      const reason = checkStopReason(line);
-      if (reason === "stopped" || reason === "interrupted") {
-        info("stop confirmed", { reason, elapsed });
-        return true;
-      }
+    // 心跳
+    try { fs.writeFileSync(heartbeatFile, String(Date.now())); } catch {}
+    console.log(JSON.stringify({ status: "helping", tokenCount: cumulativeTokens }));
+
+    if (checkFileForStop(reader.filePath)) {
+      info("stop confirmed", { attempt: i + 1 });
+      return true;
     }
+
+    if (i < 2) warn("stop retry", { attempt: i + 1 });
   }
 
-  warn("stop not confirmed after 60s");
+  // 3 次后仍未确认到停止，需要手动干预
+  warn("stop not confirmed after 3 attempts");
+  console.log("NEEDS_MANUAL");
   return false;
 }
 
-// ── 注入摘要指令 ──
+// ── 注入摘要指令（优先扩展 API，回退 PowerShell）──
 function injectSummary() {
   const msgs = dialog.getRecent();
   const summary = buildSummary(msgs, loopSample);
@@ -182,7 +189,8 @@ function injectSummary() {
     "4. 最需要被解决的一个具体问题\n" +
     "注意：只输出总结，不要道歉，不要继续之前的输出。";
 
-  return injectToTerminal(instruction);
+	// AutoIt 注入（Ctrl+V 粘贴 + Enter + Ctrl+Enter 提交）
+  injectViaAutoIt(instruction);
 }
 
 function resetDetectors() {
@@ -192,6 +200,7 @@ function resetDetectors() {
   dialog.reset();
   loopSample = "";
   cumulativeTokens = 0;
+  lastDetectorDetails = null;
 }
 
 function sleep(ms) {
@@ -212,9 +221,18 @@ async function main() {
   }
   info("session file", { path: sessionFile });
 
+  // 用绝对路径写心跳，避免 CWD 不同导致扩展读不到
+  const wsPath = process.argv[2] || path.dirname(sessionFile);
+  heartbeatFile = path.join(wsPath, ".deadloop-heartbeat");
+
   reader = new JsonlReader(sessionFile);
-  // 跳过历史内容，只检测启动后的新输出
-  reader.lastSize = fs.statSync(sessionFile).size;
+  // 从持久化文件恢复 reader position，防止重启遗漏/重复
+  const posFile = sessionFile + ".pos";
+  try {
+    const saved = fs.readFileSync(posFile, "utf-8");
+    reader.lastSize = parseInt(saved, 10) || 0;
+  } catch { /* 首次启动，从 0 开始 */ }
+  info("reader start", { fileSize: fs.statSync(sessionFile).size, lastSize: reader.lastSize });
   state = STATE.MONITORING;
   info("state", { state });
 
@@ -222,7 +240,7 @@ async function main() {
     await sleep(CFG.pollInterval);
 
     // 每轮更新心跳文件（扩展读此文件 mtime 判断进程存活）
-    try { fs.writeFileSync(".deadloop-heartbeat", String(Date.now())); } catch {}
+    try { fs.writeFileSync(heartbeatFile, String(Date.now())); } catch {}
 
     // 处理冷却期
     if (state === STATE.COOLDOWN && Date.now() >= cooldownUntil) {
@@ -238,6 +256,8 @@ async function main() {
     }
 
     const detected = processAndCheck();
+    // 持久化 reader position，支持跨重启续读
+    try { fs.writeFileSync(posFile, String(reader.lastSize)); } catch {}
     if (detected === null) {
       // 无新内容，发送心跳（保留累计 token）
       console.log(JSON.stringify({ status: "monitoring", tokenCount: cumulativeTokens }));
@@ -248,20 +268,30 @@ async function main() {
 
     // ── 检测到死循环 ──
     warn("loop detected");
+    // 先发检测详情给 extension，再发 DEADLOOP_DETECTED
+    if (lastDetectorDetails) {
+      console.log(JSON.stringify({ status: "alert", detectors: lastDetectorDetails }));
+    }
     console.log("DEADLOOP_DETECTED");
     state = STATE.HELPING;
     info("state", { state });
 
-    await sendCtrlC();
-
-    const stopped = await waitForStop();
+    const stopped = await waitForStop(); // 内部发 ESC + 重试
     if (stopped) {
-      injectSummary();
-      await sleep(500);
-      injectToTerminal(""); // 发 Enter 提交
+      injectSummary(); // 扩展 API 自动带 Enter 提交
     } else {
-      warn("manual intervention required");
-      console.log("NEEDS_MANUAL");
+      const msgs = dialog.getRecent();
+      const summary = buildSummary(msgs, loopSample);
+      const instruction =
+        "你刚才的输出陷入了重复循环。请用第三人称，简洁总结以下内容（仅用于向另一个AI求助）：\n" +
+        "1. 用户的原始需求与关键约束\n" +
+        "2. 已经尝试过的方案及其明确结果\n" +
+        "3. 当前卡住的循环表现（比如反复输出某段代码，或来回推翻自己）\n" +
+        "4. 最需要被解决的一个具体问题\n" +
+        "注意：只输出总结，不要道歉，不要继续之前的输出。";
+      info("pasting summary (no send)", { len: instruction.length });
+      pasteViaAutoIt(instruction);
+      console.log("MANUAL_SEND_REQUIRED");
     }
 
     state = STATE.COOLDOWN;
@@ -270,6 +300,7 @@ async function main() {
     resetDetectors();
     // 跳过冷却期间写入的内容（包括注入消息等）
     try { reader.lastSize = fs.statSync(reader.filePath).size; } catch {}
+    try { fs.writeFileSync(posFile, String(reader.lastSize)); } catch {}
   }
 }
 
