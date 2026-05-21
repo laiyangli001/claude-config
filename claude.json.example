@@ -22,14 +22,6 @@
         "node",
         "c:/Users/LaiYangLi/.claude/mcp-servers/chatgpt-mcp/dist/index.js"
       ]
-    },
-    "chatgptmirror": {
-      "command": "cmd",
-      "args": [
-        "/c",
-        "node",
-        "c:/Users/LaiYangLi/.claude/mcp-servers/chatgpt-mirror-mcp/dist/index.js"
-      ]
     }
   },
   "skillUsage": {
