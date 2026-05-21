@@ -1,5 +1,7 @@
 # Claude Code 全局配置
 
+> 🎞️ 可交互演示版：[claude-config-slides.html](https://laiyangli001.github.io/claude-config/claude-config-slides.html)
+
 > 软件安装配置教程请看 [VSCode+Claude+DeepSeek 使用教程.md](./VSCode+Claude+DeepSeek%20使用教程.md)
 
 个人 Claude Code 工作环境配置。克隆到 `~/.claude` 即用。
