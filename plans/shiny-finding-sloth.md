@@ -129,7 +129,7 @@ mcp-servers/deadloop-monitor/
 
 ### 9. 收到注入消息后的 AI 流程（Claude Code）
 1. 按注入消息的 4 点要求生成总结摘要
-2. 优先级链调用：`ask_chatgpt_mirror` → `ask_chatgpt` → `ask_deepseek`
+2. 优先级链调用：`ask_chatgpt` (target="mirror") → `ask_deepseek`
 3. 收到回答后，如果对方能提供参考代码，要求完整代码
 4. 按照建议修改 bug
 

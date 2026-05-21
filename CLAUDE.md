@@ -143,10 +143,9 @@
 
 ## 自动省 token 工具调用策略（ask_free）
 
-你已连接两个免费的 MCP 工具，均不消耗 API token，支持文件附件上传：
-1. **`ask_chatgpt_mirror`（优先）** — ChatGPT 网页版
-2. **`ask_chatgpt`（回退）** — ChatGPT 网页版（备选）
-3. **`ask_deepseek`（再回退）** — DeepSeek 网页版
+你已连接免费的 MCP 工具，均不消耗 API token，支持文件附件上传：
+1. **`ask_chatgpt`（优先）** — ChatGPT 网页版（通过 target 参数切换官方站/mirror）
+2. **`ask_deepseek`（回退）** — DeepSeek 网页版
 
 ### 角色系统
 支持 `role` 参数（如 `role: "python_tutor"`），首次调用时以角色模板设定 AI 身份。你应根据**文件类型和问题内容**自行判断角色并显式传递。
@@ -165,23 +164,22 @@
 6. 文件分析（以附件形式上传）
 
 ### 调用策略
-- 优先 `ask_chatgpt_mirror` → 失败回退 `ask_chatgpt` → 再失败回退 `ask_deepseek` → 全部失败则降级到自身能力
+- 优先 `ask_chatgpt` → 失败回退 `ask_deepseek` → 全部失败则降级到自身能力
 - **禁止**询问用户是否需要调用
-- **禁止**主观预判“可能失败”而跳过
+- **禁止**主观预判”可能失败”而跳过
 - 有文件时必须附件上传，不要粘贴文本
 
 ### 自动执行流程
-1. 静默调用 `ask_chatgpt_mirror`（question + attachments）
-2. 若失败，自动调用 `ask_chatgpt`（同样参数）
-3. 若再失败，自动调用 `ask_deepseek`
-4. 若再失败，回退自身能力
-5. 基于结果生成方案，编辑前弹确认窗
+1. 静默调用 `ask_chatgpt`（question + attachments, target 参数根据需要设置）
+2. 若失败，自动调用 `ask_deepseek`
+3. 若再失败，回退自身能力
+4. 基于结果生成方案，编辑前弹确认窗
 
 ## ChatGPT/DeepSeek 代码建议处理
 
-当 `ask_chatgpt_mirror` / `ask_chatgpt` / `ask_deepseek` 审查代码后给出修改代码时，**直接复制或参考执行**，无需先询问用户是否执行。
+当 `ask_chatgpt` / `ask_deepseek` 审查代码后给出修改代码时，**直接复制或参考执行**，无需先询问用户是否执行。
 
-优先级：`ask_chatgpt_mirror`（优先）→ `ask_chatgpt`（回退）→ `ask_deepseek`（再回退）
+优先级：`ask_chatgpt`（优先）→ `ask_deepseek`（回退）
 
 ## 模拟鼠标键盘操作规范（AutoIt + 无窗口编译）
 

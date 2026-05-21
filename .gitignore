@@ -31,6 +31,12 @@ mcp-servers/*/package-lock.json
 mcp-servers/*/.chatgpt-chrome-profile*/
 mcp-servers/*/.deepseek-browser-profile*/
 mcp-servers/*/.chatgpt-mirror-profile*/
+mcp-servers/*/.chatgpt-official-profile*/
+mcp-servers/.chatgpt-mirror-profile/
+
+# 死循环监控运行时标记
+mcp-servers/deadloop-monitor/.deadloop-*
+.deadloop-report.md
 
 # 临时工具
 gh.exe
