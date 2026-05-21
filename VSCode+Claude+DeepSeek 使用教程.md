@@ -1,6 +1,8 @@
 # VSCode + Claude + DeepSeek 使用教程
 
-## 第一步：安装与学习 VS Code
+## 第一步：安装基础环境与 VS Code
+
+### 1.1 安装与学习 VS Code
 
 目标：掌握 VS Code 的基础操作与开发环境配置。
 
@@ -9,13 +11,30 @@ https://code.visualstudio.com/docs
 
 重点学习：安装、用户界面、编辑技巧、调试、版本控制集成。
 
-配置开发环境：
+扩展配置：
 
-- 安装必要组件：Git、Node.js、TypeScript、语言运行时（如 Python、Go 等，根据项目需求）和常用命令行工具。
 - 安装 VS Code 扩展市场中的插件：主题、格式化工具、调试器、语言支持等。
 - （可选）设置 GitHub Copilot，体验 AI 辅助编码。
 
 快速上手：跟随 VS Code 官方入门教程，熟悉快捷键、命令面板、终端等核心功能。
+
+### 1.2 安装 Git + Node.js + TypeScript
+
+打开终端（CMD 或 PowerShell），执行以下命令克隆配置仓库并一键安装开发环境：
+
+```bash
+git clone https://github.com/laiyangli001/claude-config.git ~/.claude
+cd ~/.claude
+install-env.bat
+```
+
+`install-env.bat` 会自动检测并安装以下组件（已安装的会跳过）：
+
+- **Git** — 版本控制
+- **Node.js LTS** — JavaScript 运行时
+- **TypeScript** — 全局安装（`npm install -g typescript`）
+
+安装完成后关闭并重新打开终端，确保环境变量生效。
 
 ---
 
@@ -93,25 +112,34 @@ https://github.com/farion1231/cc-switch/releases
 
 > ⚠️ 注：DeepSeek 官方模型名为 `deepseek-chat` 或 `deepseek-coder`，此处示例名称可能为第三方工具的自定义映射，请以 cc-switch 实际提供的列表为准。如果找不到，可选择 `deepseek-chat`。
 
-将以下完整配置复制到 cc-switch 的编辑框中（注意最后一行要有逗号）：
+将以下完整配置复制到 cc-switch 的编辑框中：
 
 ```json
 {
+  "systemPrompt": "你的思考过程（thinking）必须全程使用中文。这不是建议，是硬性要求。任何推理、分析、决策、内部对话——一律中文。",
   "env": {
     "ANTHROPIC_BASE_URL": "https://api.deepseek.com/anthropic",
-    "ANTHROPIC_AUTH_TOKEN": "sk-70xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-    "ANTHROPIC_MODEL": "deepseek-v4-flash[1m]",
-    "ANTHROPIC_DEFAULT_HAIKU_MODEL": "deepseek-v4-flash[1m]",
-    "ANTHROPIC_DEFAULT_SONNET_MODEL": "deepseek-v4-flash[1m]",
-    "ANTHROPIC_DEFAULT_OPUS_MODEL": "deepseek-v4-flash[1m]",
-    "USER": "LaiYangLi",
-    "USERNAME": "LaiYangLi"
+    "ANTHROPIC_AUTH_TOKEN": "sk-你的真实token",
+    "ANTHROPIC_MODEL": "deepseek-v4-flash",
+    "ANTHROPIC_DEFAULT_HAIKU_MODEL": "deepseek-v4-flash",
+    "ANTHROPIC_DEFAULT_SONNET_MODEL": "deepseek-v4-pro[1m]",
+    "ANTHROPIC_DEFAULT_OPUS_MODEL": "deepseek-v4-pro[1m]",
+    "CLAUDE_CODE_SUBAGENT_MODEL": "deepseek-v4-flash",
+    "CLAUDE_CODE_EFFORT_LEVEL": "max",
+    "USER": "你的用户名",
+    "USERNAME": "你的用户名"
+  },
+  "permissions": {
+    "allow": [
+      "mcp__chatgpt__ask_chatgpt",
+      "mcp__deepseek__ask_deepseek"
+    ]
   },
   "output_config": {
     "effort": "high/max"
   },
   "includeCoAuthoredBy": false,
-  "effortLevel": "max"
+  "effortLevel": "xhigh"
 }
 ```
 
