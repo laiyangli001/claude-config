@@ -25,9 +25,9 @@ mcp-servers/deadloop-monitor/
 ```
 我输出死循环内容...
 监控检测到循环（任意 2 个信号）
-  → VS Code 右下角通知 + 状态栏变红
-  → vsc-mcp execute_command 发 Ctrl+C 打断
+  → SendKeys 发 ESC 打断（PS_PRE 自动激活 VSCode 窗口）
   → 确认已停止
+  → VS Code 右下角通知 + 状态栏变红
   → 向 .jsonl 注入用户消息（含自述摘要指令）
   → 10 秒冷却
 
@@ -40,8 +40,8 @@ mcp-servers/deadloop-monitor/
 
 | 任务 | 文件 | 说明 |
 |------|------|------|
-| 集成 vsc-mcp | `monitor.mjs` + `config.mjs` | 添加 vsc-mcp HTTP 连接，用于发 Ctrl+C |
-| Ctrl+C 中断 | `monitor.mjs` | `execute_command` 发中断信号 |
+| 集成 vsc-mcp | `monitor.mjs` + `config.mjs` | 添加 vsc-mcp HTTP 连接，用于发 ESC |
+| ESC 中断 | `monitor.mjs` | SendKeys 发中断信号 |
 | 停止确认 | `monitor.mjs` | 轮询 .jsonl stop_reason 字段，确认停止 |
 | 终端消息注入 | `monitor.mjs` | `execute_command` 向终端发送 `\n` + 指令文本 |
 | 清理 helpMcp | `monitor.mjs` + `config.mjs` | 移除 ask_chatgpt_mirror 调用 |
@@ -52,7 +52,7 @@ mcp-servers/deadloop-monitor/
 ### vsc-mcp 集成方式
 
 monitor.mjs 通过 MCP Client 连接 vsc-mcp（HTTP SSE 端点 localhost:60100），封装两个函数：
-- `sendCtrlC()` → `execute_command({ command: "kill -INT <pid>" })`，PID 由 workspace-watcher 在 spawn 时记录到临时文件 `.deadloop-pid`
+- `sendEsc()` → PowerShell SendKeys 发 ESC，PID 由 workspace-watcher 在 spawn 时记录到临时文件 `.deadloop-pid`
 - `injectToTerminal(text + "\n")` → 优先用 `send_text_to_terminal`（如可用），回退到 `execute_command` 模拟输入。文本末尾加 `\n` 提交
 
 ### 已验证结论
@@ -144,12 +144,12 @@ monitor.mjs 通过 MCP Client 连接 vsc-mcp（HTTP SSE 端点 localhost:60100�
 .jsonl 中 assistant 消息的 `stop_reason` 字段含义：
 - `"end_turn"` → AI 自然完成回复，已停止
 - `"tool_use"` → AI 发了工具调用，等待工具结果
-- `undefined/null` → 被 Ctrl+C 中断，或流式输出未正常结束
+- `undefined/null` → 被 ESC 中断，或流式输出未正常结束
 
 另外，被中断时 .jsonl 最后可能有一条包含 `"interrupted": true` 的元数据行。
 
 ```
-发 Ctrl+C
+发 ESC
   → 每秒轮询 .jsonl 最后 3 行（最多等 60 秒）
   → 辅助检测：通过 vsc-mcp get_terminal_output 检查终端是否出现提示符
   → 解析最后一条 assistant 消息的 message.stop_reason：
@@ -165,7 +165,7 @@ monitor.mjs 通过 MCP Client 连接 vsc-mcp（HTTP SSE 端点 localhost:60100�
 
 若 60 秒内未确认停止（.jsonl 仍在增长且 stop_reason 始终为 "tool_use"）：
 - 状态栏切换为 `$(warning) 需手动干预`
-- VS Code 通知 "自动中断失败，请手动 Ctrl+C"
+- VS Code 通知 "自动中断失败，请手动 ESC"
 - 跳过本轮，进入冷却期
 
 ### 注入消息模板
