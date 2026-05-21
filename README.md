@@ -70,20 +70,30 @@ copy ~/.claude\settings.json.example ~\.claude\settings.json
 
 ```json
 {
-  "systemPrompt": "你的思考过程必须全程使用中文。",
+  "systemPrompt": "你的思考过程（thinking）必须全程使用中文。这不是建议，是硬性要求。任何推理、分析、决策、内部对话——一律中文。",
   "env": {
     "ANTHROPIC_BASE_URL": "https://api.deepseek.com/anthropic",
     "ANTHROPIC_AUTH_TOKEN": "sk-你的真实token",
     "ANTHROPIC_MODEL": "deepseek-v4-flash",
-    "CLAUDE_CODE_EFFORT_LEVEL": "max"
+    "ANTHROPIC_DEFAULT_HAIKU_MODEL": "deepseek-v4-flash",
+    "ANTHROPIC_DEFAULT_SONNET_MODEL": "deepseek-v4-pro[1m]",
+    "ANTHROPIC_DEFAULT_OPUS_MODEL": "deepseek-v4-pro[1m]",
+    "CLAUDE_CODE_SUBAGENT_MODEL": "deepseek-v4-flash",
+    "CLAUDE_CODE_EFFORT_LEVEL": "max",
+    "USER": "你的用户名",
+    "USERNAME": "你的用户名"
   },
+  "output_config": {
+    "effort": "high/max"
+  },
+  "includeCoAuthoredBy": false,
+  "effortLevel": "high",
   "permissions": {
     "allow": [
       "mcp__chatgpt__ask_chatgpt",
       "mcp__deepseek__ask_deepseek"
     ]
-  },
-  "effortLevel": "xhigh"
+  }
 }
 ```
 
