@@ -28,6 +28,8 @@ dir              # Windows 查看文件列表
 
 如果看到 `CLAUDE.md`、`settings.json.example`、`mcp-servers/` 等文件和目录，说明克隆成功。
 
+> 💡 也可以直接对我说"**帮我克隆配置仓库**"，AI 会自动完成以上步骤。
+
 ### 2. 目录结构
 
 | 组件 | 路径 | 说明 |
@@ -98,6 +100,8 @@ copy ~/.claude\settings.json.example ~\.claude\settings.json
 ```
 
 **安全提醒：** `settings.json` 包含 API token，已在 `.gitignore` 中排除，不会上传到 GitHub。每次在新机器上配置时，都需要从 `settings.json.example` 复制并填入真实 token。
+
+> 💡 也可以直接对我说"**帮我配置 settings.json**"，AI 会自动从模板复制并引导你填写关键字段。
 
 ### 4. 基础命令与工作流
 
@@ -174,6 +178,8 @@ cd ~/.claude && git pull
 - `projects/**/*.jsonl.pos`（阅读位置标记）
 - 运行时标记文件（`.deadloop-*`, `*.heartbeat`）
 
+> 💡 也可以直接对我说"**帮我备份配置到 GitHub**"或"**帮我同步配置**"，AI 会自动执行对应的 git 操作。
+
 ---
 
 ## 🔧 高级设置
@@ -222,6 +228,8 @@ pause
 - 每个服务安装 Chromium 浏览器约 300MB，总下载量约 600MB，首次安装需要较长时间（视网速 5-30 分钟）。
 - 如果中途失败，可以单独执行对应服务的安装命令重试。
 - `node_modules/` 已被 `.gitignore` 排除，不会上传到 GitHub。
+
+> 💡 也可以直接对我说"**帮我安装 MCP 依赖**"，AI 会自动完成以上安装步骤。
 
 #### 首次使用与登录
 
@@ -280,6 +288,9 @@ echo Done. Please reload VS Code window (Ctrl+Shift+P -> Reload Window).
 pause
 ```
 
+> 💡 也可以直接对我说"**帮我安装死循环监控**"，AI 会自动完成以上安装步骤。
+
+
 #### 扩展安装与界面
 
 **安装步骤：**
@@ -321,6 +332,8 @@ node install-extension.mjs
 
 **重装扩展：** 修改 `extension.js` 后，重新执行 `node install-extension.mjs` 再 Reload 即可。
 
+> 💡 也可以直接对我说"**帮我安装死循环监控扩展**"，AI 会自动完成扩展安装步骤。
+> 💡 也可以直接对我说"**帮我调整循环检测阈值宽松一点**"，AI 会自动调整循环检测阈值。
 ---
 
 ### AutoIt3 脚本编译与调用
@@ -378,23 +391,13 @@ cmd //c "@C:\Users\<用户名>\.claude\Aut2Exe\Aut2exe_x64.exe /in "C:\full\path
 
 两者配合可以组成全自动脱困-求助-修复闭环。
 
-#### 典型工作流
+#### 典型工作流（自动执行，不需要手动执行）
 
 1. **监控阶段** — 死循环监控持续扫描 `.jsonl` 日志
 2. **检测到死循环** → `deadloop_control.exe esc` 打断输出 → 确认停止（扫描 `stop_reason: "end_turn"`）
 3. **注入求助指令** → `inject_file` 将预置的摘要生成指令粘贴到 Claude Code 输入框并自动提交 → 收到注入消息后，Claude Code 自动调用 `ask_chatgpt` 发送问题
 4. **获取外部答案** → ChatGPT 网页版返回代码审查结果或修复建议 → Claude Code 按返回内容修改代码
 5. **冷却恢复** → 10 秒冷却后继续监控
-
-#### 手动触发场景
-
-如果你主动遇到难题，也可以直接使用 MCP 工具：
-
-```
-请帮我审查这段代码（粘贴代码）
-```
-
-→ 模型自动判断数据量 → 若超过阈值，静默调用 `ask_chatgpt` → 返回结果后直接应用。
 
 #### 配置要点
 

@@ -1,0 +1,763 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Claude Config 使用教程</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, 'Microsoft YaHei', 'PingFang SC', sans-serif;
+    background: linear-gradient(135deg, #0f0c29, #1a1a3e, #24243e);
+    color: #e2e8f0;
+    line-height: 1.8;
+    overflow-x: hidden;
+  }
+
+  #particles {
+    position: fixed; inset: 0; z-index: 0;
+    pointer-events: none;
+    overflow: hidden;
+  }
+  .particle {
+    position: absolute;
+    width: 4px; height: 4px;
+    background: rgba(99, 102, 241, 0.4);
+    border-radius: 50%;
+    animation: float linear infinite;
+  }
+  @keyframes float {
+    0% { transform: translateY(100vh) scale(0); opacity: 0; }
+    10% { opacity: 1; }
+    90% { opacity: 1; }
+    100% { transform: translateY(-10vh) scale(1); opacity: 0; }
+  }
+
+  .container {
+    position: relative; z-index: 1;
+    max-width: 960px; margin: 0 auto;
+    padding: 40px 24px 80px;
+  }
+
+  header {
+    text-align: center; padding: 60px 0 40px;
+    animation: fadeInDown 1s ease;
+  }
+  @keyframes fadeInDown {
+    from { opacity: 0; transform: translateY(-40px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  header h1 {
+    font-size: 2.6em;
+    background: linear-gradient(90deg, #818cf8, #c084fc, #f472b6);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 12px;
+  }
+  header p { color: #94a3b8; font-size: 1.1em; }
+
+  .section {
+    background: rgba(30, 30, 60, 0.7);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(99, 102, 241, 0.2);
+    border-radius: 16px;
+    padding: 32px; margin-bottom: 24px;
+    opacity: 0; transform: translateY(30px);
+    transition: all 0.6s ease;
+  }
+  .section.visible { opacity: 1; transform: translateY(0); }
+  .section:hover { border-color: rgba(99, 102, 241, 0.5); box-shadow: 0 0 30px rgba(99, 102, 241, 0.1); }
+
+  .section h2 {
+    font-size: 1.5em; margin-bottom: 20px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .section h2 .icon {
+    width: 36px; height: 36px;
+    display: inline-flex; align-items: center; justify-content: center;
+    border-radius: 10px; font-size: 1.2em;
+  }
+  .section h3 {
+    font-size: 1.15em; margin: 18px 0 10px; color: #a5b4fc;
+  }
+
+  .step-list { counter-reset: step; }
+  .step-card {
+    counter-increment: step;
+    background: rgba(15, 15, 40, 0.6);
+    border: 1px solid rgba(99, 102, 241, 0.15);
+    border-radius: 12px;
+    padding: 20px; margin-bottom: 16px;
+    position: relative; padding-left: 64px;
+    transition: all 0.3s ease;
+  }
+  .step-card:hover { border-color: rgba(99, 102, 241, 0.4); transform: translateX(4px); }
+  .step-card::before {
+    content: counter(step);
+    position: absolute; left: 18px; top: 18px;
+    width: 32px; height: 32px;
+    background: linear-gradient(135deg, #818cf8, #6366f1);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.9em; font-weight: 700; color: #fff;
+  }
+  .step-card h3 { font-size: 1.05em; margin-bottom: 8px; color: #a5b4fc; }
+  .step-card p, .step-card li { color: #cbd5e1; font-size: 0.95em; }
+  .step-card ul, .step-card ol { padding-left: 20px; }
+  .step-card li { margin: 4px 0; }
+
+  pre {
+    background: #0a0a1a; border: 1px solid rgba(99, 102, 241, 0.2);
+    border-radius: 10px; padding: 16px; margin: 12px 0;
+    overflow-x: auto; font-size: 0.85em;
+  }
+  pre code { color: #e2e8f0; font-family: 'Fira Code', 'Cascadia Code', monospace; }
+  .code-header {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 8px; font-size: 0.8em; color: #64748b;
+  }
+  .copy-btn {
+    background: rgba(99, 102, 241, 0.2); border: 1px solid rgba(99, 102, 241, 0.3);
+    color: #a5b4fc; padding: 4px 12px; border-radius: 6px;
+    cursor: pointer; font-size: 0.85em; transition: all 0.2s;
+  }
+  .copy-btn:hover { background: rgba(99, 102, 241, 0.4); }
+  .copy-btn.copied { background: #22c55e; color: #fff; border-color: #22c55e; }
+
+  .service-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 16px; margin: 16px 0;
+  }
+  .service-card {
+    background: rgba(15, 15, 40, 0.6);
+    border: 1px solid rgba(99, 102, 241, 0.15);
+    border-radius: 12px; padding: 20px;
+    cursor: pointer; transition: all 0.3s ease; position: relative;
+  }
+  .service-card:hover {
+    border-color: rgba(99, 102, 241, 0.5);
+    transform: translateY(-4px);
+    box-shadow: 0 8px 25px rgba(99, 102, 241, 0.15);
+  }
+  .service-card .tag {
+    display: inline-block; padding: 2px 10px; border-radius: 20px;
+    font-size: 0.75em; margin-bottom: 8px;
+  }
+  .tag-primary { background: rgba(99, 102, 241, 0.3); color: #a5b4fc; }
+  .tag-green { background: rgba(34, 197, 94, 0.3); color: #86efac; }
+  .tag-amber { background: rgba(245, 158, 11, 0.3); color: #fde68a; }
+  .service-card h3 { font-size: 1.1em; margin-bottom: 6px; }
+  .service-card p { font-size: 0.9em; color: #94a3b8; }
+  .service-card .detail {
+    max-height: 0; overflow: hidden;
+    transition: max-height 0.4s ease, margin 0.3s ease;
+    margin-top: 0;
+  }
+  .service-card.active .detail {
+    max-height: 600px; margin-top: 12px;
+  }
+  .service-card .detail p { color: #cbd5e1; margin-bottom: 8px; font-size: 0.9em; }
+
+  .highlight {
+    background: linear-gradient(90deg, rgba(99, 102, 241, 0.15), rgba(192, 132, 252, 0.15));
+    border: 1px solid rgba(99, 102, 241, 0.3);
+    border-radius: 10px; padding: 16px; margin: 12px 0;
+  }
+  .highlight strong { color: #f472b6; }
+
+  table {
+    width: 100%; border-collapse: collapse; margin: 12px 0;
+    font-size: 0.9em;
+  }
+  th, td {
+    border: 1px solid rgba(99, 102, 241, 0.2);
+    padding: 10px 14px; text-align: left;
+  }
+  th { background: rgba(99, 102, 241, 0.15); color: #a5b4fc; font-weight: 600; }
+  td { color: #cbd5e1; }
+
+  .faq-item { margin-bottom: 12px; }
+  .faq-q {
+    background: rgba(15, 15, 40, 0.6);
+    border: 1px solid rgba(99, 102, 241, 0.15);
+    border-radius: 10px; padding: 14px 18px;
+    cursor: pointer; display: flex; justify-content: space-between; align-items: center;
+    transition: all 0.3s;
+  }
+  .faq-q:hover { border-color: rgba(99, 102, 241, 0.4); }
+  .faq-q .arrow { transition: transform 0.3s; font-size: 0.8em; }
+  .faq-item.open .faq-q .arrow { transform: rotate(180deg); }
+  .faq-a {
+    max-height: 0; overflow: hidden;
+    transition: max-height 0.4s ease, padding 0.3s ease;
+    padding: 0 18px; color: #94a3b8; font-size: 0.9em;
+  }
+  .faq-item.open .faq-a { max-height: 300px; padding: 14px 18px; }
+
+  .progress-bar {
+    position: fixed; top: 0; left: 0; height: 3px;
+    background: linear-gradient(90deg, #818cf8, #c084fc, #f472b6);
+    z-index: 100; transition: width 0.3s ease;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 0.6; }
+    50% { opacity: 1; }
+  }
+  .pulse-dot {
+    display: inline-block; width: 8px; height: 8px;
+    background: #22c55e; border-radius: 50%;
+    animation: pulse 1.5s infinite; margin-right: 8px;
+  }
+
+  @media (max-width: 640px) {
+    header h1 { font-size: 1.8em; }
+    .container { padding: 20px 12px 40px; }
+    .section { padding: 20px; }
+    .step-card { padding-left: 52px; }
+    .service-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div class="progress-bar" id="progressBar"></div>
+<div id="particles"></div>
+
+<div class="container">
+
+<header>
+  <h1>⚙️ Claude Config 使用教程</h1>
+  <p>包含基础配置 + MCP 免费工具 + 死循环监控 + AutoIt3 联合使用</p>
+  <p style="color:#f472b6;font-size:1em;margin-top:8px;">⭐ 记住：以下所有操作，都可以让 AI 模型帮你执行！</p>
+</header>
+
+<!-- ============ Section 1: 基础设置 ============ -->
+<div class="section visible" id="s1">
+  <h2><span class="icon" style="background:rgba(99,102,241,0.2);">📦</span> 基础设置（快速上手）</h2>
+  <p style="margin-bottom:16px;">本节适合新用户快速完成 Claude Code 环境搭建。如需定制 MCP 工具、死循环监控或 AutoIt 脚本，请移步【高级设置】。</p>
+
+  <div class="step-list">
+    <div class="step-card">
+      <h3>克隆配置仓库</h3>
+      <p>打开终端（CMD 或 PowerShell），执行：</p>
+      <pre><code>git clone https://github.com/laiyangli001/claude-config.git ~/.claude</code></pre>
+      <p>克隆完成后进入目录确认文件完整：</p>
+      <pre><code>cd ~/.claude
+dir</code></pre>
+      <p>如果看到 <code>CLAUDE.md</code>、<code>settings.json.example</code>、<code>mcp-servers/</code> 等文件和目录，说明克隆成功。</p>
+      <div class="highlight">
+        💡 也可以直接对我说 <strong>"帮我克隆配置仓库"</strong>，AI 会自动完成以上步骤。
+      </div>
+    </div>
+
+    <div class="step-card">
+      <h3>目录结构</h3>
+      <table>
+        <tr><th>组件</th><th>路径</th><th>说明</th></tr>
+        <tr><td><strong>全局 CLAUDE.md</strong></td><td><code>CLAUDE.md</code></td><td>身份定义、行为边界、工具规则</td></tr>
+        <tr><td><strong>设置</strong></td><td><code>settings.json</code></td><td>API 端点、模型、权限</td></tr>
+        <tr><td><strong>MCP 免费工具</strong></td><td><code>mcp-servers/chatgpt-mcp/</code></td><td>ChatGPT 网页版，不消耗 API token</td></tr>
+        <tr><td></td><td><code>mcp-servers/deepseek-mcp/</code></td><td>DeepSeek 网页版，不消耗 API token</td></tr>
+        <tr><td><strong>死循环监控</strong></td><td><code>mcp-servers/deadloop-monitor/</code></td><td>输出死循环检测 → AutoIt 打断 → 摘要求助</td></tr>
+        <tr><td><strong>会话数据</strong></td><td><code>projects/**/*.jsonl</code></td><td>对话记录（git 排除，不上传）</td></tr>
+        <tr><td><strong>跨对话记忆</strong></td><td><code>projects/&lt;slug&gt;/memory/</code></td><td>持久化的用户偏好和项目上下文</td></tr>
+      </table>
+    </div>
+
+    <div class="step-card">
+      <h3>基础配置（settings.json）</h3>
+      <p><code>settings.json</code> 是 Claude Code 的核心配置文件，包含 API 凭证、模型选择、权限控制。</p>
+      <p><strong>首次配置步骤：</strong></p>
+      <ol>
+        <li>从模板复制（模板不含真实 token）：<br><code>copy ~/.claude\settings.json.example ~\.claude\settings.json</code></li>
+        <li>编辑 settings.json，填入以下关键字段：</li>
+      </ol>
+      <table>
+        <tr><th>字段</th><th>说明</th><th>示例值</th></tr>
+        <tr><td><code>env.ANTHROPIC_BASE_URL</code></td><td>API 端点地址</td><td><code>https://api.deepseek.com/anthropic</code></td></tr>
+        <tr><td><code>env.ANTHROPIC_AUTH_TOKEN</code></td><td><strong>你的 API Key</strong></td><td><code>sk-xxxxxxxxxxxx</code></td></tr>
+        <tr><td><code>env.ANTHROPIC_MODEL</code></td><td>使用的模型</td><td><code>deepseek-v4-flash</code></td></tr>
+      </table>
+      <ol start="3">
+        <li>（可选）调整 systemPrompt、effortLevel、permissions</li>
+      </ol>
+      <p><strong>完整示例：</strong></p>
+      <pre><code>{
+  "systemPrompt": "你的思考过程（thinking）必须全程使用中文。这不是建议，是硬性要求。任何推理、分析、决策、内部对话——一律中文。",
+  "env": {
+    "ANTHROPIC_BASE_URL": "https://api.deepseek.com/anthropic",
+    "ANTHROPIC_AUTH_TOKEN": "sk-你的真实token",
+    "ANTHROPIC_MODEL": "deepseek-v4-flash",
+    "ANTHROPIC_DEFAULT_HAIKU_MODEL": "deepseek-v4-flash",
+    "ANTHROPIC_DEFAULT_SONNET_MODEL": "deepseek-v4-pro[1m]",
+    "ANTHROPIC_DEFAULT_OPUS_MODEL": "deepseek-v4-pro[1m]",
+    "CLAUDE_CODE_SUBAGENT_MODEL": "deepseek-v4-flash",
+    "CLAUDE_CODE_EFFORT_LEVEL": "max",
+    "USER": "你的用户名",
+    "USERNAME": "你的用户名"
+  },
+  "output_config": { "effort": "high/max" },
+  "includeCoAuthoredBy": false,
+  "effortLevel": "high",
+  "permissions": {
+    "allow": [
+      "mcp__chatgpt__ask_chatgpt",
+      "mcp__deepseek__ask_deepseek"
+    ]
+  }
+}</code></pre>
+      <div class="highlight">
+        <strong>⚠️ 安全提醒：</strong> settings.json 包含 API token，已在 .gitignore 中排除，不会上传到 GitHub。
+      </div>
+      <div class="highlight">
+        💡 也可以直接对我说 <strong>"帮我配置 settings.json"</strong>，AI 会自动从模板复制并引导你填写关键字段。
+      </div>
+    </div>
+
+    <div class="step-card">
+      <h3>基础命令与工作流</h3>
+      <table>
+        <tr><th>命令</th><th>用途</th><th>示例</th></tr>
+        <tr><td><code>/help</code></td><td>查看所有可用命令</td><td><code>/help</code></td></tr>
+        <tr><td><code>/clear</code></td><td>清空当前对话历史</td><td><code>/clear</code></td></tr>
+        <tr><td><code>/grill-me</code></td><td>新任务前对齐需求</td><td><code>/grill-me</code></td></tr>
+        <tr><td><code>/tdd</code></td><td>测试驱动开发流程</td><td><code>/tdd</code></td></tr>
+        <tr><td><code>/diagnose</code></td><td>结构化排查 bug</td><td><code>/diagnose</code></td></tr>
+        <tr><td><code>/caveman</code></td><td>省 token 模式</td><td><code>/caveman</code></td></tr>
+        <tr><td><code>/improve-codebase-architecture</code></td><td>架构审查</td><td><code>/improve-codebase-architecture</code></td></tr>
+        <tr><td><code>/zoom-out</code></td><td>退一步审视设计</td><td><code>/zoom-out</code></td></tr>
+        <tr><td><code>/loop &lt;间隔&gt; &lt;命令&gt;</code></td><td>定时重复执行</td><td><code>/loop 5m /diagnose</code></td></tr>
+      </table>
+    </div>
+
+    <div class="step-card">
+      <h3>记忆系统（跨对话持久化）</h3>
+      <p>Claude Code 会自动保存关键信息到 <code>~/.claude/projects/&lt;slug&gt;/memory/</code>，实现跨对话记忆。</p>
+      <table>
+        <tr><th>指令</th><th>示例</th></tr>
+        <tr><td>把这段配置写入记忆</td><td>"把当前的 API 端点配置写入记忆"</td></tr>
+        <tr><td>记住这个做法</td><td>"记住这个 deploy 流程"</td></tr>
+        <tr><td>查看之前的配置</td><td>"帮我看看之前 MCP 怎么安装的"</td></tr>
+        <tr><td>设置提醒</td><td>"以后修改代码时，提醒我用 /tdd"</td></tr>
+      </table>
+      <p><strong>跨设备同步：</strong>记忆文件通过 git 上传到 GitHub，在各设备执行 <code>cd ~/.claude && git pull</code> 即可同步。</p>
+    </div>
+
+    <div class="step-card">
+      <h3>备份与同步（可选）</h3>
+      <p>将自己的配置推送到 GitHub，方便多设备共享。</p>
+      <p><strong>首次推送（创建仓库后）：</strong></p>
+      <pre><code>cd ~/.claude
+git remote add origin https://github.com/&lt;你的用户名&gt;/&lt;仓库名&gt;.git
+git add -A
+git commit -m "chore: 初始化 Claude Code 配置"
+git push -u origin master</code></pre>
+      <p><strong>日常备份：</strong></p>
+      <pre><code>cd ~/.claude
+git status
+git add -A
+git commit -m "chore: 更新配置"
+git push</code></pre>
+      <p><strong>从另一台设备同步：</strong></p>
+      <pre><code>cd ~/.claude && git pull</code></pre>
+      <p><strong>自动排除的内容（已在 .gitignore 中配置）：</strong></p>
+      <ul>
+        <li><code>settings.json</code>（含 API token，需手动复制）</li>
+        <li><code>node_modules/</code>（各设备自行 npm install）</li>
+        <li><code>projects/**/*.jsonl</code>（对话记录，不跨设备共享）</li>
+        <li>运行时标记文件（<code>.deadloop-*</code>, <code>*.heartbeat</code>）</li>
+      </ul>
+      <div class="highlight">
+        💡 也可以直接对我说 <strong>"帮我备份配置到 GitHub"</strong> 或 <strong>"帮我同步配置"</strong>，AI 会自动执行对应的 git 操作。
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ Section 2: MCP 免费工具 ============ -->
+<div class="section" id="s2">
+  <h2><span class="icon" style="background:rgba(34,197,94,0.2);">🤖</span> MCP 免费工具：ask_chatgpt &amp; ask_deepseek</h2>
+
+  <p>这两个 MCP 服务分别调用 ChatGPT 网页版和 DeepSeek 网页版，不消耗 API token，适合复杂代码审查、长文本分析、联网查资料等场景。</p>
+
+  <div class="highlight">
+    <strong>💡 说明：</strong> <code>ask_chatgpt</code> 通过 <code>target</code> 参数统一支持镜像站（<code>"mirror"</code>）和官方站（<code>"official"</code>），无需独立的 mirror MCP 服务。默认先尝试第三方镜像，再尝试官方网站。
+  </div>
+
+  <div class="service-grid">
+    <div class="service-card" onclick="this.classList.toggle('active')">
+      <span class="tag tag-primary">✨ 优先使用</span>
+      <h3>ask_chatgpt</h3>
+      <p>ChatGPT 网页版 · target 参数支持 official / mirror</p>
+      <div class="detail">
+        <p>自动打开 Chromium 浏览器 → 手动登录 → session 自动保存 → 后续免登录</p>
+        <p>支持 target="official"（chatgpt.com）和 target="mirror"（镜像站）</p>
+      </div>
+    </div>
+    <div class="service-card" onclick="this.classList.toggle('active')">
+      <span class="tag tag-amber">🔄 备用</span>
+      <h3>ask_deepseek</h3>
+      <p>DeepSeek 网页版 · 国内直连</p>
+      <div class="detail">
+        <p>自动打开 Chromium 浏览器 → 手动登录 DeepSeek → session 自动保存 → 后续免登录</p>
+        <p>国内网络可直接访问，无需 VPN</p>
+      </div>
+    </div>
+  </div>
+
+  <h3>文件结构</h3>
+  <pre><code>~/.claude/mcp-servers/
+├── chatgpt-mcp/          # ChatGPT 官方站
+│   ├── server.js         # MCP 服务入口
+│   ├── package.json
+│   └── node_modules/
+├── deepseek-mcp/         # DeepSeek 网页版
+│   ├── server.js
+│   └── ...</code></pre>
+
+  <h3>一键安装依赖（批处理）</h3>
+  <p>在 <code>~/.claude/</code> 目录下创建 <code>install-mcp-deps.bat</code>：</p>
+  <pre><code>@echo off
+echo Installing MCP dependencies...
+cd /d "%~dp0mcp-servers\chatgpt-mcp" && npm install && npx playwright install chromium
+cd /d "%~dp0mcp-servers\deepseek-mcp" && npm install && npx playwright install chromium
+echo All MCP dependencies installed.
+pause</code></pre>
+  <p><strong>运行方式：</strong>右键 → <strong>以管理员身份运行</strong>（或双击运行）。</p>
+  <ul style="color:#cbd5e1;font-size:0.95em;padding-left:20px;">
+    <li>每个服务安装 Chromium 浏览器约 300MB，总下载量约 600MB</li>
+    <li>如果中途失败，可以单独执行对应服务的安装命令重试</li>
+    <li><code>node_modules/</code> 已被 .gitignore 排除，不会上传到 GitHub</li>
+  </ul>
+  <div class="highlight">
+    💡 也可以直接对我说 <strong>"帮我安装 MCP 依赖"</strong>，AI 会自动完成以上安装步骤。
+  </div>
+
+  <h3>首次使用与登录</h3>
+  <div class="step-list">
+    <div class="step-card">
+      <h3>手动登录</h3>
+      <p>在弹出窗口中手动登录对应服务（ChatGPT / DeepSeek）</p>
+    </div>
+    <div class="step-card">
+      <h3>关闭窗口</h3>
+      <p>登录完成后关闭浏览器窗口，session 自动保存</p>
+    </div>
+    <div class="step-card">
+      <h3>后续复用</h3>
+      <p>后续调用不再需要重新登录，直接复用已保存的会话</p>
+    </div>
+  </div>
+  <div class="highlight">
+    <strong>注意：</strong>两个服务使用独立的浏览器配置文件，需要分别登录一次。<br>
+    若需隐藏浏览器窗口（无人值守场景），在 settings.json 的 env 中设置 <code>"CHATGPT_HEADLESS": "true"</code>。
+  </div>
+
+  <h3>提示词模板（代码审查专用）</h3>
+  <div class="highlight">
+    <strong>[待补充：用户提供的提示词模板]</strong>
+  </div>
+
+  <h3>角色模板文件</h3>
+  <div class="highlight">
+    <strong>[待补充：用户提供的角色模板格式说明]</strong>
+  </div>
+</div>
+
+<!-- ============ Section 3: 死循环监控 ============ -->
+<div class="section" id="s3">
+  <h2><span class="icon" style="background:rgba(245,158,11,0.2);">🔄</span> 死循环监控（Dead Loop Monitor）</h2>
+
+  <p>自动检测 Claude Code 输出是否陷入重复、反转、信息停滞，打断并求助第三方 AI 协助脱困。</p>
+
+  <h3>扩展包文件架构</h3>
+  <pre><code>~/.claude/mcp-servers/deadloop-monitor/
+├── monitor.mjs                # 主监控进程
+├── detectors.mjs              # 重复/反转/停滞检测器
+├── helpers.mjs                # 文件读取、AutoIt 调用、停止确认
+├── deadloop_control.au3       # AutoIt 源码
+├── deadloop_control.exe       # 编译后的无窗口 exe
+├── config.mjs                 # 所有阈值参数
+├── logger.mjs                 # JSON 日志，自动轮转
+├── workspace-watcher/         # VS Code 扩展
+│   ├── extension.js
+│   └── package.json
+└── install-extension.mjs      # 扩展安装脚本</code></pre>
+
+  <h3>一键安装（批处理）</h3>
+  <p>创建 <code>install-deadloop.bat</code>：</p>
+  <pre><code>@echo off
+echo Installing deadloop monitor dependencies...
+cd /d "%~dp0mcp-servers\deadloop-monitor"
+npm install
+echo Extension installation...
+node install-extension.mjs
+echo Done. Please reload VS Code window (Ctrl+Shift+P -> Reload Window).
+pause</code></pre>
+  <div class="highlight">
+    💡 也可以直接对我说 <strong>"帮我安装死循环监控"</strong>，AI 会自动完成以上安装步骤。
+  </div>
+
+  <h3>扩展安装与界面</h3>
+  <div class="step-list">
+    <div class="step-card">
+      <h3>安装依赖</h3>
+      <p>运行 <code>install-deadloop.bat</code>，或在终端手动执行：</p>
+      <pre><code>cd ~/.claude/mcp-servers/deadloop-monitor
+npm install
+node install-extension.mjs</code></pre>
+    </div>
+    <div class="step-card">
+      <h3>安装成功提示</h3>
+      <pre><code>[deadloop] extension installed to C:\Users\&lt;用户名&gt;\.vscode\extensions\laiyangli.deadloop-workspace-watcher-1.0.0
+[deadloop] reload VS Code to activate (Ctrl+Shift+P → Reload Window)</code></pre>
+    </div>
+    <div class="step-card">
+      <h3>Reload VS Code</h3>
+      <p>按 <code>Ctrl+Shift+P</code> → 输入 <code>Reload Window</code> → 回车</p>
+      <p>Reload 后，VS Code 底部状态栏右侧会出现 <strong>「🟢 循环守护」</strong> 按钮</p>
+    </div>
+  </div>
+
+  <h3>菜单操作（左键点击状态栏）</h3>
+  <table>
+    <tr><th>操作</th><th>说明</th></tr>
+    <tr><td>⏸ 暂停监控</td><td>暂停检测，进程保留</td></tr>
+    <tr><td>▶ 恢复监控</td><td>恢复检测</td></tr>
+    <tr><td>📋 检测报告</td><td>打开 <code>.deadloop-report.md</code></td></tr>
+    <tr><td>📋 查看日志</td><td>打开 <code>deadloop-monitor.jsonl</code></td></tr>
+  </table>
+
+  <h3>使用说明</h3>
+  <ul style="color:#cbd5e1;font-size:0.95em;padding-left:20px;">
+    <li>监控自动运行，无需人工干预。每次打开 VS Code 自动启动</li>
+    <li>检测到死循环时自动执行：AutoIt ESC 长按 5 秒 → 确认是否停止 → 注入摘要指令 → 冷却</li>
+    <li>状态栏显示当前状态：🟢 监控中 / 🟡 已暂停 / 🔴 检测到死循环 / ⚪ 已停止</li>
+    <li>可在 <code>config.mjs</code> 中调整阈值（重复次数、反转词密度、信息增量率）</li>
+    <li><strong>重装扩展：</strong>修改 extension.js 后，重新执行 <code>node install-extension.mjs</code> 再 Reload 即可</li>
+  </ul>
+  <div class="highlight">💡 也可以直接对我说 <strong>"帮我安装死循环监控扩展"</strong>，AI 会自动完成扩展安装步骤。</div>
+  <div class="highlight">💡 也可以直接对我说 <strong>"帮我调整循环检测阈值宽松一点"</strong>，AI 会自动调整循环检测阈值。</div>
+</div>
+
+<!-- ============ Section 4: AutoIt3 ============ -->
+<div class="section" id="s4">
+  <h2><span class="icon" style="background:rgba(192,132,252,0.2);">⌨️</span> AutoIt3 脚本编译与调用</h2>
+
+  <p>AutoIt3 用于模拟鼠标键盘操作，适合自动化控制外部程序、发送按键、窗口管理。</p>
+
+  <h3>功能概览</h3>
+  <table>
+    <tr><th>功能</th><th>说明</th></tr>
+    <tr><td><code>Send</code> / <code>ControlSend</code></td><td>发送按键</td></tr>
+    <tr><td><code>MouseClick</code> / <code>MouseMove</code></td><td>鼠标模拟</td></tr>
+    <tr><td><code>WinActivate</code> / <code>WinWait</code></td><td>窗口控制</td></tr>
+    <tr><td><code>ClipPut</code> / <code>ClipGet</code></td><td>剪贴板操作</td></tr>
+  </table>
+
+  <h3>生成 au3 脚本的提示词模板</h3>
+  <pre><code>我需要一个 AutoIt3 脚本，实现以下需求：
+&lt;描述需求，例如：每 10 秒检测某个窗口是否存在，若存在则发送 F5 刷新&gt;
+
+请生成：
+- 完整的 .au3 脚本代码
+- 编译命令（使用 @Aut2Exe/Aut2exe_x64.exe，添加 /console 参数）
+- 如何从 Node.js / Python 调用该 exe 的示例代码</code></pre>
+
+  <h3>编译命令模板（必须无窗口静默编译）</h3>
+  <pre><code>cmd //c "@Aut2Exe/Aut2exe_x64.exe /in "C:\Users\&lt;用户名&gt;\.claude\mcp-servers\deadloop-monitor\script.au3" /out "C:\Users\&lt;用户名&gt;\.claude\mcp-servers\deadloop-monitor\script.exe" /console"</code></pre>
+  <p>也可使用绝对路径（避免当前目录问题）：</p>
+  <pre><code>cmd //c "@C:\Users\&lt;用户名&gt;\.claude\Aut2Exe\Aut2exe_x64.exe /in "C:\full\path\to\script.au3" /out "C:\full\path\to\output.exe" /console"</code></pre>
+  <div class="highlight">
+    <strong>⚠️ 注意：</strong>编译时杀毒软件可能拦截生成的 .exe，需手动添加至信任区（白名单），或临时关闭实时防护。
+  </div>
+
+  <h3>在 deadloop-monitor 中的实际应用</h3>
+  <p><code>deadloop_control.exe</code> 通过上述方式编译，提供了三个子命令：</p>
+  <table>
+    <tr><th>命令</th><th>说明</th></tr>
+    <tr><td><code>esc</code></td><td>长按 ESC 5 秒中断输出</td></tr>
+    <tr><td><code>inject_file &lt;file&gt;</code></td><td>粘贴文件内容 + 自动提交（Enter）</td></tr>
+    <tr><td><code>paste_file &lt;file&gt;</code></td><td>只粘贴不提交</td></tr>
+  </table>
+  <p>功能通过 <code>ControlSend</code> 和 <code>ClipPut</code> + <code>Ctrl+V</code> 实现，完全无窗口干扰。</p>
+</div>
+
+<!-- ============ Section 5: 联合使用 ============ -->
+<div class="section" id="s5">
+  <h2><span class="icon" style="background:rgba(34,197,94,0.2);">🔗</span> MCP 工具 + 死循环监控 联合使用指南</h2>
+
+  <p>两者配合可以组成全自动脱困-求助-修复闭环。</p>
+
+  <h3>典型工作流（自动执行，不需要手动）</h3>
+  <div class="step-list">
+    <div class="step-card">
+      <h3>监控阶段</h3>
+      <p>死循环监控持续扫描 .jsonl 日志</p>
+    </div>
+    <div class="step-card">
+      <h3>检测到死循环</h3>
+      <p><code>deadloop_control.exe esc</code> 打断输出 → 确认停止（扫描 <code>stop_reason: "end_turn"</code>）</p>
+    </div>
+    <div class="step-card">
+      <h3>注入求助指令</h3>
+      <p><code>inject_file</code> 将预置的摘要生成指令粘贴到 Claude Code 输入框并自动提交 → 收到注入消息后，Claude Code 自动调用 <code>ask_chatgpt</code> 发送问题</p>
+    </div>
+    <div class="step-card">
+      <h3>获取外部答案</h3>
+      <p>ChatGPT 网页版返回代码审查结果或修复建议 → Claude Code 按返回内容修改代码</p>
+    </div>
+    <div class="step-card">
+      <h3>冷却恢复</h3>
+      <p>10 秒冷却后继续监控</p>
+    </div>
+  </div>
+
+  <h3>配置要点</h3>
+  <ul style="color:#cbd5e1;font-size:0.95em;padding-left:20px;">
+    <li>确保 settings.json 中 permissions.allow 包含 <code>mcp__chatgpt__ask_chatgpt</code> 和 <code>mcp__deepseek__ask_deepseek</code></li>
+    <li>死循环监控的 <code>config.mjs</code> 中的冷却时间、触发阈值可根据工作节奏调整</li>
+    <li>若需长期无人值守，将 <code>CHATGPT_HEADLESS=true</code> 设为隐藏浏览器模式（但首次仍需登录）</li>
+  </ul>
+</div>
+
+<!-- ============ Section 6: 常见问题 ============ -->
+<div class="section" id="s6">
+  <h2><span class="icon" style="background:rgba(239,68,68,0.2);">❓</span> 常见问题</h2>
+
+  <div class="faq-item" onclick="toggleFaq(this)">
+    <div class="faq-q">
+      <span>浏览器没有弹出窗口</span>
+      <span class="arrow">▼</span>
+    </div>
+    <div class="faq-a">检查 settings.json 中 <code>CHATGPT_HEADLESS</code> 是否被设为 <code>"true"</code>。设为 <code>"false"</code> 或删除该变量即可。</div>
+  </div>
+
+  <div class="faq-item" onclick="toggleFaq(this)">
+    <div class="faq-q">
+      <span>"Failed to launch browser" 错误</span>
+      <span class="arrow">▼</span>
+    </div>
+    <div class="faq-a">Playwright Chromium 没有正确安装。手动运行：<br><code>cd ~/.claude/mcp-servers/chatgpt-mcp && npx playwright install chromium</code></div>
+  </div>
+
+  <div class="faq-item" onclick="toggleFaq(this)">
+    <div class="faq-q">
+      <span>ask_chatgpt 报 "Page crashed"</span>
+      <span class="arrow">▼</span>
+    </div>
+    <div class="faq-a">常见原因：1) 无法访问目标站点（尝试切换 target 参数）；2) 浏览器配置目录被锁定（结束所有 Chrome 进程后重试）。</div>
+  </div>
+
+  <div class="faq-item" onclick="toggleFaq(this)">
+    <div class="faq-q">
+      <span>更新代码后还是旧行为</span>
+      <span class="arrow">▼</span>
+    </div>
+    <div class="faq-a">VS Code 中按 <code>Ctrl+Shift+P</code> → <code>Reload Window</code> 重启，让 MCP 服务重新加载。</div>
+  </div>
+
+  <div class="faq-item" onclick="toggleFaq(this)">
+    <div class="faq-q">
+      <span>如何调整死循环检测灵敏度？</span>
+      <span class="arrow">▼</span>
+    </div>
+    <div class="faq-a">编辑 <code>mcp-servers/deadloop-monitor/config.mjs</code>，调整重复次数、反转词密度、信息增量率等阈值参数。</div>
+  </div>
+</div>
+
+<!-- ============ Section 7: 维护 ============ -->
+<div class="section" id="s7">
+  <h2><span class="icon" style="background:rgba(34,197,94,0.2);">🔄</span> 维护与更新</h2>
+  <div class="step-list">
+    <div class="step-card">
+      <h3>拉取最新代码</h3>
+      <pre><code>cd ~/.claude && git pull</code></pre>
+    </div>
+    <div class="step-card">
+      <h3>提交本地修改</h3>
+      <pre><code>cd ~/.claude
+git status
+git add -A
+git commit -m "描述你的改动"
+git push</code></pre>
+    </div>
+    <div class="step-card">
+      <h3>安装 MCP 依赖</h3>
+      <pre><code>cd ~/.claude/mcp-servers
+install-mcp-deps.bat</code></pre>
+    </div>
+    <div class="step-card">
+      <h3>安装死循环监控</h3>
+      <pre><code>cd ~/.claude/mcp-servers
+install-deadloop.bat</code></pre>
+    </div>
+  </div>
+</div>
+
+<footer style="text-align:center;padding:40px 0 20px;color:#475569;font-size:0.85em;">
+  <p>基于 README.md 最新内容生成 · 2026-05-22</p>
+</footer>
+
+</div>
+
+<script>
+function createParticles() {
+  const container = document.getElementById('particles');
+  for (let i = 0; i < 30; i++) {
+    const p = document.createElement('div');
+    p.className = 'particle';
+    p.style.left = Math.random() * 100 + '%';
+    p.style.animationDuration = (8 + Math.random() * 12) + 's';
+    p.style.animationDelay = (Math.random() * 10) + 's';
+    p.style.width = p.style.height = (2 + Math.random() * 4) + 'px';
+    container.appendChild(p);
+  }
+}
+createParticles();
+
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      entry.target.classList.add('visible');
+    }
+  });
+}, { threshold: 0.1 });
+
+document.querySelectorAll('.section').forEach(s => observer.observe(s));
+
+window.addEventListener('scroll', () => {
+  const scrollTop = document.documentElement.scrollTop || document.body.scrollTop;
+  const scrollHeight = document.documentElement.scrollHeight - document.documentElement.clientHeight;
+  const progress = scrollTop / scrollHeight * 100;
+  document.getElementById('progressBar').style.width = progress + '%';
+});
+
+function toggleFaq(el) {
+  el.classList.toggle('open');
+}
+
+document.querySelectorAll('pre code').forEach(block => {
+  const pre = block.closest('pre');
+  const header = document.createElement('div');
+  header.className = 'code-header';
+  header.innerHTML = '<span></span><button class="copy-btn" onclick="copyCode(this)">📋 复制</button>';
+  pre.insertBefore(header, block);
+});
+
+function copyCode(btn) {
+  const code = btn.closest('pre').querySelector('code').textContent;
+  navigator.clipboard.writeText(code).then(() => {
+    btn.textContent = '✅ 已复制';
+    btn.classList.add('copied');
+    setTimeout(() => {
+      btn.textContent = '📋 复制';
+      btn.classList.remove('copied');
+    }, 2000);
+  });
+}
+</script>
+
+</body>
+</html>
