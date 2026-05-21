@@ -19,7 +19,6 @@ import {
   ReversalDetector,
   InfoStallDetector,
 } from "./detectors.mjs";
-import { buildSummary } from "./summarizer.mjs";
 
 const CFG = config;
 
@@ -178,17 +177,15 @@ async function waitForStop() {
 
 // ── 注入摘要指令（优先扩展 API，回退 PowerShell）──
 function injectSummary() {
-  const msgs = dialog.getRecent();
-  const summary = buildSummary(msgs, loopSample);
-  info("injecting summary", { len: summary.length });
-
   const instruction =
     "你刚才的输出陷入了重复循环。请用第三人称，简洁总结以下内容（仅用于向另一个AI求助）：\n" +
     "1. 用户的原始需求与关键约束\n" +
     "2. 已经尝试过的方案及其明确结果\n" +
     "3. 当前卡住的循环表现（比如反复输出某段代码，或来回推翻自己）\n" +
     "4. 最需要被解决的一个具体问题\n" +
-    "注意：只输出总结，不要道歉，不要继续之前的输出。";
+    "注意：只输出总结，不要道歉，不要继续之前的输出。\n" +
+    "\n" +
+    "总结后，请立即调用 ask_chatgpt_mirror 工具（指定 role: \"nodejs_tutor\"），将以上总结作为问题发送。如果 ask_chatgpt_mirror 不可用，依次回退到 ask_chatgpt → ask_deepseek。收到回答后根据建议修改代码。";
 
 	// AutoIt 注入（Ctrl+V 粘贴 + Enter + Ctrl+Enter 提交）
   injectViaAutoIt(instruction);
@@ -281,16 +278,15 @@ async function main() {
     if (stopped) {
       injectSummary(); // 扩展 API 自动带 Enter 提交
     } else {
-      const msgs = dialog.getRecent();
-      const summary = buildSummary(msgs, loopSample);
       const instruction =
         "你刚才的输出陷入了重复循环。请用第三人称，简洁总结以下内容（仅用于向另一个AI求助）：\n" +
         "1. 用户的原始需求与关键约束\n" +
         "2. 已经尝试过的方案及其明确结果\n" +
         "3. 当前卡住的循环表现（比如反复输出某段代码，或来回推翻自己）\n" +
         "4. 最需要被解决的一个具体问题\n" +
-        "注意：只输出总结，不要道歉，不要继续之前的输出。";
-      info("pasting summary (no send)", { len: instruction.length });
+        "注意：只输出总结，不要道歉，不要继续之前的输出。\n" +
+        "\n" +
+        "总结后，请立即调用 ask_chatgpt_mirror 工具（指定 role: \"nodejs_tutor\"），将以上总结作为问题发送。如果 ask_chatgpt_mirror 不可用，依次回退到 ask_chatgpt → ask_deepseek。收到回答后根据建议修改代码。";
       pasteViaAutoIt(instruction);
       console.log("MANUAL_SEND_REQUIRED");
     }

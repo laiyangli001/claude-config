@@ -2,183 +2,203 @@
 
 ## Context
 
-AI 输出可能陷入死循环（重复代码、逻辑反转、信息增量趋零）。需要外部监控脚本检测 → 打断 → 通知 → 触发下一轮处理。
+Claude Code 在生成代码时可能陷入"死循环"——反复输出相似内容、自我否定、无新信息增量。此系统通过外部监控进程 + VS Code 扩展 + AutoIt 键盘模拟，自动检测、中断、注入上下文提示，让 AI 跳出循环。
 
-## v3 架构
+本次更新从 vsc-mcp 方案全面迁移到 AutoIt 编译 exe 方案（更可靠），新增粘贴模式、检查报告、MCP 优先级链等特性。
+
+## 架构总览
+
+```
+[VS Code Extension]          [monitor.mjs]               [deadloop_control.exe]
+     |                            |                             |
+  activate()                  main()
+     |-- spawn(monitor.mjs) ->|
+     |                        autoDiscoverSessionFile()
+     |                        state = MONITORING
+     |                            |
+     |                        while(true):
+     |                          sleep(2000)
+     |                          write heartbeat
+     | <--- status:monitoring --|
+     |                          processAndCheck():
+     |                            read .jsonl new lines
+     |                            feed 3 detectors
+     |                            if >= 2 signals:
+     |                              detected = true
+     | <--- DEADLOOP_DETECTED  --|
+     |   writeReport()
+     |   updateDisplay(alert)
+     |                        waitForStop():
+     |                          sendEscViaAutoIt():
+     |                            |---> esc (hold ESC 5s)
+     |                          sleep(5000)
+     |                          checkFileForStop():
+     |                            scan last 64KB of .jsonl
+     |                          (retry up to 3x)
+     |                            |
+     |                        if stopped:
+     |                          injectSummary():
+     |                            injectViaAutoIt():
+     |                            |---> inject_file (paste + Enter + Ctrl+Enter)
+     |                        else:
+     |                          pasteViaAutoIt():
+     |                            |---> paste_file (paste only, no send)
+     |                          NEEDS_MANUAL
+     |                        state = COOLDOWN (10s)
+     |                        reset detectors
+     |                            |
+     | <--- status:cooling ------|
+     |                        (10s 后回到 MONITORING)
+```
+
+## 项目结构
 
 ```
 mcp-servers/deadloop-monitor/
-├── monitor.mjs          ← 主入口（文件监控 + 检测 + 打断 + 注入）
-├── detectors.mjs        ← 三个信号检测器
-├── summarizer.mjs       ← 摘要生成
-├── helpers.mjs          ← MCP Client + .jsonl 清洗 + 消息注入
-├── config.mjs           ← 配置参数
-├── logger.mjs           ← 日志
+├── monitor.mjs               # 主监控脚本（入口）
+├── detectors.mjs             # 3 个信号检测器
+├── helpers.mjs               # 工具函数（文件读取、AutoIt 调用、停止检测）
+├── summarizer.mjs            # 摘要构建（注入消息模板）
+├── config.mjs                # 配置项
+├── logger.mjs                # 日志
+├── deadloop_control.au3      # AutoIt 源码
+├── deadloop_control.exe      # 编译后的 AutoIt exe
 ├── package.json
-└── workspace-watcher/   ← VS Code 扩展（自动启停 + 状态栏控制）
-    ├── package.json
-    └── extension.js
+└── workspace-watcher/
+    ├── extension.js          # VS Code 扩展
+    └── package.json
 ```
 
 ## 完整流程
 
-```
-我输出死循环内容...
-监控检测到循环（任意 2 个信号）
-  → SendKeys 发 ESC 打断（PS_PRE 自动激活 VSCode 窗口）
-  → 确认已停止
-  → VS Code 右下角通知 + 状态栏变红
-  → 向 .jsonl 注入用户消息（含自述摘要指令）
-  → 10 秒冷却
+### 1. 启动（VS Code 扩展）
+- 扩展激活 → 创建状态栏"循环守护"
+- 生成 `.deadloop-activated` 标记文件
+- 获取当前工作区路径
+- Spawn `monitor.mjs` 子进程
+- 写入 PID 到 `.deadloop-pid`
+- 建立 heartbeat 检测（每 3 秒检查 mtime，超 10 秒判定死亡）
 
-我被打断 + 读到注入消息 → 开始新回答
-  → 直接读当前 .jsonl 上下文（无需额外文件）
-  → 自述总结 → 调用 ask_chatgpt_mirror → 问你
-```
+### 2. 监控循环（monitor.mjs）
+- 自动发现当前会话的 `.jsonl` 文件
+- 每 2 秒增量读取新行
+- 写入 heartbeat（每轮）
+- 状态转移：IDLE → MONITORING → HELPING → COOLDOWN → MONITORING
+- 支持 PAUSED 状态（通过 stdin 命令切换）
 
-## 待实现内容
+### 3. 死循环检测（3 个信号，≥2 触发）
 
-| 任务 | 文件 | 说明 |
-|------|------|------|
-| 集成 vsc-mcp | `monitor.mjs` + `config.mjs` | 添加 vsc-mcp HTTP 连接，用于发 ESC |
-| ESC 中断 | `monitor.mjs` | SendKeys 发中断信号 |
-| 停止确认 | `monitor.mjs` | 轮询 .jsonl stop_reason 字段，确认停止 |
-| 终端消息注入 | `monitor.mjs` | `execute_command` 向终端发送 `\n` + 指令文本 |
-| 清理 helpMcp | `monitor.mjs` + `config.mjs` | 移除 ask_chatgpt_mirror 调用 |
-| VS Code 状态栏 | `workspace-watcher/extension.js` | 状态栏图标 + 点击菜单 |
-| VS Code 通知 | `workspace-watcher/extension.js` | 检测到循环时右下角 toast |
-| 日志轮转 | `logger.mjs` | 超 5MB 自动归档，保留 3 个 |
-
-### vsc-mcp 集成方式
-
-monitor.mjs 通过 MCP Client 连接 vsc-mcp（HTTP SSE 端点 localhost:60100），封装两个函数：
-- `sendEsc()` → PowerShell SendKeys 发 ESC，PID 由 workspace-watcher 在 spawn 时记录到临时文件 `.deadloop-pid`
-- `injectToTerminal(text + "\n")` → 优先用 `send_text_to_terminal`（如可用），回退到 `execute_command` 模拟输入。文本末尾加 `\n` 提交
-
-### 已验证结论
-
-| 验证项 | 结果 | 结论 |
+| 检测器 | 原理 | 阈值 |
 |--------|------|------|
-| vsc-mcp 有无 `send_text_to_terminal` | ❌ 没有 | 只用 `execute_command` |
-| .jsonl 注入 Claude Code 是否响应 | ❌ 不读取 | 废弃此回退 |
-| `stop_reason` 实时性 | 完整消息末才有 | 流式输出中不出现 |
-| 终端 PID 获取 | ✅ workspace-watcher spawn 时记录 | 写入 `.deadloop-pid` |
-| 注入末尾加 `\n` | ✅ 需要 | `execute_command` 输出末尾带 `\n`
+| **RepeatDetector** | 代码行标准化后计数，≥3 次重复计为 1 hit | maxHits: 1 |
+| **ReversalDetector** | 200 字窗口内统计反转词（但是/不过/actually/wait 等） | minCount: 5 |
+| **InfoStallDetector** | 连续 N 次 feed 无新代码行/断言 | maxStallCount: 2 |
 
-### 消息注入（终端注入，唯一可用方式）
+任何单检测器触发只输出警告，**同一 chunk 内 ≥2 个信号才判定为死循环**。
 
-已验证结果：
-- vsc-mcp **无 `send_text_to_terminal`** 工具，只能用 `execute_command`
-- `.jsonl` 注入**无效**（Claude Code 不读新增行），已废弃
+### 4. 中断（HELPING 阶段）
+- **waitForStop()**: 最多 3 轮
+  1. 先 `checkFileForStop()` 检查是否已自然结束
+  2. `sendEscViaAutoIt()` → `deadloop_control.exe esc` 长按 ESC 5 秒
+  3. 等 5 秒，再 `checkFileForStop()`
+  4. 仍需继续则重试（最多 3 次）
 
-因此唯一的注入方式是：通过 vsc-mcp 的 `execute_command` 向 Claude Code 终端发送文本，末尾加 `\n` 提交输入。
+### 5. 停止确认
+- **checkFileForStop()**: 全量扫描 .jsonl 末尾 64KB
+- 倒序解析每行 JSON，检查:
+  - `stop_reason: "end_turn"` → stopped ✅
+  - `interrupted: true` → interrupted ✅
+  - `stop_reason: "tool_use"` → running ❌（继续输出）
+- 两次确认之间等待 5 秒确保文件已写入
 
-## 已验证结论汇总
+### 6. 注入/粘贴
+- **确认到停止**: `injectViaAutoIt()` → 写临时文件 → `deadloop_control.exe inject_file <path>` → ESC 聚焦 → Ctrl+V → Enter → Ctrl+Enter（自动提交）
+- **未确认停止**: `pasteViaAutoIt()` → `deadloop_control.exe paste_file <path>` → ESC 聚焦 → Ctrl+V（只粘贴，等人眼确认后手动按 Enter）
 
-| 验证项 | 结果 | 结论 |
-|--------|------|------|
-| vsc-mcp 有无 `send_text_to_terminal` | ❌ 没有 | 只用 `execute_command` |
-| .jsonl 注入 Claude Code 是否响应 | ❌ 不读取 | 废弃此回退 |
-| `stop_reason` 实时性 | 完整消息末才有 | 流式输出中不出现 |
-| PowerShll SendKeys 测试 | ✅ ESC 成功 | 键盘模拟可行 |
-| vsc-mcp --stdio 模式 | 🔄 待验证 | 替代不稳定的 SSE |
+### 7. 注入消息内容
+固定模板（4 点）要求 Claude Code:
+1. 用第三人称总结用户的原始需求
+2. 已经尝试过的方案
+3. 循环的表现
+4. 核心问题是什么
 
-## ChatGPT 建议（待验证）
+### 8. 冷却期
+- COOLDOWN 状态持续 10 秒（config.cooldownMs）
+- 跳过期间的所有 .jsonl 内容
+- 恢复 MONITORING
 
-1. **`npx vsc-mcp --stdio`** → 替代 HTTP SSE，解决连接不稳定
-2. **`execute_command` 的 `workspaceFolder` 设空字符串** → 绕过路径依赖
+### 9. 收到注入消息后的 AI 流程（Claude Code）
+1. 按注入消息的 4 点要求生成总结摘要
+2. 优先级链调用：`ask_chatgpt_mirror` → `ask_chatgpt` → `ask_deepseek`
+3. 收到回答后，如果对方能提供参考代码，要求完整代码
+4. 按照建议修改 bug
 
-## 注入方案敲定
+## AutoIt 控制（deadloop_control.exe）
 
-最终采用 **PowerShell SendKeys** 方案（已验证通过）：
-1. 监控脚本生成注入文本
-2. 写入临时 `.ps1` 文件
-3. `powershell -File xxx.ps1` 执行：`AppActivate("Visual Studio Code")` + `SendKeys(文本 + "~")`
-4. 清理临时文件
+编译自 `deadloop_control.au3`，通过 `cmd //c "@Aut2Exe/Aut2exe_x64.exe /in <au3路径> /out <exe路径> /console"` 无窗口静默编译。
 
-### 与 workspace-watcher 通信协议
+**命令列表：**
 
-监控进程 ←→ workspace-watcher 通过 **stdin/stdout** 通信：
-- 监控 `stdout` 输出 `DEADLOOP_DETECTED` → 扩展触发通知
-- 监控 `stdin` 接收 JSON 指令：`{ "command": "pause" }` / `{ "command": "resume" }` / `{ "command": "stop" }`
-- 收到指令后回复确认：`{ "status": "paused" }` 等，扩展据此更新状态栏
-- 监控确认停止后输出 `DEADLOOP_STOPPED` 或通过 exit code 退出
-- workspace-watcher 持有子进程的 stdin 引用
-- **stdin 非阻塞处理**：monitor.mjs 使用 `readline` 异步接口处理 stdin，不阻塞主轮询循环
-- **多实例状态**：状态栏显示当前活动工作区的监控状态，切换工作区时自动更新
-
-### 监控控制面板（VS Code 状态栏）
-
-在 workspace-watcher 扩展中添加状态栏项：
-- **正常**：`$(pulse) 监控中`
-- **暂停**：`$(debug-pause) 已暂停`
-- **冷却中**：`$(sync~spin) 冷却中`
-- **告警**：`$(error) 死循环!`
-- **中断失败**：`$(warning) 需手动干预`
-- **点击弹出**：暂停 / 恢复 / 停止
-
-### VS Code 右下角通知
-
-检测到死循环后，在 VS Code 右下角弹原生通知（toast）：
-- workspace-watcher 监听监控进程 stdout 的 `DEADLOOP_DETECTED` 标记
-- 收到后调用 `vscode.window.showWarningMessage("检测到死循环！", "查看", "忽略")`
-- 用户点击"查看"后，聚焦到 Claude Code 对话框
-
-比 Windows `msg` 弹窗更不打扰，且在 VS Code 界面内直接可见。
-
-### 日志轮转
-
-- 日志超 5MB 自动轮转
-- 格式：`deadloop-monitor.1.jsonl` ... 最多 3 个归档
-- 启动时检查并执行
-
-### summarizer.mjs 职责更新
-
-不再调用 MCP 服务，改为**生成注入消息文本**：
-- 输入：DialogWindow 中的最近 5 轮对话 + loopSample
-- 输出：自然语言指令文本（不用 `[SYSTEM]` 前缀）
-- 该文本由 monitor.mjs 注入到终端（或 .jsonl）
-
-### 停止确认逻辑
-
-.jsonl 中 assistant 消息的 `stop_reason` 字段含义：
-- `"end_turn"` → AI 自然完成回复，已停止
-- `"tool_use"` → AI 发了工具调用，等待工具结果
-- `undefined/null` → 被 ESC 中断，或流式输出未正常结束
-
-另外，被中断时 .jsonl 最后可能有一条包含 `"interrupted": true` 的元数据行。
-
-```
-发 ESC
-  → 每秒轮询 .jsonl 最后 3 行（最多等 60 秒）
-  → 辅助检测：通过 vsc-mcp get_terminal_output 检查终端是否出现提示符
-  → 解析最后一条 assistant 消息的 message.stop_reason：
-     ① stop_reason === "end_turn" → 自然结束 ✅
-     ② stop_reason === undefined/null（且无新行写入）→ 被中断 ✅
-     ③ 出现 "interrupted": true 的行 → 被中断 ✅
-     ④ 终端输出出现提示符（$ / >）→ 已停止 ✅
-     ⑤ stop_reason === "tool_use" → 工具调用中，继续等
-  → 确认停止后注入消息
-```
-
-### 中断失败处理
-
-若 60 秒内未确认停止（.jsonl 仍在增长且 stop_reason 始终为 "tool_use"）：
-- 状态栏切换为 `$(warning) 需手动干预`
-- VS Code 通知 "自动中断失败，请手动 ESC"
-- 跳过本轮，进入冷却期
-
-### 注入消息模板
-```
-
-## 文件清单
-
-| 文件 | 说明 |
+| 命令 | 行为 |
 |------|------|
-| `mcp-servers/deadloop-monitor/package.json` | 依赖 |
-| `mcp-servers/deadloop-monitor/monitor.mjs` | 主入口 |
-| `mcp-servers/deadloop-monitor/detectors.mjs` | 三个信号检测器 |
-| `mcp-servers/deadloop-monitor/summarizer.mjs` | 摘要生成 |
-| `mcp-servers/deadloop-monitor/helpers.mjs` | MCP Client + 清洗 + jsonl 注入 |
-| `mcp-servers/deadloop-monitor/config.mjs` | 配置 |
-| `mcp-servers/deadloop-monitor/logger.mjs` | 日志 |
+| `esc` | 长按 ESC 5 秒（每 100ms 一次 `ControlSend`） |
+| `inject_file <path>` | `FileRead(path)` → `ClipPut` → ESC → Ctrl+V → Enter → Ctrl+Enter |
+| `paste_file <path>` | `FileRead(path)` → `ClipPut` → ESC → Ctrl+V（不发送） |
+| `inject <text>` | 同上但直接传文本（**已废弃**，多行文本截断） |
+| `paste <text>` | 同上但只粘贴（**已废弃**，多行文本截断） |
+
+所有命令通过 `ControlSend` 发送按键（不要求窗口焦点），窗口匹配 `[REGEXPTITLE:.*Visual Studio Code.*]`（回退 `.*VS Code.*`）。
+
+## VS Code 扩展功能
+
+| 功能 | 说明 |
+|------|------|
+| 状态栏显示 | monitoring/paused/cooling/alert/intervention_needed 5 种状态，颜色变化 |
+| 未读告警 | unreadAlert 标记 → 警告图标 + 黄色背景 |
+| 通知 | `DEADLOOP_DETECTED` → toast 通知 + 写入 `.deadloop-report.md` |
+| 报告文件 | 每次检测追加 Markdown 表格到 `<workspace>/.deadloop-report.md`，保留最近 5 条 |
+| 自动中断失败 | 显示 `NEEDS_MANUAL` 错误提示，推荐手动 Ctrl+C |
+| QuickPick 菜单 | 左键点击状态栏弹出：暂停/恢复/停止/查看报告/查看日志 |
+| Heartbeat 监控 | 每 3 秒检查 heartbeat 文件 mtime，超 10 秒判定进程死亡 |
+| 终端命令下发 | 通过 `sendToTerminal()` 向 Claude Code 终端发 ESC/文本（AutoIt 的后备方案） |
+| 进程管理 | spawn 前先用 WMI 清理同工作区的旧进程，防止 VS Code reload 残留 |
+
+## 键盘模拟后备方案
+
+| 方案 | 优先级 | 说明 |
+|------|--------|------|
+| AutoIt exe | **首选** | 编译后的 exe，最可靠 |
+| PowerShell SendKeys | 次选 | Win32 Window + SendKeys，依赖窗口焦点 |
+| VS Code API | 回退 | monitor stdout 发 JSON action → extension `sendText()` 到终端 |
+
+## 通信协议（monitor ↔ extension）
+
+通过 stdin/stdout 通信：
+
+- **monitor stdout → extension**: JSON 状态行 + 特殊标记
+  - `{"status":"monitoring","tokenCount":123,"detectors":...}` → 更新状态栏
+  - `{"action":"sendEsc"}` → 发 ESC 到终端（回退方案，已改用 AutoIt）
+  - `{"action":"injectText","text":"..."}` → 发文本到终端（回退方案）
+  - `DEADLOOP_DETECTED` → 触发通知 + 写报告
+  - `NEEDS_MANUAL` → 显示错误提示
+- **monitor stdin ← extension**: JSON 命令
+  - `{"command":"pause"}` → 暂停监控
+  - `{"command":"resume"}` → 恢复监控
+  - `{"command":"stop"}` → 停止监控进程
+  - `{"command":"status"}` → 返回当前状态
+
+## 日志轮转
+- 文件: `deadloop-monitor.jsonl`
+- 超 5MB 自动轮转，保留最多 3 个归档
+
+## 关键文件说明
+
+| 文件 | 核心逻辑 |
+|------|---------|
+| `monitor.mjs` | `main()` 入口循环、`processAndCheck()` 增量读取+检测、`waitForStop()` ESC中断+停止确认、`injectSummary()` 构建注入消息 |
+| `detectors.mjs` | `RepeatDetector.feed()` 代码行重复检测、`ReversalDetector.feed()` 反转词密度、`InfoStallDetector.feed()` 信息增量 |
+| `helpers.mjs` | `checkFileForStop()` 64KB tail scan、`injectViaAutoIt()` temp file → inject_file、`pasteViaAutoIt()` temp file → paste_file、`sendEscViaAutoIt()` ESC 中断、`JsonlReader` 增量文件读取、`DialogWindow` 对话窗口 |
+| `deadloop_control.au3` | esc/inject_file/paste_file 三个 AutoIt 命令窗口 |
+| `summarizer.mjs` | `buildSummary()` 生成摘要报告文本 |
+| `extension.js` | `StatusBarManager` 状态栏、`writeReport()` 报告生成、`startMonitor()` 子进程管理、`sendToTerminal()` 终端交互 |
+| `config.mjs` | 所有可调参数 |
