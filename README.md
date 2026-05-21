@@ -1,194 +1,393 @@
 # Claude Code 全局配置
 
-个人 Claude Code 系统配置备份。克隆到 `~/.claude` 即用。
+> 软件安装配置教程请看 [VSCode+Claude+DeepSeek 使用教程.md](./VSCode+Claude+DeepSeek%20使用教程.md)
 
-## 包含内容
+个人 Claude Code 工作环境配置。克隆到 `~/.claude` 即用。
+
+---
+
+## 📦 基础设置（快速上手）
+
+本节适合新用户快速完成 Claude Code 环境搭建。
+如需定制 MCP 工具、死循环监控或 AutoIt 脚本，请移步【高级设置】。
+
+### 1. 克隆配置仓库
+
+打开终端（CMD 或 PowerShell），执行：
+
+```bash
+git clone https://github.com/laiyangli001/claude-config.git ~/.claude
+```
+
+克隆完成后，进入目录确认文件完整：
+
+```bash
+cd ~/.claude
+dir              # Windows 查看文件列表
+```
+
+如果看到 `CLAUDE.md`、`settings.json.example`、`mcp-servers/` 等文件和目录，说明克隆成功。
+
+### 2. 目录结构
 
 | 组件 | 路径 | 说明 |
 |------|------|------|
 | **全局 CLAUDE.md** | `CLAUDE.md` | 身份定义、行为边界、工具规则、自动调用策略 |
-| **MCP 免费工具** | `mcp-servers/` | `ask_chatgpt` + `ask_chatgpt_mirror` + `ask_deepseek`，浏览器自动化，不消耗 API token |
-| **死循环监控** | `mcp-servers/deadloop-monitor/` | 检测 Claude Code 输出死循环 → 自动打断 → 摘要求助 |
-| **角色系统** | `mcp-servers/roles/` | 自动检测问题类型，首次调用发送角色模板（如 python_tutor）|
-| **MCP 模板配置** | `claude.json.example` | `~/.claude.json` 的参考模板（MCP 服务器注册） |
-| **Matt Pocock Skills** | `.agents/skills/` | 14 个工程纪律技能 |
-| **Agent Skills 配置** | `docs/agents/` | Issue Tracker / Triage Labels / Domain Docs |
-| **记忆文件** | `projects/claude-config/memory/` | 跨对话持久化的偏好和参考信息 |
-| **Skills（内建）** | `skills/` | Vercel、React 等内建技能包 |
+| **设置** | `settings.json` | API 端点、模型、权限、环境变量 |
+| **MCP 免费工具** | `mcp-servers/chatgpt-mcp/` | ChatGPT 网页版，不消耗 API token |
+| | `mcp-servers/deepseek-mcp/` | DeepSeek 网页版，不消耗 API token |
+| **死循环监控** | `mcp-servers/deadloop-monitor/` | 检测输出死循环 → AutoIt 打断 → 摘要求助 |
+| **会话数据** | `projects/**/*.jsonl` | 对话记录（git 排除，不上传） |
+| **跨对话记忆** | `projects/<slug>/memory/` | 持久化的用户偏好和项目上下文 |
 
-## 快速恢复
+### 3. 基础配置（settings.json）
 
-```bash
-# 1. 克隆
-git clone https://github.com/laiyangli001/claude-config.git ~/.claude
+`settings.json` 是 Claude Code 的核心配置文件，包含 API 凭证、模型选择、权限控制。
 
-# 2. 安装 MCP 依赖
-cd ~/.claude/mcp-servers/chatgpt-mcp && npm install
-cd ~/.claude/mcp-servers/deepseek-mcp && npm install
-cd ~/.claude/mcp-servers/chatgpt-mirror-mcp && npm install
-cd ~/.claude/mcp-servers/deadloop-monitor && npm install
+首次配置步骤：
 
-# 3. 下载 Chromium 浏览器（必须，约 300MB）
-cd ~/.claude/mcp-servers/chatgpt-mcp && npx playwright install chromium
-cd ~/.claude/mcp-servers/deepseek-mcp && npx playwright install chromium
-cd ~/.claude/mcp-servers/chatgpt-mirror-mcp && npx playwright install chromium
-
-# 4. 配置 settings.json（从模板复制，填入你的 API token）
-cp ~/.claude/settings.json.example ~/.claude/settings.json
-# 编辑 settings.json：
-#   - 将 sk-<your-api-token-here> 替换为真实 token
-#   - 可按需修改 systemPrompt 和 effortLevel
-
-# 5. 配置全局 MCP 服务器（从模板复制）
-cp ~/.claude/claude.json.example ~/.claude.json
-# 编辑 ~/.claude.json，修正各 MCP 服务的路径
-```
-
-## 首次使用 MCP 工具
-
-首次调用任意 MCP 工具时，Playwright 会自动弹出 Chromium 窗口：
-
-1. **在弹出窗口中手动登录**（ChatGPT / 镜像站 / DeepSeek）
-2. 登录后关闭窗口，session 会自动保存
-3. 以后调用不再需要重新登录
-
-**注意：** 三个服务使用独立的浏览器配置文件，需要分别登录一次。
-
-**网络要求：**
-- `ask_chatgpt`：需要能访问 `chatgpt.com`
-- `ask_chatgpt_mirror`：访问镜像站 `chatgpt.2233.ai`，需联网
-- `ask_deepseek`：国内网络可直接访问
-
-**镜像站特殊流程：** 首次调用 `ask_chatgpt_mirror` 时会打开邀请码页面，点击 **「立即开始」** 按钮后自动打开新标签页并跳转到对话页。已登录则直接开始对话。
-
-## MCP 环境变量
-
-| 变量 | 默认 | 说明 |
-|------|------|------|
-| `CHATGPT_HEADLESS` | `false` | 设为 `true` 隐藏 ChatGPT / 镜像站浏览器 |
-| `CHATGPT_DEBUG` | `false` | ChatGPT 调试日志 |
-| `DEEPSEEK_HEADLESS` | `false` | 设为 `true` 隐藏 DeepSeek 浏览器 |
-| `DEEPSEEK_DEBUG` | `false` | DeepSeek 调试日志 |
-
-可在 `settings.json` 的 `env` 块中设置。
-
-## 项目初始化
-
-在新项目目录中打开 Claude Code，说：
-
-> 帮我初始化 mattpocock skills
-
-会自动探测项目状态、提问三个配置项、写入项目级配置。
-
-## 核心 Skills 速查
-
-| 技能 | 何时用 |
-|------|--------|
-| `/grill-me` | 新任务开始前，对齐需求 |
-| `/tdd` | 写新功能、修 bug |
-| `/diagnose` | bug 定位不清时 |
-| `/caveman` | 大量编码，省 75% token |
-| `/improve-codebase-architecture` | 每周一次架构体检 |
-| `/zoom-out` | 代码变乱，不知从哪下手 |
-
-## 角色系统
-
-MCP 工具内置自动角色检测。首次调用时，根据问题内容自动匹配并发送角色模板（作为第一条消息设定 AI 身份），同一会话后续调用不重复发送。
-
-当前可用角色：
-
-| 角色文件 | 触发关键词 | 说明 |
-|----------|-----------|------|
-| `python_tutor.md` | python, django, flask, pandas, asyncio, 装饰器等 | Python 编程导师，教学风格 |
-| `nodejs_tutor.md` | node.js, javascript, express, typescript, 异步, event loop 等 | Node.js/JS 编程导师，教学风格 |
-
-也可在调用时显式指定角色：
-```
-用 ask_chatgpt（角色 python_tutor）问：解释异步编程
-```
-
-在 `mcp-servers/roles/` 中添加新的 `.md` 文件并更新 `detectRole()` 即可扩展角色。
-
-## CLAUDE.md 自动调用规则
-
-全局 `CLAUDE.md` 中已配置自动触发规则。当你自主处理任务时，满足以下任一条件会自动调用免费 MCP 工具：
-
-- 数据量超过 1500 token 或 3000 字符
-- 需要信息提取/统计/转换
-- 需要联网获取最新信息
-- 复杂推理（步骤超过 5 步）
-- 知识不足
-- 任务涉及文件分析（自动以附件上传）
-
-策略：优先 `ask_chatgpt_mirror` → 失败回退 `ask_chatgpt` → 再失败回退 `ask_deepseek`。
-
-## 死循环监控（Dead Loop Monitor）
-
-监控 Claude Code 输出是否陷入重复循环，自动打断并求助第三方 AI 协助脱困。
-
-**架构：**
-- `monitor.mjs` — 独立进程，轮询 `.jsonl` 对话文件，通过三个检测器（重复代码块、反转词密度、信息增量率）识别循环
-- `workspace-watcher/extension.js` — VS Code 扩展，状态栏显示监控状态，检测到循环时右下角弹通知
-- 检测到循环 → 发 Ctrl+C 打断 → 确认停止 → 注入摘要指令 → 冷却后继续监控
-
-**进程保活：** monitor 每 2 秒写心跳文件 `.deadloop-heartbeat`，扩展每 3 秒轮询 mtime，超 10 秒判定进程死亡并更新状态栏。
-
-**状态栏操作：** 左键点击弹出菜单：暂停/恢复/停止监控、查看日志。
-
-**VS Code 扩展安装（二选一）：**
+1. **从模板复制**（模板不含真实 token，可安全上传 GitHub）：
 
 ```bash
-# 方式一：npm install 自动安装（推荐）
-cd ~/.claude/mcp-servers/deadloop-monitor
-npm install
-
-# 方式二：直接安装 VSIX
-code --install-extension ~/.claude/mcp-servers/deadloop-monitor/workspace-watcher/deadloop-workspace-watcher-1.0.0.vsix
+copy ~/.claude\settings.json.example ~\.claude\settings.json
 ```
 
-安装后需重载 VS Code 窗口（`Ctrl+Shift+P` → `Developer: Reload Window`）。
+2. **编辑 settings.json**，填入以下关键字段：
 
-## 记忆系统：对话持久化
+| 字段 | 说明 | 示例值 |
+|------|------|--------|
+| `env.ANTHROPIC_BASE_URL` | API 端点地址 | `https://api.deepseek.com/anthropic` |
+| `env.ANTHROPIC_AUTH_TOKEN` | **你的 API Key** | `sk-xxxxxxxxxxxx` |
+| `env.ANTHROPIC_MODEL` | 使用的模型 | `deepseek-v4-flash` |
 
-跨对话保存关键信息，对 Claude Code 说以下指令：
+3. **（可选）调整其他参数：**
 
-| 指令 | 效果 | 示例 |
+- `systemPrompt` — 注入到系统提示词最前端的指令，适合放置语言约束
+- `effortLevel` — 编码投入度（`default` / `high` / `xhigh`）
+- `permissions.allow` — 允许自动执行的 MCP 工具列表
+
+完整示例：
+
+```json
+{
+  "systemPrompt": "你的思考过程必须全程使用中文。",
+  "env": {
+    "ANTHROPIC_BASE_URL": "https://api.deepseek.com/anthropic",
+    "ANTHROPIC_AUTH_TOKEN": "sk-你的真实token",
+    "ANTHROPIC_MODEL": "deepseek-v4-flash",
+    "CLAUDE_CODE_EFFORT_LEVEL": "max"
+  },
+  "permissions": {
+    "allow": [
+      "mcp__chatgpt__ask_chatgpt",
+      "mcp__deepseek__ask_deepseek"
+    ]
+  },
+  "effortLevel": "xhigh"
+}
+```
+
+**安全提醒：** `settings.json` 包含 API token，已在 `.gitignore` 中排除，不会上传到 GitHub。每次在新机器上配置时，都需要从 `settings.json.example` 复制并填入真实 token。
+
+### 4. 基础命令与工作流
+
+| 命令 | 用途 | 示例 |
 |------|------|------|
-| "把这段配置写入记忆" | 保存关键决策到 memory 文件 | "把当前的 API 端点配置写入记忆" |
-| "记住这个做法" | 保存操作流程和决策理由 | "记住这个 deploy 流程" |
-| "帮我看看之前关于 X 怎么配置的" | 读取历史记忆恢复上下文 | "帮我看看之前 MCP 怎么安装的" |
-| "以后遇到 X 场景提醒我" | 保存为反馈规则，见下方详细举例 | — |
+| `/help` | 查看所有可用命令 | `/help` |
+| `/clear` | 清空当前对话历史 | `/clear` |
+| `/grill-me` | 新任务前对齐需求（逐项确认） | `/grill-me` |
+| `/tdd` | 启动测试驱动开发流程 | `/tdd` |
+| `/diagnose` | 结构化排查 bug | `/diagnose` |
+| `/caveman` | 省 token 模式（适合长编码任务） | `/caveman` |
+| `/improve-codebase-architecture` | 架构审查 | `/improve-codebase-architecture` |
+| `/zoom-out` | 代码混乱时退一步审视设计 | `/zoom-out` |
+| `/loop <间隔> <命令>` | 定时重复执行命令 | `/loop 5m /diagnose` |
 
-### "以后遇到 X 场景提醒我" 详细举例
+### 5. 记忆系统（跨对话持久化）
 
-| 对 Claude Code 说 | 保存的规则 |
-|------|-----------|
-| "以后我要写新功能时，提醒我用 `/grill-me` 先对齐需求" | 新功能开发前自动提示需求对齐 |
-| "以后修改代码时，提醒我用 `/tdd` 先写测试" | 编码前提示红-绿-重构循环 |
-| "以后遇到报错反复修不好时，提醒我用 `/diagnose` 结构化排查" | bug 循环时提示科学诊断方法 |
-| "以后连续编码超过 10 分钟时，提醒我开启 `/caveman` 省 token" | 长对话时提示压缩模式 |
-| "以后每次完成一个大模块，提醒我跑 `/improve-codebase-architecture`" | 里程碑后提示架构审查 |
-| "以后我说代码太乱看不懂时，提醒我用 `/zoom-out`" | 迷失方向时提示退一步审视 |
-| "以后新项目开始前，提醒我初始化 `/grill-with-docs` 写 CONTEXT.md" | 新项目启动时提示写领域文档 |
-| "以后准备发布时，提醒我用 `/to-prd` 生成需求文档" | 发布前提示生成 PRD |
-| "以后积攒了多个 idea 时，提醒我用 `/to-issues` 拆成任务" | 想法堆积时提示拆解为 issue |
+Claude Code 会自动保存关键信息到 `~/.claude/projects/<slug>/memory/`，实现跨对话记忆。
+这意味着你关闭对话后再次打开，仍能记住之前的设置和偏好。
 
-## 备份修改
+常用指令及示例：
+
+| 指令 | 示例 |
+|------|------|
+| **把这段配置写入记忆** | "把当前的 API 端点配置写入记忆" |
+| **记住这个做法** | "记住这个 deploy 流程" |
+| **帮我看看之前关于 X 怎么配置的** | "帮我看看之前 MCP 怎么安装的" |
+| **以后遇到 X 场景提醒你** | "以后修改代码时，提醒我用 /tdd 先写测试" |
+
+**跨设备同步：** 记忆文件通过 git 上传到 GitHub，在家里和公司各执行一次 `git pull` 即可保持记忆一致。
+
+```bash
+# 在公司电脑同步家中已保存的记忆
+cd ~/.claude && git pull
+```
+
+记忆文件和 `CLAUDE.md` 一同纳入版本控制，而对话记录 `.jsonl` 已被 git 排除，不会同步。
+
+### 6. 备份与同步（可选）
+
+将自己的配置推送到 GitHub，方便多设备共享。
+
+**首次推送（创建仓库后）：**
 
 ```bash
 cd ~/.claude
+git remote add origin https://github.com/<你的用户名>/<仓库名>.git
 git add -A
-git commit -m "描述改动"
-git push
+git commit -m "chore: 初始化 Claude Code 配置"
+git push -u origin master
 ```
 
-## 注意事项
+**日常备份：**
 
-- `settings.json` 包含 API token，已被 `.gitignore` 排除，不会上传
-- `systemPrompt` 字段会注入到系统提示词最前端，优先级高于 `CLAUDE.md`，适合放置语言/身份约束
-- `mcp-servers/*/node_modules/` 已排除，克隆后需 `npm install`
-- `mcp-servers/*/package-lock.json` 已排除，克隆后需 `npm install` 生成
-- 对话记录 `.jsonl` 包含在备份中，仓库设为 **Private**
-- 全局配置的 Agent Skills 默认值：Local Markdown + 默认标签 + Single-context
-- `claude.json.example` 是 `~/.claude.json` 的参考模板，新机器需根据实际路径修正 MCP 参数
-- MCP 服务器配置在 `~/.claude.json`（全局），不在 `settings.json` 中
+```bash
+cd ~/.claude
+git status                     # 查看有哪些文件被修改
+git add -A                     # 暂存所有变更
+git commit -m "chore: 更新配置" # 提交
+git push                       # 推送到 GitHub
+```
+
+**从另一台设备同步：**
+
+```bash
+cd ~/.claude && git pull
+```
+
+自动排除的内容（已在 `.gitignore` 中配置，不会上传）：
+
+- `settings.json`（含 API token，需手动复制）
+- `node_modules/`（各设备自行 `npm install`）
+- `projects/**/*.jsonl`（对话记录，不跨设备共享）
+- `projects/**/*.jsonl.pos`（阅读位置标记）
+- 运行时标记文件（`.deadloop-*`, `*.heartbeat`）
+
+---
+
+## 🔧 高级设置
+
+本节适合需要深度定制自动化工作流、MCP 工具链和死循环监控的用户。
+如果只是基础使用，请参见上文的【基础设置】。
+
+### MCP 免费工具：ask_chatgpt & ask_deepseek
+
+这两个 MCP 服务分别调用 ChatGPT 网页版和 DeepSeek 网页版，不消耗 API token，适合复杂代码审查、长文本分析、联网查资料等场景。
+
+> `ask_chatgpt` 通过 `target` 参数统一支持镜像站（`"mirror"`）和官方站（`"official"`），无需独立的 mirror MCP 服务。默认先尝试第三方镜像，再尝试官方网站。
+
+
+
+#### 文件结构
+
+```
+~/.claude/mcp-servers/
+├── chatgpt-mcp/          # ChatGPT 官方站
+│   ├── server.js         # MCP 服务入口
+│   ├── package.json
+│   └── node_modules/
+├── deepseek-mcp/         # DeepSeek 网页版
+│   ├── server.js
+│   └── ...
+```
+
+#### 一键安装依赖（批处理）
+
+在 `~/.claude/` 目录下创建 `install-mcp-deps.bat`，写入以下内容：
+
+```batch
+@echo off
+echo Installing MCP dependencies...
+cd /d "%~dp0mcp-servers\chatgpt-mcp" && npm install && npx playwright install chromium
+cd /d "%~dp0mcp-servers\deepseek-mcp" && npm install && npx playwright install chromium
+echo All MCP dependencies installed.
+pause
+```
+
+**运行方式：** 右键 `install-mcp-deps.bat` → **以管理员身份运行**（或双击运行）。
+
+**注意事项：**
+
+- 每个服务安装 Chromium 浏览器约 300MB，总下载量约 600MB，首次安装需要较长时间（视网速 5-30 分钟）。
+- 如果中途失败，可以单独执行对应服务的安装命令重试。
+- `node_modules/` 已被 `.gitignore` 排除，不会上传到 GitHub。
+
+#### 首次使用与登录
+
+首次调用任意 MCP 工具时，Playwright 会自动弹出 Chromium 浏览器窗口：
+
+1. 在弹出窗口中 **手动登录** 对应服务（ChatGPT / DeepSeek）
+2. 登录完成后 **关闭浏览器窗口**，session 会自动保存到独立的浏览器配置文件中
+3. 后续调用不再需要重新登录，直接复用已保存的会话
+
+> 注意：两个服务使用独立的浏览器配置文件，需要分别登录一次。
+> 若需隐藏浏览器窗口（无人值守场景），在 `settings.json` 的 `env` 中设置 `"CHATGPT_HEADLESS": "true"`。
+
+#### 提示词模板（代码审查专用）
+
+> [待补充：用户提供的提示词模板]
+
+#### 角色模板文件
+
+> [待补充：用户提供的角色模板格式说明]
+
+---
+
+### 死循环监控（Dead Loop Monitor）
+
+自动检测 Claude Code 输出是否陷入重复、反转、信息停滞，打断并求助第三方 AI 协助脱困。
+
+#### 扩展包文件架构
+
+```
+~/.claude/mcp-servers/deadloop-monitor/
+├── monitor.mjs                # 主监控进程
+├── detectors.mjs              # 重复/反转/停滞检测器
+├── helpers.mjs                # 文件读取、AutoIt 调用、停止确认
+├── deadloop_control.au3       # AutoIt 源码
+├── deadloop_control.exe       # 编译后的无窗口 exe
+├── config.mjs                 # 所有阈值参数
+├── logger.mjs                 # JSON 日志，自动轮转
+├── workspace-watcher/         # VS Code 扩展
+│   ├── extension.js
+│   └── package.json
+└── install-extension.mjs      # 扩展安装脚本
+```
+
+#### 一键安装（批处理）
+
+创建 `install-deadloop.bat`：
+
+```batch
+@echo off
+echo Installing deadloop monitor dependencies...
+cd /d "%~dp0mcp-servers\deadloop-monitor"
+npm install
+echo Extension installation...
+node install-extension.mjs
+echo Done. Please reload VS Code window (Ctrl+Shift+P -> Reload Window).
+pause
+```
+
+#### 扩展安装与界面
+
+**安装步骤：**
+
+1. **安装依赖** — 运行 `install-deadloop.bat`，或在终端手动执行：
+
+```bash
+cd ~/.claude/mcp-servers/deadloop-monitor
+npm install
+node install-extension.mjs
+```
+
+2. **安装成功后会提示：**
+
+```
+[deadloop] extension installed to C:\Users\<用户名>\.vscode\extensions\laiyangli.deadloop-workspace-watcher-1.0.0
+[deadloop] reload VS Code to activate (Ctrl+Shift+P → Reload Window)
+```
+
+3. **Reload VS Code** — 按 `Ctrl+Shift+P` → 输入 `Reload Window` → 回车
+
+4. **验证安装** — Reload 后，VS Code 底部状态栏右侧会出现 **「🟢 循环守护」** 按钮
+
+**菜单操作（左键点击状态栏）：**
+
+| 操作 | 说明 |
+|------|------|
+| ⏸ 暂停监控 | 暂停检测，进程保留 |
+| ▶ 恢复监控 | 恢复检测 |
+| 📋 检测报告 | 打开 `.deadloop-report.md` |
+| 📋 查看日志 | 打开 `deadloop-monitor.jsonl` |
+
+**使用说明：**
+
+- 监控自动运行，无需人工干预。每次打开 VS Code 自动启动
+- 当检测到死循环时，自动执行：AutoIt ESC 长按 5 秒 → 确认是否停止 → 注入摘要指令 → 冷却
+- 状态栏显示当前状态：🟢 监控中 / 🟡 已暂停 / 🔴 检测到死循环 / ⚪ 已停止
+- 可在 `config.mjs` 中调整阈值（重复次数、反转词密度、信息增量率）
+
+**重装扩展：** 修改 `extension.js` 后，重新执行 `node install-extension.mjs` 再 Reload 即可。
+
+---
+
+### AutoIt3 脚本编译与调用
+
+AutoIt3 用于模拟鼠标键盘操作，适合自动化控制外部程序、发送按键、窗口管理。
+
+#### 功能概览
+
+- `Send` / `ControlSend` — 发送按键
+- `MouseClick` / `MouseMove` — 鼠标模拟
+- `WinActivate` / `WinWait` — 窗口控制
+- `ClipPut` / `ClipGet` — 剪贴板操作
+
+#### 生成 au3 脚本的提示词模板
+
+```
+我需要一个 AutoIt3 脚本，实现以下需求：
+<描述需求，例如：每 10 秒检测某个窗口是否存在，若存在则发送 F5 刷新>
+
+请生成：
+- 完整的 .au3 脚本代码
+- 编译命令（使用 @Aut2Exe/Aut2exe_x64.exe，添加 /console 参数）
+- 如何从 Node.js / Python 调用该 exe 的示例代码
+```
+
+#### 编译命令模板（必须无窗口静默编译）
+
+```cmd
+cmd //c "@Aut2Exe/Aut2exe_x64.exe /in "C:\Users\<用户名>\.claude\mcp-servers\deadloop-monitor\script.au3" /out "C:\Users\<用户名>\.claude\mcp-servers\deadloop-monitor\script.exe" /console"
+```
+
+也可使用绝对路径（避免当前目录问题）：
+
+```cmd
+cmd //c "@C:\Users\<用户名>\.claude\Aut2Exe\Aut2exe_x64.exe /in "C:\full\path\to\script.au3" /out "C:\full\path\to\output.exe" /console"
+```
+
+> 编译时杀毒软件可能拦截生成的 `.exe`，需手动添加至信任区（白名单），或临时关闭实时防护。
+
+#### 在 deadloop-monitor 中的实际应用
+
+`deadloop_control.exe` 通过上述方式编译。提供了三个子命令：
+
+| 命令 | 说明 |
+|------|------|
+| `esc` | 长按 ESC 5 秒中断输出 |
+| `inject_file <file>` | 粘贴文件内容 + 自动提交（Enter） |
+| `paste_file <file>` | 只粘贴不提交 |
+
+功能通过 `ControlSend` 和 `ClipPut` + `Ctrl+V` 实现，完全无窗口干扰。
+
+---
+
+### MCP 工具 + 死循环监控 联合使用指南
+
+两者配合可以组成全自动脱困-求助-修复闭环。
+
+#### 典型工作流
+
+1. **监控阶段** — 死循环监控持续扫描 `.jsonl` 日志
+2. **检测到死循环** → `deadloop_control.exe esc` 打断输出 → 确认停止（扫描 `stop_reason: "end_turn"`）
+3. **注入求助指令** → `inject_file` 将预置的摘要生成指令粘贴到 Claude Code 输入框并自动提交 → 收到注入消息后，Claude Code 自动调用 `ask_chatgpt` 发送问题
+4. **获取外部答案** → ChatGPT 网页版返回代码审查结果或修复建议 → Claude Code 按返回内容修改代码
+5. **冷却恢复** → 10 秒冷却后继续监控
+
+#### 手动触发场景
+
+如果你主动遇到难题，也可以直接使用 MCP 工具：
+
+```
+请帮我审查这段代码（粘贴代码）
+```
+
+→ 模型自动判断数据量 → 若超过阈值，静默调用 `ask_chatgpt` → 返回结果后直接应用。
+
+#### 配置要点
+
+- 确保 `settings.json` 中 `permissions.allow` 包含 `mcp__chatgpt__ask_chatgpt` 和 `mcp__deepseek__ask_deepseek`
+- 死循环监控的 `config.mjs` 中的冷却时间、触发阈值可根据工作节奏调整
+- 若需长期无人值守，将 `CHATGPT_HEADLESS=true` 设为隐藏浏览器模式（但首次仍需登录）
