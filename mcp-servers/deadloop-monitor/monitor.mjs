@@ -1,6 +1,7 @@
 import fs from "fs";
 import path from "path";
 import readline from "readline";
+import { fileURLToPath } from "url";
 import config from "./config.mjs";
 import { info, warn, error } from "./logger.mjs";
 import {
@@ -221,9 +222,9 @@ async function main() {
   }
   info("session file", { path: sessionFile });
 
-  // 用绝对路径写心跳，避免 CWD 不同导致扩展读不到
-  const wsPath = process.argv[2] || path.dirname(sessionFile);
-  heartbeatFile = path.join(wsPath, ".deadloop-heartbeat");
+  // 用绝对路径写心跳，确保扩展能读到
+  const MONITOR_DIR = path.dirname(fileURLToPath(import.meta.url));
+  heartbeatFile = path.join(MONITOR_DIR, ".deadloop-heartbeat");
 
   reader = new JsonlReader(sessionFile);
   // 从持久化文件恢复 reader position，防止重启遗漏/重复

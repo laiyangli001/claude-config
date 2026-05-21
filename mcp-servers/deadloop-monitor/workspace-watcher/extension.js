@@ -187,8 +187,9 @@ function startMonitor(workspacePath, onStatusUpdate, statusBar) {
 
   processes.set(workspacePath, proc);
 
-  const heartbeatFile = path.join(workspacePath, ".deadloop-heartbeat");
-  try { fs.writeFileSync(path.join(workspacePath, ".deadloop-pid"), String(proc.pid)); } catch (e) { console.error(e); }
+  const monitorDir = path.dirname(MONITOR_SCRIPT);
+  const heartbeatFile = path.join(monitorDir, ".deadloop-heartbeat");
+  try { fs.writeFileSync(path.join(monitorDir, ".deadloop-pid"), String(proc.pid)); } catch (e) { console.error(e); }
 
   let stdoutBuf = "";
 
@@ -274,7 +275,8 @@ function sendCommand(workspacePath, command) {
   if (proc) { try { proc.stdin.write(JSON.stringify({ command }) + "\n"); } catch (e) { console.error(e); } }
 }
 
-const ACTIVATE_MARKER = "c:/Users/LaiYangLi/.claude/.deadloop-activated";
+const MONITOR_DIR = path.dirname(MONITOR_SCRIPT);
+const ACTIVATE_MARKER = path.join(MONITOR_DIR, ".deadloop-activated");
 
 function activate(context) {
   try { fs.writeFileSync(ACTIVATE_MARKER, String(Date.now())); } catch {}

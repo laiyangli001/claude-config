@@ -1,4 +1,8 @@
 // 死循环监控系统配置
+import path from "path";
+import { fileURLToPath } from "url";
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
 export default {
 
   // 对话 .jsonl 文件（留空 = 自动扫描发现）
@@ -43,6 +47,6 @@ export default {
   maxTokensPerCycle: 10000,
 
   // 日志
-  logFile: "deadloop-monitor.jsonl",
+  logFile: path.join(__dirname, "deadloop-monitor.jsonl"),
   logLevel: "info",
 };
