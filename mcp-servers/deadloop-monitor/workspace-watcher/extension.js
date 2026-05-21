@@ -3,8 +3,9 @@ const { spawn } = require("child_process");
 const path = require("path");
 const fs = require("fs");
 
-const MONITOR_SCRIPT = "c:/Users/LaiYangLi/.claude/mcp-servers/deadloop-monitor/monitor.mjs";
-const LOG_FILE = "c:/Users/LaiYangLi/.claude/mcp-servers/deadloop-monitor/monitor-output.log";
+const MONITOR_DIR = path.join(process.env.USERPROFILE || "C:/Users/default", ".claude", "mcp-servers", "deadloop-monitor");
+const MONITOR_SCRIPT = path.join(MONITOR_DIR, "monitor.mjs");
+const LOG_FILE = path.join(MONITOR_DIR, "monitor-output.log");
 
 class StatusBarManager {
   constructor(workspacePath) {
@@ -284,7 +285,6 @@ function sendCommand(workspacePath, command) {
   if (proc) { try { proc.stdin.write(JSON.stringify({ command }) + "\n"); } catch (e) { console.error(e); } }
 }
 
-const MONITOR_DIR = path.dirname(MONITOR_SCRIPT);
 const ACTIVATE_MARKER = path.join(MONITOR_DIR, ".deadloop-activated");
 
 function activate(context) {

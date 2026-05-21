@@ -158,6 +158,7 @@ async function waitForStop() {
     if (state === STATE.PAUSED) { info("pause during helping"); return false; }
 
     await sendEscViaAutoItAsync(); // 非阻塞，事件循环可响应 stdin
+    try { fs.writeFileSync(heartbeatFile, String(Date.now())); } catch {}
     await sleep(5000);  // 再等 5 秒让写入落盘
 
     if (state === STATE.PAUSED) { info("pause during helping"); return false; }
