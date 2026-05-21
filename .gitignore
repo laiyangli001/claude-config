@@ -35,11 +35,11 @@ mcp-servers/*/.chatgpt-mirror-profile*/
 # 临时工具
 gh.exe
 
-# 旧的 projects（已迁移到 claude-config）
-projects/C--Users-LaiYangLi/
-projects/c--Users-LaiYangLi--claude/
-projects/c--page/
-projects/d--AI-2D-to-3D-4-LC700X-Desktop2Stereo-Desktop2Stereo-v2-4-1-Windows-NVIDIA/
-
 # 压缩包
 mcp-servers.zip
+
+# projects/ — 只跟踪记忆文件，忽略会话文件（jsonl 等）
+projects/**/*.jsonl
+projects/**/*.jsonl.pos
+projects/**/subagents/
+projects/**/tool-results/

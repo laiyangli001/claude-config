@@ -1,0 +1,6 @@
+- [Skill Reminders](../claude-config/memory/skill-reminders.md) — 在合适的编码场景主动提醒用户使用对应的 Matt Pocock skill
+- [System Config Reference](../claude-config/memory/system-config-reference.md) — 全局 MCP、skills、issue tracker 配置快照，便于恢复和参考
+- [Session Persistence Guide](../claude-config/memory/session-persistence-guide.md) — Claude Code 对话 session 保存与恢复的完整操作指南
+- [Debug: 送 ChatGPT](../claude-config/memory/debug-send-to-chatgpt.md) — debug 一遍不成功直接送外援，不硬扛
+- [不用 sed 改 Python](../claude-config/memory/no-sed-for-python.md) — 换行符被吃、转义被吞，用 Python 脚本做精确替换
+- [Git Push VPN 重试](../claude-config/memory/git-push-vpn-retry.md) — push 前先检测网络连通性，失败自动重试
