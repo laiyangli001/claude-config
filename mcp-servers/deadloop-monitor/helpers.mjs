@@ -206,9 +206,16 @@ export function sendInjectTextViaExtension(text) {
 // ── AutoIt 方式（最可靠，编译后不需安装 AutoIt）──
 const AUTOIT_EXE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "deadloop_control.exe");
 
+let vscodePid = 0;
+export function setVscodePid(pid) { vscodePid = pid; }
+
+function autoItEnv() {
+  return { ...process.env, DEADLOOP_VSCODE_PID: String(vscodePid) };
+}
+
 export function sendEscViaAutoIt() {
   try {
-    execSync(`"${AUTOIT_EXE}" esc`, { timeout: 10000 });
+    execSync(`"${AUTOIT_EXE}" esc`, { timeout: 10000, env: autoItEnv() });
     return true;
   } catch (e) {
     warn("sendEsc execSync failed", { error: e.message });
@@ -218,7 +225,7 @@ export function sendEscViaAutoIt() {
 
 export function sendEscViaAutoItAsync() {
   return new Promise((resolve) => {
-    const proc = spawn(AUTOIT_EXE, ["esc"], { timeout: 10000, windowsHide: true });
+    const proc = spawn(AUTOIT_EXE, ["esc"], { timeout: 10000, windowsHide: true, env: autoItEnv() });
     proc.on("error", (err) => {
       warn("sendEsc spawn error", { error: err.message });
       resolve(false);
@@ -255,7 +262,7 @@ function writeTempFile(text) {
 export function injectViaAutoIt(text) {
   const tmpFile = writeTempFile(text);
   try {
-    execSync(`"${AUTOIT_EXE}" inject_file "${tmpFile}"`, { timeout: 10000 });
+    execSync(`"${AUTOIT_EXE}" inject_file "${tmpFile}"`, { timeout: 10000, env: autoItEnv() });
     return true;
   } catch (e) {
     warn("injectViaAutoIt failed", { path: tmpFile, len: text.length, error: e.message });
@@ -268,7 +275,7 @@ export function injectViaAutoIt(text) {
 export function pasteViaAutoIt(text) {
   const tmpFile = writeTempFile(text);
   try {
-    execSync(`"${AUTOIT_EXE}" paste_file "${tmpFile}"`, { timeout: 10000 });
+    execSync(`"${AUTOIT_EXE}" paste_file "${tmpFile}"`, { timeout: 10000, env: autoItEnv() });
     return true;
   } catch (e) {
     warn("pasteViaAutoIt failed", { path: tmpFile, len: text.length, error: e.message });

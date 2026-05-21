@@ -9,18 +9,25 @@ If $CmdLine[0] < 1 Then
     Exit 1
 EndIf
 
-; ── 查找 VS Code 窗口 ──
-Local $hWnd = WinGetHandle("[REGEXPTITLE:.*Visual Studio Code.*]")
-If @error Then
+; ── 查找 VS Code 窗口（优先按 PID，回退标题正则）──
+Local $vscodePid = EnvGet("DEADLOOP_VSCODE_PID")
+Local $hWnd = 0
+If $vscodePid Then
+    $hWnd = WinGetHandle("[PID:" & $vscodePid & "]")
+EndIf
+If @error Or $hWnd = 0 Then
+    Local $hWnd = WinGetHandle("[REGEXPTITLE:.*Visual Studio Code.*]")
+EndIf
+If @error Or $hWnd = 0 Then
     $hWnd = WinGetHandle("[REGEXPTITLE:.*VS Code.*]")
 EndIf
-If @error Then
+If @error Or $hWnd = 0 Then
     $hWnd = WinGetHandle("[REGEXPTITLE:.*Code - Insiders.*]")
 EndIf
-If @error Then
+If @error Or $hWnd = 0 Then
     $hWnd = WinGetHandle("[REGEXPTITLE:.*Code - OSS.*]")
 EndIf
-If @error Then
+If @error Or $hWnd = 0 Then
     ConsoleWrite("ERROR: window not found" & @CRLF)
     Exit 1
 EndIf

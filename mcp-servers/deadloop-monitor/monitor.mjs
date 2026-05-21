@@ -14,6 +14,7 @@ import {
   injectViaAutoIt,
   pasteViaAutoIt,
   checkFileForStop,
+  setVscodePid,
 } from "./helpers.mjs";
 import {
   RepeatDetector,
@@ -221,6 +222,10 @@ async function main() {
 
   setupStdin();
 
+  // 从 argv[3] 接收 VS Code 主窗口 PID，用于 AutoIt 精准匹配目标窗口
+  const vscodePid = parseInt(process.argv[3], 10) || 0;
+  if (vscodePid) setVscodePid(vscodePid);
+
   let sessionFile = autoDiscoverSessionFile();
   while (!sessionFile) {
     warn("no session file, retrying in 5s");
@@ -257,9 +262,10 @@ async function main() {
     }
 
     if (state === STATE.COOLDOWN || state === STATE.PAUSED) {
-      // 冷却/暂停期间也发心跳给扩展（带 tokenCount）
+      // 冷却/暂停期间也发心跳给扩展
       const st = state === STATE.COOLDOWN ? "cooling" : state.toLowerCase();
-      console.log(JSON.stringify({ status: st, tokenCount: cumulativeTokens }));
+      const extra = state === STATE.COOLDOWN ? { cooldownLeft: Math.max(0, Math.ceil((cooldownUntil - Date.now()) / 1000)) } : {};
+      console.log(JSON.stringify({ status: st, tokenCount: cumulativeTokens, ...extra }));
       continue;
     }
 
