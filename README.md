@@ -1,6 +1,7 @@
 # Claude Code 全局配置
 
 > 🎞️ 可交互演示版：[claude-config-slides.html](https://laiyangli001.github.io/claude-config/claude-config-slides.html)
+> 📖 完整图文教程：[Claude-Config-tutorial.html](https://laiyangli001.github.io/claude-config/Claude-Config-tutorial.html)
 
 > 软件安装配置教程请看 [VSCode+Claude+DeepSeek 使用教程.md](./VSCode+Claude+DeepSeek%20使用教程.md)
 
