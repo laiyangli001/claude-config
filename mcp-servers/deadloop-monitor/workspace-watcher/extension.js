@@ -7,13 +7,15 @@ const MONITOR_SCRIPT = "c:/Users/LaiYangLi/.claude/mcp-servers/deadloop-monitor/
 const LOG_FILE = "c:/Users/LaiYangLi/.claude/mcp-servers/deadloop-monitor/monitor-output.log";
 
 class StatusBarManager {
-  constructor() {
+  constructor(workspacePath) {
     this.item = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
     this.item.name = "循环守护";
+    this.unreadAlert = false;
+    this.reportFile = workspacePath ? path.join(workspacePath, ".deadloop-report.md") : "";
     this.state = {
       status: "stopped",
       workspace: "", file: "",
-      detectors: { repeat: true, reversal: true, info: true },
+      detectorDetails: null,
       lastPoll: "", tokenCount: 0, lastTrigger: null, cooldownLeft: 0,
       stopReason: "", stopHint: "",
     };
@@ -41,33 +43,61 @@ class StatusBarManager {
       case "stopped": case "stopping": icon = "$(circle-slash)"; tooltipStatus = "⚪ 已停止"; break;
       default: tooltipStatus = "❓ 未知状态";
     }
+
+    // 有未读告警时强制显示警告图标
+    if (this.unreadAlert) {
+      icon = "$(warning)";
+      this.item.backgroundColor = new vscode.ThemeColor("statusBarItem.warningBackground");
+    }
+
     this.item.text = icon + " 循环守护";
     const { stopReason, stopHint } = this.state;
-    this.item.tooltip = this.buildTooltip(tooltipStatus, workspace, file, detectors, lastPoll, tokenCount, lastTrigger, cooldownLeft, stopReason, stopHint);
+    this.item.tooltip = this.buildTooltip(tooltipStatus, workspace, file, lastPoll, tokenCount, lastTrigger, cooldownLeft, stopReason, stopHint);
     this.item.show();
   }
 
-  buildTooltip(statusLine, workspace, file, detectors, lastPoll, tokenCount, lastTrigger, cooldownLeft, stopReason, stopHint) {
-    const ds = [
-      "重复代码块: " + (detectors?.repeat ? "✅" : "❌"),
-      "反转词密度: " + (detectors?.reversal ? "✅" : "❌"),
-      "信息增量率: " + (detectors?.info ? "✅" : "❌"),
-    ].join("   ");
-    return [
+  buildTooltip(statusLine, workspace, file, lastPoll, tokenCount, lastTrigger, cooldownLeft, stopReason, stopHint) {
+    const lines = [
       "循环守护    " + statusLine,
       "──────────────────────────────",
       "工作区: " + (workspace || "未知"),
-      "监控文件: " + (file || "未知"),
-      "检测器: " + ds,
+      "监控会话: " + (file || "未知"),
+      "检测器: 重复代码块 ✅  反转词密度 ✅  信息增量率 ✅",
       lastPoll ? "最后轮询: " + lastPoll : "",
       "本轮 token: " + tokenCount.toLocaleString(),
-      lastTrigger ? "最近触发: " + lastTrigger : "最近触发: 暂无",
+      lastTrigger ? "最近触发: " + lastTrigger + "（菜单查看报告）" : "最近触发: 暂无",
       cooldownLeft > 0 ? "冷却剩余: " + cooldownLeft + " 秒" : "",
       stopReason ? "停止原因: " + stopReason : "",
       stopHint ? "提示: " + stopHint : "",
       "──────────────────────────────",
       "鼠标左键 → 打开菜单",
-    ].filter(Boolean).join("\n");
+    ];
+    return lines.filter(Boolean).join("\n");
+  }
+
+  writeReport(timeStr, details) {
+    if (!this.reportFile) return;
+    let entries = [];
+    try {
+      const content = fs.readFileSync(this.reportFile, "utf-8");
+      entries = content.split(/\n(?=## )/).filter(Boolean);
+    } catch {}
+    const rpt = details?.repeat ? `命中${details.repeat.hits}次(阈${details.repeat.threshold})` : "?";
+    const rev = details?.reversal ? `命中${details.reversal.count}词/200字(阈${details.reversal.threshold})` : "?";
+    const stall = details?.infoStall ? `堵塞${details.infoStall.stallCount}条(阈${details.infoStall.threshold})` : "?";
+    const entry = [
+      `## 检测 — ${timeStr}`,
+      "",
+      "| 检测器 | 条件 | 结果 |",
+      "|------|------|------|",
+      `| 重复代码块 | ≥1行重复3次 | ${rpt} |`,
+      `| 反转词密度 | ≥5词/200字 | ${rev} |`,
+      `| 信息增量率 | ≤1条新内容 | ${stall} |`,
+      "",
+    ].join("\n");
+    entries.push(entry);
+    if (entries.length > 5) entries = entries.slice(entries.length - 5);
+    fs.writeFileSync(this.reportFile, entries.join("\n") + "\n", "utf-8");
   }
 
   registerCommands(context, commands) {
@@ -85,6 +115,7 @@ class StatusBarManager {
       } else {
         options.push({ label: "⏹ 停止监控", action: "stop" });
       }
+      options.push({ label: "📋 检测报告", action: "viewReport" });
       options.push({ label: "📋 查看日志", action: "viewLog" });
       const choice = await vscode.window.showQuickPick(options, { placeHolder: "循环守护 – 选择操作" });
       if (!choice) return;
@@ -93,6 +124,13 @@ class StatusBarManager {
           const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(LOG_FILE));
           await vscode.window.showTextDocument(doc);
         } catch (e) { vscode.window.showInformationMessage("日志文件暂不可用"); console.error(e); }
+      } else if (choice.action === "viewReport") {
+        this.unreadAlert = false;
+        this.updateDisplay();
+        try {
+          const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(this.reportFile));
+          await vscode.window.showTextDocument(doc);
+        } catch (e) { vscode.window.showInformationMessage("暂无检测报告"); }
       } else { commands.sendCommand(choice.action); }
     }));
     this.item.command = cmdId;
@@ -101,13 +139,46 @@ class StatusBarManager {
   dispose() { this.item.dispose(); }
 }
 
+// ── 可靠终端发送（不依赖 activeTerminal）──
+function sendToTerminal(text, preserveFocus = true) {
+  let term = vscode.window.activeTerminal;
+  if (term && term.name.toLowerCase().includes("claude")) {
+    term.show(preserveFocus);
+    term.sendText(text);
+    return true;
+  }
+  // 搜索所有终端
+  term = vscode.window.terminals.find(t => t.name.toLowerCase().includes("claude"))
+    || vscode.window.terminals[0];
+  if (term) {
+    term.show(preserveFocus);
+    term.sendText(text);
+    return true;
+  }
+  return false;
+}
+
 // ── 进程管理 ──
 const processes = new Map();
 
-function startMonitor(workspacePath, onStatusUpdate) {
+function startMonitor(workspacePath, onStatusUpdate, statusBar) {
   if (processes.has(workspacePath)) return;
 
-  const proc = spawn("node", [MONITOR_SCRIPT], {
+  // 杀掉所有此工作区旧的 monitor.mjs 进程（防止 reload 后变成孤儿进程）
+  const pidFile = path.join(workspacePath, ".deadloop-pid");
+  try {
+    const result = require("child_process").execSync(
+      `powershell -Command "Get-CimInstance Win32_Process -Filter \\"Name='node.exe' AND CommandLine like '%monitor.mjs%'\\" | Select-Object -ExpandProperty ProcessId"`,
+      { encoding: "utf8", timeout: 10000 }
+    );
+    const pids = result.trim().split(/\s+/).filter(id => id && parseInt(id) !== process.pid);
+    for (const pid of pids) {
+      try { process.kill(parseInt(pid)); } catch {}
+      try { require("child_process").execSync("taskkill /f /pid " + pid + " 2>nul", { timeout: 3000 }); } catch {}
+    }
+  } catch { /* 无旧进程 */ }
+
+  const proc = spawn("node", [MONITOR_SCRIPT, workspacePath], {
     cwd: workspacePath,
     stdio: ["pipe", "pipe", "inherit"],
     env: { ...process.env },
@@ -129,14 +200,29 @@ function startMonitor(workspacePath, onStatusUpdate) {
       if (!line.trim()) continue;
       try {
         const json = JSON.parse(line.trim());
+        // action 消息：发 ESC / 注入文本到终端
+        if (json.action === "sendEsc") {
+          sendToTerminal("\x1b");
+          continue;
+        }
+        if (json.action === "injectText" && json.text) {
+          sendToTerminal('\x1b', false);          // ESC 聚焦 Claude 对话框
+          sendToTerminal(json.text, false);        // 输入文本
+          sendToTerminal('\n', false);             // Enter
+          sendToTerminal('\n', false);             // Ctrl+Enter 提交
+          continue;
+        }
         const upd = { status: json.status.toLowerCase(), lastPoll: new Date().toLocaleTimeString() };
         if (typeof json.tokenCount === "number") upd.tokenCount = json.tokenCount;
+        if (json.detectors) upd.detectorDetails = json.detectors;
         onStatusUpdate(upd);
       } catch (e) {
         if (line.includes("DEADLOOP_DETECTED")) {
-          vscode.window.showWarningMessage("检测到 Claude Code 输出死循环！", "查看", "忽略")
-            .then(choice => { if (choice === "查看") vscode.commands.executeCommand("workbench.action.terminal.focus"); });
-          onStatusUpdate({ status: "alert", lastTrigger: new Date().toLocaleTimeString(), lastPoll: new Date().toLocaleTimeString() });
+          const timeStr = new Date().toLocaleString();
+          statusBar.unreadAlert = true;
+          statusBar.writeReport(timeStr, statusBar.state.detectorDetails);
+          onStatusUpdate({ status: "alert", lastTrigger: timeStr, lastPoll: new Date().toLocaleTimeString() });
+          statusBar.updateDisplay();
         } else if (line.includes("NEEDS_MANUAL")) {
           vscode.window.showErrorMessage("自动中断失败，请手动 Ctrl+C 终止 Claude Code");
           onStatusUpdate({ status: "intervention_needed", lastTrigger: new Date().toLocaleTimeString(), lastPoll: new Date().toLocaleTimeString() });
@@ -154,6 +240,7 @@ function startMonitor(workspacePath, onStatusUpdate) {
     clearInterval(checkInterval);
     onStatusUpdate({ status: "stopped", stopReason: "监控进程已退出" });
     try { fs.unlinkSync(heartbeatFile); } catch {}
+    try { fs.unlinkSync(pidFile); } catch {}
   };
 
   // 心跳文件检测：monitor.mjs 每 2 秒写文件，扩展每 3 秒读 mtime
@@ -187,11 +274,14 @@ function sendCommand(workspacePath, command) {
   if (proc) { try { proc.stdin.write(JSON.stringify({ command }) + "\n"); } catch (e) { console.error(e); } }
 }
 
+const ACTIVATE_MARKER = "c:/Users/LaiYangLi/.claude/.deadloop-activated";
+
 function activate(context) {
+  try { fs.writeFileSync(ACTIVATE_MARKER, String(Date.now())); } catch {}
   console.log("[deadloop] activate START");
-  const statusBar = new StatusBarManager();
   const wsFolder = vscode.workspace.workspaceFolders?.[0];
   const wsPath = wsFolder?.uri.fsPath || "";
+  const statusBar = new StatusBarManager(wsPath);
 
   const commands = {
     sendCommand: (cmd) => {
@@ -202,17 +292,23 @@ function activate(context) {
   };
 
   statusBar.registerCommands(context, commands);
+  const slug = wsPath.replace(/[:\\/.]/g, '-').toLowerCase();
   statusBar.updateState({
     workspace: wsPath,
-    file: "projects/*/xxx.jsonl",
+    file: slug,
     lastPoll: new Date().toLocaleTimeString(),
     detectors: { repeat: true, reversal: true, info: true },
   });
 
   console.log("[deadloop] wsPath:", wsPath);
   if (wsPath) {
-    startMonitor(wsPath, (s) => statusBar.updateState(s));
-    console.log("[deadloop] startMonitor returned, proc exists:", processes.has(wsPath));
+    try {
+      startMonitor(wsPath, (s) => statusBar.updateState(s), statusBar);
+      console.log("[deadloop] startMonitor returned, proc exists:", processes.has(wsPath));
+    } catch (e) {
+      console.error("[deadloop] startMonitor error:", e.message);
+      try { fs.writeFileSync("c:/Users/LaiYangLi/.claude/.deadloop-error", e.message); } catch {}
+    }
   }
 
   context.subscriptions.push(

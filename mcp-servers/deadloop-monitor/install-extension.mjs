@@ -10,13 +10,7 @@ const INSTALL_DIR = path.join(
 );
 const SRC_DIR = path.resolve(import.meta.dirname, "workspace-watcher");
 
-// 检查是否已安装
-if (fs.existsSync(INSTALL_DIR)) {
-  console.log("[deadloop] extension already installed at", INSTALL_DIR);
-  process.exit(0);
-}
-
-// 复制文件
+// 总是覆盖安装（保持扩展目录与源码同步）
 try {
   fs.mkdirSync(INSTALL_DIR, { recursive: true });
   for (const file of ["package.json", "extension.js"]) {
