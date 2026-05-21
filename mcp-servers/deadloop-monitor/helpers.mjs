@@ -101,7 +101,7 @@ export class JsonlReader {
 }
 
 // ── PowerShell SendKeys 注入 ──
-import { execSync } from "child_process";
+import { execSync, spawn } from "child_process";
 import os from "os";
 
 const PS_PRE = `
@@ -213,6 +213,14 @@ export function sendEscViaAutoIt() {
   } catch {
     return false;
   }
+}
+
+export function sendEscViaAutoItAsync() {
+  return new Promise((resolve) => {
+    const proc = spawn(AUTOIT_EXE, ["esc"], { timeout: 10000, windowsHide: true });
+    proc.on("error", () => resolve(false));
+    proc.on("close", (code) => resolve(code === 0));
+  });
 }
 
 function setClipboard(text) {

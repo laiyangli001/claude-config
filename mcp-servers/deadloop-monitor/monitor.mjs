@@ -10,6 +10,7 @@ import {
   JsonlReader,
   DialogWindow,
   sendEscViaAutoIt,
+  sendEscViaAutoItAsync,
   injectViaAutoIt,
   pasteViaAutoIt,
   checkFileForStop,
@@ -156,7 +157,7 @@ async function waitForStop() {
   for (let i = 0; i < 3; i++) {
     if (state === STATE.PAUSED) { info("pause during helping"); return false; }
 
-    sendEscViaAutoIt(); // 阻塞 5 秒（AutoIt 长按 ESC）
+    await sendEscViaAutoItAsync(); // 非阻塞，事件循环可响应 stdin
     await sleep(5000);  // 再等 5 秒让写入落盘
 
     if (state === STATE.PAUSED) { info("pause during helping"); return false; }

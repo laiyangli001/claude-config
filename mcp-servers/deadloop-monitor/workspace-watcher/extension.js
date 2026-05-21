@@ -90,7 +90,7 @@ class StatusBarManager {
       "",
       "| 检测器 | 条件 | 结果 |",
       "|------|------|------|",
-      `| 重复代码块 | ≥1行重复3次 | ${rpt} |`,
+      `| 重复代码块 | ≥2行各重复5次 | ${rpt} |`,
       `| 反转词密度 | ≥5词/200字 | ${rev} |`,
       `| 信息增量率 | ≤1条新内容 | ${stall} |`,
       "",
@@ -168,7 +168,7 @@ function startMonitor(workspacePath, onStatusUpdate, statusBar) {
   const pidFile = path.join(workspacePath, ".deadloop-pid");
   try {
     const result = require("child_process").execSync(
-      `powershell -Command "Get-CimInstance Win32_Process -Filter \\"Name='node.exe' AND CommandLine like '%monitor.mjs%'\\" | Select-Object -ExpandProperty ProcessId"`,
+      `powershell -Command "Get-CimInstance Win32_Process -Filter \\"Name='node.exe' AND CommandLine like '%deadloop-monitor%monitor.mjs%'\\" | Select-Object -ExpandProperty ProcessId"`,
       { encoding: "utf8", timeout: 10000 }
     );
     const pids = result.trim().split(/\s+/).filter(id => id && parseInt(id) !== process.pid);

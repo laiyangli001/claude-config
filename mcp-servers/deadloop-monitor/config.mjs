@@ -14,7 +14,7 @@ export default {
   // 信号1: 重复代码块检测
   repeat: {
     windowTokens: 500,
-    maxHits: 1,
+    maxHits: 2,
   },
 
   // 信号2: 逻辑反转词检测（绝对计数）
