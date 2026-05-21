@@ -37,7 +37,7 @@ export default {
   // 信号3: 信息增量率
   infoStall: {
     windowTokens: 200,
-    maxStallCount: 2,
+    maxStallCount: 4,
   },
 
   // 冷却期（毫秒）

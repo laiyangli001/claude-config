@@ -1,6 +1,7 @@
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import { warn } from "./logger.mjs";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 
@@ -122,7 +123,7 @@ $cb = {
     param($hWnd, $lParam)
     $sb = New-Object System.Text.StringBuilder(256)
     [Win32]::GetWindowText($hWnd, $sb, 256)
-    if ($sb.ToString() -match "- Visual Studio Code$$") {
+    if ($sb.ToString() -match "Visual Studio Code") {
         $result[0] = $hWnd
         return $false
     }
@@ -241,7 +242,8 @@ export function injectViaAutoIt(text) {
   try {
     execSync(`"${AUTOIT_EXE}" inject_file "${tmpFile}"`, { timeout: 10000 });
     return true;
-  } catch {
+  } catch (e) {
+    warn("injectViaAutoIt failed", { path: tmpFile, len: text.length, error: e.message });
     return false;
   } finally {
     try { fs.unlinkSync(tmpFile); } catch {}
@@ -253,7 +255,8 @@ export function pasteViaAutoIt(text) {
   try {
     execSync(`"${AUTOIT_EXE}" paste_file "${tmpFile}"`, { timeout: 10000 });
     return true;
-  } catch {
+  } catch (e) {
+    warn("pasteViaAutoIt failed", { path: tmpFile, len: text.length, error: e.message });
     return false;
   } finally {
     try { fs.unlinkSync(tmpFile); } catch {}

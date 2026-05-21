@@ -33,14 +33,14 @@ export class RepeatDetector {
         if (!key || key.length < 5) continue;
 
         this.lineCounts[key] = (this.lineCounts[key] || 0) + 1;
-        if (this.lineCounts[key] >= 3) {  // 同一行出现 3 次以上
+        if (this.lineCounts[key] >= 5) {  // 同一行出现 5 次以上
           hits++;
         }
       }
     }
 
-    // 限制 map 大小
-    if (Object.keys(this.lineCounts).length > 500) {
+    // 限制 map 大小（长期运行避免膨胀）
+    if (Object.keys(this.lineCounts).length > 2000) {
       this.lineCounts = {};
     }
 
@@ -69,6 +69,7 @@ export class ReversalDetector {
     this.windowSize = config.reversal.windowTokens;
     this.minCount = config.reversal.minCount;
     this.words = config.reversal.words;
+    this.buffer = []; // 跨 feed 累积的块缓冲
   }
 
   feed(text) {
@@ -76,30 +77,34 @@ export class ReversalDetector {
       return { fired: false, detail: { count: 0, threshold: this.minCount, windowSize: this.windowSize } };
     }
 
-    // 将文本按空格/换行分割为"块"，每个块包含多个中文字符
+    // 将文本按空格/换行分割为"块"，追加到缓冲区
     const blocks = text.split(/\s+/).filter(Boolean);
     if (blocks.length < 10) {
       return { fired: false, detail: { count: 0, threshold: this.minCount, windowSize: this.windowSize } };
     }
 
-    // 在原始文本中直接搜索反转词子串（避免单字拆分问题）
-    const halfW = Math.floor(this.windowSize / 2);
-    let charIndex = 0;
-    const charLengths = blocks.map(b => b.length);
+    this.buffer.push(...blocks);
+    // 裁剪缓冲区：保留约 2x windowSize 字符的数据
+    let charTotal = 0;
+    for (let i = this.buffer.length - 1; i >= 0; i--) {
+      charTotal += this.buffer[i].length;
+      if (charTotal > this.windowSize * 2 && i > 0) {
+        this.buffer = this.buffer.slice(i);
+        break;
+      }
+    }
 
-    for (let start = 0; start < blocks.length; start++) {
-      // 估算当前"块窗口"覆盖的字符数 ≈ windowSize
+    // 在缓冲区上滑动窗口分析（跨多次 feed）
+    for (let start = 0; start < this.buffer.length; start++) {
       let charCount = 0;
       let blockEnd = start;
-      for (let i = start; i < blocks.length && charCount < this.windowSize; i++) {
-        charCount += blocks[i].length;
+      for (let i = start; i < this.buffer.length && charCount < this.windowSize; i++) {
+        charCount += this.buffer[i].length;
         blockEnd = i;
       }
-      const windowBlocks = blocks.slice(start, blockEnd + 1);
-      const windowText = windowBlocks.join(" ");
+      const windowText = this.buffer.slice(start, blockEnd + 1).join(" ");
       if (windowText.length < 20) break;
 
-      // 直接统计反转词在文本中的出现次数
       let reversalCount = 0;
       for (const word of this.words) {
         let pos = 0;
@@ -119,7 +124,7 @@ export class ReversalDetector {
   }
 
   reset() {
-    // ReversalDetector 每次 feed 独立分析窗口，无需重置状态
+    this.buffer = [];
   }
 }
 

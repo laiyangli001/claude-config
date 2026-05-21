@@ -245,15 +245,24 @@ function startMonitor(workspacePath, onStatusUpdate, statusBar) {
   };
 
   // 心跳文件检测：monitor.mjs 每 2 秒写文件，扩展每 3 秒读 mtime
+  // 连续 2 次（约 6 秒）检测不到心跳才判定死亡，防止 GC 停顿误杀
+  let heartbeatMisses = 0;
   const checkInterval = setInterval(() => {
     try {
       const age = Date.now() - fs.statSync(heartbeatFile).mtimeMs;
       if (age > 10000) {
-        cleanUp();
+        heartbeatMisses++;
+        if (heartbeatMisses >= 2) {
+          cleanUp();
+        }
+      } else {
+        heartbeatMisses = 0;
       }
     } catch {
-      // 文件不存在或无权限 → 进程可能已死
-      cleanUp();
+      heartbeatMisses++;
+      if (heartbeatMisses >= 2) {
+        cleanUp();
+      }
     }
   }, 3000);
 }

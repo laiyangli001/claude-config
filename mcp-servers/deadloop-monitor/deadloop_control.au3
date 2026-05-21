@@ -15,6 +15,12 @@ If @error Then
     $hWnd = WinGetHandle("[REGEXPTITLE:.*VS Code.*]")
 EndIf
 If @error Then
+    $hWnd = WinGetHandle("[REGEXPTITLE:.*Code - Insiders.*]")
+EndIf
+If @error Then
+    $hWnd = WinGetHandle("[REGEXPTITLE:.*Code - OSS.*]")
+EndIf
+If @error Then
     ConsoleWrite("ERROR: window not found" & @CRLF)
     Exit 1
 EndIf

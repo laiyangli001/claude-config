@@ -52,7 +52,7 @@ function setupStdin() {
     try {
       const cmd = JSON.parse(line);
       if (cmd.command === "pause") {
-        if (state === STATE.MONITORING) {
+        if (state === STATE.MONITORING || state === STATE.HELPING) {
           state = STATE.PAUSED;
           console.log(JSON.stringify({ status: "paused" }));
           info("paused by user");
@@ -154,8 +154,12 @@ async function waitForStop() {
   }
 
   for (let i = 0; i < 3; i++) {
+    if (state === STATE.PAUSED) { info("pause during helping"); return false; }
+
     sendEscViaAutoIt(); // 阻塞 5 秒（AutoIt 长按 ESC）
     await sleep(5000);  // 再等 5 秒让写入落盘
+
+    if (state === STATE.PAUSED) { info("pause during helping"); return false; }
 
     // 心跳
     try { fs.writeFileSync(heartbeatFile, String(Date.now())); } catch {}
@@ -275,6 +279,7 @@ async function main() {
     info("state", { state });
 
     const stopped = await waitForStop(); // 内部发 ESC + 重试
+    if (state === STATE.PAUSED) continue; // 暂停时跳过注入
     if (stopped) {
       injectSummary(); // 扩展 API 自动带 Enter 提交
     } else {
