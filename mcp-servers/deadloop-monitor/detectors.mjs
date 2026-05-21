@@ -187,6 +187,5 @@ export class InfoStallDetector {
   reset() {
     this.stallCount = 0;
     this.seenLines.clear();
-    this.buffer = [];
   }
 }
