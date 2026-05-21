@@ -228,6 +228,8 @@ function startMonitor(workspacePath, onStatusUpdate, statusBar) {
         } else if (line.includes("NEEDS_MANUAL")) {
           vscode.window.showErrorMessage("自动中断失败，请手动 Ctrl+C 终止 Claude Code");
           onStatusUpdate({ status: "intervention_needed", lastTrigger: new Date().toLocaleTimeString(), lastPoll: new Date().toLocaleTimeString() });
+        } else {
+          console.warn("[deadloop] unknown stdout line:", line.slice(0, 200));
         }
       }
     }

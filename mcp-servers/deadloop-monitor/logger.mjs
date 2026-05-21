@@ -27,7 +27,9 @@ rotate();
 let logFd = null;
 try {
   logFd = fs.openSync(config.logFile, "a");
-} catch { /* 日志文件不可写则跳过 */ }
+} catch (e) {
+  console.error("[deadloop-logger] cannot open log file:", config.logFile, e.message);
+}
 
 function timestamp() {
   return new Date().toISOString();

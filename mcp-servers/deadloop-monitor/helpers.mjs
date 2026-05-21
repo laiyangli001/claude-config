@@ -210,7 +210,8 @@ export function sendEscViaAutoIt() {
   try {
     execSync(`"${AUTOIT_EXE}" esc`, { timeout: 10000 });
     return true;
-  } catch {
+  } catch (e) {
+    warn("sendEsc execSync failed", { error: e.message });
     return false;
   }
 }
@@ -218,8 +219,14 @@ export function sendEscViaAutoIt() {
 export function sendEscViaAutoItAsync() {
   return new Promise((resolve) => {
     const proc = spawn(AUTOIT_EXE, ["esc"], { timeout: 10000, windowsHide: true });
-    proc.on("error", () => resolve(false));
-    proc.on("close", (code) => resolve(code === 0));
+    proc.on("error", (err) => {
+      warn("sendEsc spawn error", { error: err.message });
+      resolve(false);
+    });
+    proc.on("close", (code) => {
+      if (code !== 0) warn("sendEsc exited", { code });
+      resolve(code === 0);
+    });
   });
 }
 

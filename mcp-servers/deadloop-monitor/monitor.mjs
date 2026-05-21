@@ -119,15 +119,19 @@ function processAndCheck() {
     cumulativeTokens += tokens;
 
     let signals = 0;
-    const r = repeatDet.feed(cleaned);
-    const rev = reversalDet.feed(cleaned);
-    const inf = infoDet.feed(cleaned);
-    if (r.fired) signals++;
-    if (rev.fired) signals++;
-    if (inf.fired) signals++;
-    if (signals > 0) {
-      lastDetectorDetails = { repeat: r.detail, reversal: rev.detail, infoStall: inf.detail, signals };
-      warn("detect signal", { repeat: r.fired, reversal: rev.fired, infoStall: inf.fired, signals, tokens, preview: cleaned.slice(0, 100) });
+    try {
+      const r = repeatDet.feed(cleaned);
+      const rev = reversalDet.feed(cleaned);
+      const inf = infoDet.feed(cleaned);
+      if (r.fired) signals++;
+      if (rev.fired) signals++;
+      if (inf.fired) signals++;
+      if (signals > 0) {
+        lastDetectorDetails = { repeat: r.detail, reversal: rev.detail, infoStall: inf.detail, signals };
+        warn("detect signal", { repeat: r.fired, reversal: rev.fired, infoStall: inf.fired, signals, tokens, preview: cleaned.slice(0, 100) });
+      }
+    } catch (e) {
+      warn("detector feed error", { error: e.message });
     }
     if (signals >= 2) {
       loopSample = cleaned.slice(-1000);

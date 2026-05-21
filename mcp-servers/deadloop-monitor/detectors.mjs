@@ -136,7 +136,6 @@ export class InfoStallDetector {
     this.maxStallCount = config.infoStall.maxStallCount;
     this.stallCount = 0;
     this.seenLines = new Set();
-    this.buffer = [];
   }
 
   _countNewInfo(text) {
