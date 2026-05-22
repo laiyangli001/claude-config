@@ -39,8 +39,9 @@ dir              # Windows 查看文件列表
 |------|------|------|
 | **全局 CLAUDE.md** | `CLAUDE.md` | 身份定义、行为边界、工具规则、自动调用策略 |
 | **设置** | `settings.json` | API 端点、模型、权限、环境变量 |
-| **MCP 免费工具** | `mcp-servers/chatgpt-mcp/` | ChatGPT 网页版，不消耗 API token |
-| | `mcp-servers/deepseek-mcp/` | DeepSeek 网页版，不消耗 API token |
+| **MCP 免费工具** | `mcp-servers/mcp-chatgpt-mirror/` | ChatGPT 镜像站，不消耗 API token |
+| | `mcp-servers/mcp-chatgpt-official/` | ChatGPT 官方站，不消耗 API token |
+| | `mcp-servers/mcp-deepseek/` | DeepSeek 网页版，不消耗 API token |
 | **死循环监控** | `mcp-servers/deadloop-monitor/` | 检测输出死循环 → AutoIt 打断 → 摘要求助 |
 | **会话数据** | `projects/**/*.jsonl` | 对话记录（git 排除，不上传） |
 | **跨对话记忆** | `projects/<slug>/memory/` | 持久化的用户偏好和项目上下文 |
@@ -95,7 +96,8 @@ copy ~/.claude\settings.json.example ~\.claude\settings.json
   "effortLevel": "high",
   "permissions": {
     "allow": [
-      "mcp__chatgpt__ask_chatgpt",
+      "mcp__chatgpt-mirror__ask_chatgpt_mirror",
+      "mcp__chatgpt-official__ask_chatgpt_official",
       "mcp__deepseek__ask_deepseek"
     ]
   }
@@ -190,11 +192,15 @@ cd ~/.claude && git pull
 本节适合需要深度定制自动化工作流、MCP 工具链和死循环监控的用户。
 如果只是基础使用，请参见上文的【基础设置】。
 
-### MCP 免费工具：ask_chatgpt & ask_deepseek
+### MCP 免费工具：三合一
 
-这两个 MCP 服务分别调用 ChatGPT 网页版和 DeepSeek 网页版，不消耗 API token，适合复杂代码审查、长文本分析、联网查资料等场景。
+三个独立 MCP 服务，分别调用 ChatGPT 镜像站、ChatGPT 官方站和 DeepSeek 网页版，不消耗 API token，适合复杂代码审查、长文本分析、联网查资料等场景。
 
-> `ask_chatgpt` 通过 `target` 参数统一支持镜像站（`"mirror"`）和官方站（`"official"`），无需独立的 mirror MCP 服务。默认先尝试第三方镜像，再尝试官方网站。
+| 工具 | 服务端 | 说明 |
+|------|--------|------|
+| `ask_chatgpt_mirror` | `mcp-chatgpt-mirror` | ChatGPT 镜像站 2233.ai，优先使用 |
+| `ask_chatgpt_official` | `mcp-chatgpt-official` | ChatGPT 官方站 chatgpt.com，需 VPN |
+| `ask_deepseek` | `mcp-deepseek` | DeepSeek 网页版，国内直连 |
 
 
 
@@ -202,25 +208,36 @@ cd ~/.claude && git pull
 
 ```
 ~/.claude/mcp-servers/
-├── chatgpt-mcp/          # ChatGPT 官方站
-│   ├── server.js         # MCP 服务入口
-│   ├── package.json
-│   └── node_modules/
-├── deepseek-mcp/         # DeepSeek 网页版
-│   ├── server.js
-│   └── ...
+├── mcp-chatgpt-mirror/   # ChatGPT 镜像站
+│   ├── src/index.ts      # MCP 服务入口
+│   └── dist/index.js
+├── mcp-chatgpt-official/ # ChatGPT 官方站
+│   ├── src/index.ts
+│   └── dist/index.js
+├── mcp-deepseek/         # DeepSeek 网页版
+│   ├── src/index.ts
+│   └── dist/index.js
+├── shared/               # 共享模块（三服务共用）
+│   ├── browser.mjs       # 浏览器生命周期
+│   ├── answer.mjs        # 回答检测/提取
+│   ├── upload.mjs        # 文件上传
+│   └── role.mjs          # 角色模板
+├── node_modules/          # 依赖（三服务共用）
+├── install-mcp-deps.bat  # 一键安装
+└── install-mcp-config.mjs # 自动注册 MCP 配置
 ```
 
 #### 一键安装依赖（批处理）
 
-在 `~/.claude/` 目录下创建 `install-mcp-deps.bat`，写入以下内容：
+在 `~/.claude/` 目录下双击 `install-mcp-deps.bat` 即可一键完成：
 
 ```batch
 @echo off
 echo Installing MCP dependencies...
-cd /d "%~dp0mcp-servers\chatgpt-mcp" && npm install && npx playwright install chromium
-cd /d "%~dp0mcp-servers\deepseek-mcp" && npm install && npx playwright install chromium
+cd /d "%~dp0" && npm install playwright @modelcontextprotocol/sdk typescript @types/node
+npx playwright install chromium
 echo All MCP dependencies installed.
+cd /d "%~dp0" && node install-mcp-config.mjs
 pause
 ```
 
@@ -228,8 +245,8 @@ pause
 
 **注意事项：**
 
-- 每个服务安装 Chromium 浏览器约 300MB，总下载量约 600MB，首次安装需要较长时间（视网速 5-30 分钟）。
-- 如果中途失败，可以单独执行对应服务的安装命令重试。
+- Chromium 浏览器约 300MB，首次安装需要较长时间（视网速 5-30 分钟）。
+- 三个服务共用同一份 Chromium 和 `node_modules/`，只安装一次。
 - `node_modules/` 已被 `.gitignore` 排除，不会上传到 GitHub。
 
 > 💡 也可以直接对我说"**帮我安装 MCP 依赖**"，AI 会自动完成以上安装步骤。
@@ -242,8 +259,8 @@ pause
 2. 登录完成后 **关闭浏览器窗口**，session 会自动保存到独立的浏览器配置文件中
 3. 后续调用不再需要重新登录，直接复用已保存的会话
 
-> 注意：两个服务使用独立的浏览器配置文件，需要分别登录一次。
-> 若需隐藏浏览器窗口（无人值守场景），在 `settings.json` 的 `env` 中设置 `"CHATGPT_HEADLESS": "true"`。
+> 注意：三个服务使用独立的浏览器配置文件，需要分别登录一次。
+> 若需隐藏浏览器窗口（无人值守场景），在 `settings.json` 的 `env` 中设置 `"CHATGPT_HEADLESS": "true"` 或 `"DEEPSEEK_HEADLESS": "true"`。
 
 #### 提示词模板（代码审查专用）
 
@@ -404,6 +421,6 @@ cmd //c "@C:\Users\<用户名>\.claude\Aut2Exe\Aut2exe_x64.exe /in "C:\full\path
 
 #### 配置要点
 
-- 确保 `settings.json` 中 `permissions.allow` 包含 `mcp__chatgpt__ask_chatgpt` 和 `mcp__deepseek__ask_deepseek`
+- 确保 `settings.json` 中 `permissions.allow` 包含 `mcp__chatgpt-mirror__ask_chatgpt_mirror`、`mcp__chatgpt-official__ask_chatgpt_official` 和 `mcp__deepseek__ask_deepseek`
 - 死循环监控的 `config.mjs` 中的冷却时间、触发阈值可根据工作节奏调整
 - 若需长期无人值守，将 `CHATGPT_HEADLESS=true` 设为隐藏浏览器模式（但首次仍需登录）
