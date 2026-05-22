@@ -1,0 +1,12 @@
+{
+  "_preset": "default",
+  "jaccardThreshold": 0.85,
+  "reversalMinCount": 5,
+  "infoNgram": 2,
+  "lowInfoThreshold": 0.05,
+  "maxStall": 3,
+  "infoGainThreshold": 0.1,
+  "semanticShift": 0.65,
+  "scoreHigh": 80,
+  "scoreLow": 50
+}

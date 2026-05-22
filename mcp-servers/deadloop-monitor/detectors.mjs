@@ -1,90 +1,113 @@
 import config from "./config.mjs";
-import { info, debug } from "./logger.mjs";
+import { info, debug, warn } from "./logger.mjs";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
 
-// ── 信号1: 重复代码块检测 ──
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const SETTINGS_FILE = path.join(__dirname, "settings.json");
 
-export class RepeatDetector {
+// ── 加载动态配置（与 settings.json 合并）──
+function loadMergedConfig() {
+  const cfg = {
+    jaccardThreshold: config.detectors.jaccard.threshold,
+    reversalMinCount: config.detectors.reversal.minCount,
+    infoNgram: config.detectors.infoStall.ngram,
+    lowInfoThreshold: config.detectors.infoStall.lowInfoThreshold,
+    maxStall: config.detectors.infoStall.maxStall,
+  };
+  try {
+    const overrides = JSON.parse(fs.readFileSync(SETTINGS_FILE, "utf-8"));
+    if (typeof overrides.jaccardThreshold === "number") cfg.jaccardThreshold = overrides.jaccardThreshold;
+    if (typeof overrides.reversalMinCount === "number") cfg.reversalMinCount = overrides.reversalMinCount;
+    if (typeof overrides.infoNgram === "number") cfg.infoNgram = overrides.infoNgram;
+    if (typeof overrides.lowInfoThreshold === "number") cfg.lowInfoThreshold = overrides.lowInfoThreshold;
+    if (typeof overrides.maxStall === "number") cfg.maxStall = overrides.maxStall;
+  } catch {}
+  return cfg;
+}
+
+let activeCfg = loadMergedConfig();
+
+// ── 公开：让 monitor.mjs 可触发重载 ──
+export function reloadConfig() {
+  activeCfg = loadMergedConfig();
+  info("config reloaded", activeCfg);
+}
+
+// ════════════════════════════════════════
+// 信号1: Jaccard 相似度滑动窗口检测器
+// ════════════════════════════════════════
+
+export class JaccardSimDetector {
   constructor() {
-    this.maxHits = config.repeat.maxHits;
-    this.lineCounts = {};
+    this.window = [];
+    this.maxWindow = config.detectors.jaccard.window;
+  }
+
+  jaccardSim(setA, setB) {
+    if (setA.size === 0 || setB.size === 0) return 0;
+    let inter = 0;
+    for (const ch of setA) if (setB.has(ch)) inter++;
+    const union = setA.size + setB.size - inter;
+    return union === 0 ? 0 : inter / union;
   }
 
   feed(text) {
     if (!text || text.length < 50) {
-      return { fired: false, detail: { hits: 0, threshold: this.maxHits } };
+      return { fired: false, detail: { sim: 0, streak: 0, threshold: activeCfg.jaccardThreshold } };
     }
 
-    const lines = text.split("\n");
-    let hits = 0;
-
-    for (const rawLine of lines) {
-      const line = rawLine.trim();
-      // 只关注代码行（含缩进、括号、等号、冒号）
-      if (!line || line.length < 10) continue;
-      if (/^[,;.+\-*\/\\=<>?!@#$%^&|~`:"]+$/.test(line)) continue;
-      if (/^(?:def |class |import |from |return |if |elif |else |for |while |try |except |with |async |await |print|const |let |var |function )/.test(line) ||
-          /[=+\-*\/<>!]=?/.test(line) || /\(|\)|\[|\]|\{|\}/.test(line)) {
-        // 标准化：去空格、去注释、去字符串
-        const key = line
-          .replace(/\/\/.*$/, "")
-          .replace(/#.*$/, "")
-          .replace(/\s+/g, "")
-          .slice(0, 100);
-        if (!key || key.length < 5) continue;
-
-        this.lineCounts[key] = (this.lineCounts[key] || 0) + 1;
-        if (this.lineCounts[key] >= 5) {  // 同一行出现 5 次以上
-          hits++;
-        }
-      }
+    this.window.push(new Set(text));
+    if (this.window.length > this.maxWindow + 2) {
+      this.window.shift();
     }
 
-    // 限制 map 大小（长期运行避免膨胀）
-    if (Object.keys(this.lineCounts).length > 2000) {
-      this.lineCounts = {};
+    let streak = 0;
+    for (let i = 1; i < this.window.length; i++) {
+      const sim = this.jaccardSim(this.window[i - 1], this.window[i]);
+      if (sim >= activeCfg.jaccardThreshold) streak++;
+      else streak = 0;
     }
 
-    const fired = hits >= this.maxHits;
-    return { fired, detail: { hits, threshold: this.maxHits } };
+    const fired = streak >= this.maxWindow - 1;
+    const currentSim = this.window.length >= 2
+      ? this.jaccardSim(this.window[this.window.length - 2], this.window[this.window.length - 1])
+      : 0;
+
+    return { fired, detail: { sim: currentSim, streak, threshold: activeCfg.jaccardThreshold } };
   }
 
-  reset() {
-    this.lineCounts = {};
-  }
+  reset() { this.window = []; }
 }
 
-function simpleHash(str) {
-  let h = 0;
-  for (let i = 0; i < str.length; i++) {
-    h = ((h << 5) - h) + str.charCodeAt(i);
-    h |= 0;
-  }
-  return h;
-}
+// ════════════════════════════════════════
+// 信号2: 反转词密度 + 有效性验证
+// ════════════════════════════════════════
 
-// ── 信号2: 逻辑反转词密度 ──
+function buildWordList() {
+  const cats = config.detectors.reversal.wordCategories;
+  const words = [];
+  for (const arr of Object.values(cats)) words.push(...arr);
+  return words;
+}
+const REVERSAL_WORDS = buildWordList();
 
 export class ReversalDetector {
   constructor() {
-    this.windowSize = config.reversal.windowTokens;
-    this.minCount = config.reversal.minCount;
-    this.words = config.reversal.words;
-    this.buffer = []; // 跨 feed 累积的块缓冲
+    this.windowSize = config.detectors.reversal.windowChars;
+    this.buffer = [];
+    this.lastToolSigs = null;
+    this.invalidStreak = 0;
   }
 
-  feed(text) {
+  feed(text, toolSigs) {
     if (!text || text.length < 100) {
-      return { fired: false, detail: { count: 0, threshold: this.minCount, windowSize: this.windowSize } };
+      return { fired: false, detail: { count: 0, threshold: activeCfg.reversalMinCount, invalidStreak: this.invalidStreak } };
     }
 
-    // 将文本按空格/换行分割为"块"，追加到缓冲区
     const blocks = text.split(/\s+/).filter(Boolean);
-    if (blocks.length < 10) {
-      return { fired: false, detail: { count: 0, threshold: this.minCount, windowSize: this.windowSize } };
-    }
-
     this.buffer.push(...blocks);
-    // 裁剪缓冲区：保留约 2x windowSize 字符的数据
     let charTotal = 0;
     for (let i = this.buffer.length - 1; i >= 0; i--) {
       charTotal += this.buffer[i].length;
@@ -94,7 +117,7 @@ export class ReversalDetector {
       }
     }
 
-    // 在缓冲区上滑动窗口分析（跨多次 feed）
+    let maxCount = 0;
     for (let start = 0; start < this.buffer.length; start++) {
       let charCount = 0;
       let blockEnd = start;
@@ -105,87 +128,90 @@ export class ReversalDetector {
       const windowText = this.buffer.slice(start, blockEnd + 1).join(" ");
       if (windowText.length < 20) break;
 
-      let reversalCount = 0;
-      for (const word of this.words) {
+      let count = 0;
+      for (const word of REVERSAL_WORDS) {
         let pos = 0;
         while ((pos = windowText.indexOf(word, pos)) !== -1) {
-          reversalCount++;
+          count++;
           pos += word.length;
         }
       }
-
-      debug("reversal", { count: reversalCount, offset: start });
-
-      if (reversalCount >= this.minCount) {
-        return { fired: true, detail: { count: reversalCount, threshold: this.minCount, windowSize: this.windowSize } };
-      }
+      if (count > maxCount) maxCount = count;
     }
-    return { fired: false, detail: { count: 0, threshold: this.minCount, windowSize: this.windowSize } };
+
+    // 有效性验证：反转词出现后工具调用是否变化
+    const found = maxCount > 0;
+    if (found && toolSigs) {
+      const sigStr = JSON.stringify(toolSigs.map(t => t.name + ":" + t.input.slice(0, 40)));
+      if (this.lastToolSigs !== null && sigStr === this.lastToolSigs) {
+        this.invalidStreak++;
+      } else {
+        this.invalidStreak = 0;
+      }
+      this.lastToolSigs = sigStr;
+    } else if (found && toolSigs === undefined) {
+      // 无工具签名时不清除 invalidStreak（保留判断）
+    } else {
+      this.invalidStreak = 0;
+    }
+
+    const fired = maxCount >= activeCfg.reversalMinCount && this.invalidStreak < 3;
+    return { fired, detail: { count: maxCount, threshold: activeCfg.reversalMinCount, invalidStreak: this.invalidStreak } };
   }
 
   reset() {
     this.buffer = [];
+    this.lastToolSigs = null;
+    this.invalidStreak = 0;
   }
 }
 
-// ── 信号3: 信息增量率 ──
+// ════════════════════════════════════════
+// 信号3: n-gram 信息增量率
+// ════════════════════════════════════════
 
-export class InfoStallDetector {
+export class NGramInfoGainDetector {
   constructor() {
-    this.windowSize = config.infoStall.windowTokens;
-    this.maxStallCount = config.infoStall.maxStallCount;
+    this.prevNgrams = null;
     this.stallCount = 0;
-    this.seenLines = new Set();
   }
 
-  _countNewInfo(text) {
-    const lines = text.split("\n");
-    let newCodeLines = 0;
-    let newAssertions = 0;
-
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (!trimmed) continue;
-
-      // 代码行（含缩进、等号、括号）
-      if (/^[\s]*(?:def |class |import |from |return |if |for |while |const |let |var |function )/.test(trimmed)) {
-        const h = simpleHash(trimmed);
-        if (!this.seenLines.has(h)) {
-          this.seenLines.add(h);
-          newCodeLines++;
-        }
-      }
-
-      // 可验证断言
-      if (/\b(?:assert|expect|should|验证|确保|必须)\b/.test(trimmed)) {
-        newAssertions++;
-      }
+  getNgrams(text, n) {
+    const s = new Set();
+    for (let i = 0; i <= text.length - n; i++) {
+      s.add(text.slice(i, i + n));
     }
-
-    // 限制 seenLines 大小
-    if (this.seenLines.size > 2000) {
-      this.seenLines.clear();
-    }
-
-    return newCodeLines + newAssertions;
+    return s;
   }
 
   feed(text) {
-    const info = this._countNewInfo(text);
+    if (!text || text.length < 50) {
+      return { fired: false, detail: { gainRate: 0, stallCount: this.stallCount, maxStall: activeCfg.maxStall } };
+    }
 
-    if (info < 1) {
+    const currNgrams = this.getNgrams(text, activeCfg.infoNgram);
+    let gainRate = 0;
+    if (this.prevNgrams && currNgrams.size > 0) {
+      let newNgrams = 0;
+      for (const ng of currNgrams) {
+        if (!this.prevNgrams.has(ng)) newNgrams++;
+      }
+      gainRate = currNgrams.size > 0 ? newNgrams / currNgrams.size : 0;
+    }
+    this.prevNgrams = currNgrams;
+
+    if (gainRate < activeCfg.lowInfoThreshold) {
       this.stallCount++;
-      debug("infoStall", { info, stallCount: this.stallCount });
     } else {
       this.stallCount = 0;
     }
 
-    const fired = this.stallCount >= this.maxStallCount;
-    return { fired, detail: { stallCount: this.stallCount, threshold: this.maxStallCount, currentInfo: info } };
+    const fired = this.stallCount >= activeCfg.maxStall;
+    return { fired, detail: { gainRate, stallCount: this.stallCount, maxStall: activeCfg.maxStall } };
   }
 
   reset() {
+    this.prevNgrams = null;
     this.stallCount = 0;
-    this.seenLines.clear();
   }
 }

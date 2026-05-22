@@ -10,5 +10,80 @@
   "main": "./extension.js",
   "engines": {
     "vscode": "^1.85.0"
+  },
+  "contributes": {
+    "configuration": {
+      "title": "循环守护",
+      "properties": {
+        "deadloop.preset": {
+          "type": "string",
+          "enum": ["default", "conservative", "sensitive", "custom"],
+          "default": "default",
+          "description": "阈值预设方案"
+        },
+        "deadloop.jaccardThreshold": {
+          "type": "number",
+          "default": 0.85,
+          "minimum": 0.5,
+          "maximum": 1,
+          "description": "Jaccard 高相似度阈值（越高越不敏感）"
+        },
+        "deadloop.reversalMinCount": {
+          "type": "integer",
+          "default": 5,
+          "minimum": 1,
+          "maximum": 20,
+          "description": "反转词阈值（200字窗口内命中数）"
+        },
+        "deadloop.lowInfoThreshold": {
+          "type": "number",
+          "default": 0.05,
+          "minimum": 0,
+          "maximum": 1,
+          "description": "信息增量阈值（越低越不敏感）"
+        },
+        "deadloop.ngram": {
+          "type": "integer",
+          "default": 2,
+          "enum": [1, 2, 3, 4, 5],
+          "description": "n-gram 长度（越大越关注长模式）"
+        },
+        "deadloop.maxStall": {
+          "type": "integer",
+          "default": 3,
+          "minimum": 1,
+          "maximum": 10,
+          "description": "连续低信息停滞上限"
+        },
+        "deadloop.infoGainThreshold": {
+          "type": "number",
+          "default": 0.1,
+          "minimum": 0,
+          "maximum": 1,
+          "description": "-info-gain 有效反转要求的信息增量"
+        },
+        "deadloop.semanticShift": {
+          "type": "number",
+          "default": 0.65,
+          "minimum": 0,
+          "maximum": 1,
+          "description": "--semantic-shift 语义转变阈值（低于此值算思路转变）"
+        },
+        "deadloop.scoreHigh": {
+          "type": "integer",
+          "default": 80,
+          "minimum": 0,
+          "maximum": 100,
+          "description": "--score-high 健康高分阈值"
+        },
+        "deadloop.scoreLow": {
+          "type": "integer",
+          "default": 50,
+          "minimum": 0,
+          "maximum": 100,
+          "description": "--score-low 健康低分阈值（警告线）"
+        }
+      }
+    }
   }
 }

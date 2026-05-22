@@ -17,9 +17,10 @@ import {
   setVscodePid,
 } from "./helpers.mjs";
 import {
-  RepeatDetector,
+  JaccardSimDetector,
   ReversalDetector,
-  InfoStallDetector,
+  NGramInfoGainDetector,
+  reloadConfig as reloadDetectorConfig,
 } from "./detectors.mjs";
 
 const CFG = config;
@@ -36,9 +37,9 @@ let state = STATE.IDLE;
 let reader = null;
 let dialog = new DialogWindow(5);
 
-const repeatDet = new RepeatDetector();
+const jaccardDet = new JaccardSimDetector();
 const reversalDet = new ReversalDetector();
-const infoDet = new InfoStallDetector();
+const infoDet = new NGramInfoGainDetector();
 
 let loopSample = "";
 let helpCount = 0;
@@ -74,6 +75,10 @@ function setupStdin() {
           status: state.toLowerCase(),
           pid: process.pid,
         }));
+      } else if (cmd.command === "reloadConfig") {
+        reloadDetectorConfig();
+        info("config reloaded via command");
+        console.log(JSON.stringify({ status: state.toLowerCase(), info: "config reloaded" }));
       }
     } catch { /* 忽略无效指令 */ }
   });
@@ -102,18 +107,45 @@ function autoDiscoverSessionFile() {
 
 // ── 读取增量并逐条检测（返回 null=无新内容, false=无循环, true=有循环）─
 function processAndCheck() {
-  const lines = reader.readLines();
-  if (lines.length === 0) return null;
+  const rawLines = reader.readLines();
+  if (rawLines.length === 0) return null;
+
+  // 预扫描：提取 tool_use → parentUuid 映射（用于反转词有效性验证）
+  const toolSigsByParent = {};
+  for (const line of rawLines) {
+    try {
+      const obj = JSON.parse(line);
+      if (obj.type === "assistant" && obj.parentUuid) {
+        const calls = [];
+        for (const part of obj.message?.content || []) {
+          if (part.type === "tool_use") {
+            calls.push({ name: part.name, input: JSON.stringify(part.input).slice(0, 80) });
+          }
+        }
+        if (calls.length > 0) toolSigsByParent[obj.parentUuid] = calls;
+      }
+    } catch {}
+  }
 
   let detected = false;
   let newTokens = 0;
 
-  for (const line of lines) {
+  for (const line of rawLines) {
     const parsed = parseJsonlLine(line);
     if (!parsed) continue;
     dialog.add(parsed.role, parsed.content);
     if (parsed.role !== "assistant") continue;
-    const cleaned = cleanAssistantOutput(parsed.content);
+
+    // 提取 thinking 文本用于检测
+    let detText = parsed.content;
+    try {
+      const obj = JSON.parse(line);
+      for (const part of obj.message?.content || []) {
+        if (part.type === "thinking") { detText = part.thinking || ""; break; }
+      }
+    } catch {}
+
+    const cleaned = cleanAssistantOutput(detText);
     if (!cleaned || cleaned.length < 20) continue;
     const tokens = cleaned.split(/\s+/).length;
     newTokens += tokens;
@@ -121,15 +153,17 @@ function processAndCheck() {
 
     let signals = 0;
     try {
-      const r = repeatDet.feed(cleaned);
-      const rev = reversalDet.feed(cleaned);
+      const obj = JSON.parse(line);
+      const toolSigs = toolSigsByParent[obj.uuid] || null;
+      const r = jaccardDet.feed(cleaned);
+      const rev = reversalDet.feed(cleaned, toolSigs);
       const inf = infoDet.feed(cleaned);
       if (r.fired) signals++;
       if (rev.fired) signals++;
       if (inf.fired) signals++;
       if (signals > 0) {
-        lastDetectorDetails = { repeat: r.detail, reversal: rev.detail, infoStall: inf.detail, signals };
-        warn("detect signal", { repeat: r.fired, reversal: rev.fired, infoStall: inf.fired, signals, tokens, preview: cleaned.slice(0, 100) });
+        lastDetectorDetails = { jaccard: r.detail, reversal: rev.detail, infoStall: inf.detail, signals };
+        warn("detect signal", { jaccard: r.fired, reversal: rev.fired, infoStall: inf.fired, signals, tokens, preview: cleaned.slice(0, 100) });
       }
     } catch (e) {
       warn("detector feed error", { error: e.message });
@@ -141,9 +175,11 @@ function processAndCheck() {
     }
   }
 
-  // 有新内容时输出 tokenCount（无论是否检测到循环）
+  // 有新内容时输出 tokenCount + 检测器状态（无论是否检测到循环）
   if (newTokens > 0) {
-    console.log(JSON.stringify({ status: state.toLowerCase(), tokenCount: cumulativeTokens }));
+    const statusLine = { status: state.toLowerCase(), tokenCount: cumulativeTokens };
+    if (lastDetectorDetails) statusLine.detectors = lastDetectorDetails;
+    console.log(JSON.stringify(statusLine));
   }
   if (newTokens > CFG.maxTokensPerCycle) {
     warn("cpu protection", { tokens: newTokens });
@@ -203,7 +239,7 @@ function injectSummary() {
 }
 
 function resetDetectors() {
-  repeatDet.reset();
+  jaccardDet.reset();
   reversalDet.reset();
   infoDet.reset();
   dialog.reset();
