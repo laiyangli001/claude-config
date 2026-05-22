@@ -2,9 +2,7 @@
 setlocal enabledelayedexpansion
 
 echo Installing MCP dependencies...
-cd /d "%~dp0mcp-chatgpt-mirror" && npm install
-cd /d "%~dp0mcp-chatgpt-official" && npm install
-cd /d "%~dp0mcp-deepseek" && npm install
+cd /d "%~dp0" && npm install playwright @modelcontextprotocol/sdk typescript @types/node
 npx playwright install chromium
 echo All MCP dependencies installed.
 
