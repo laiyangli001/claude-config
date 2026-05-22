@@ -25,7 +25,6 @@ const SEL = {
     INVITE_URL: "https://2233.ai/?code=FC8XHSCH",
     CHAT_URL: "https://chatgpt.2233.ai/",
 };
-const PROFILE_DIR2 = PROFILE_DIR;
 let browserContext = null;
 let page = null;
 let isPageReady = false;
@@ -61,7 +60,7 @@ async function ensureBrowser() {
         return initPromise;
     initPromise = (async () => {
         await closeB();
-        browserContext = await launchBrowser(chromium, PROFILE_DIR2, HEADLESS);
+        browserContext = await launchBrowser(chromium, PROFILE_DIR, HEADLESS);
         for (const p of browserContext.pages())
             try {
                 await p.close();
