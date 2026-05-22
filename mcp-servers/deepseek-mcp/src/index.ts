@@ -266,45 +266,23 @@ async function findAnswerSelector(page: Page): Promise<string> {
   throw new Error("Cannot find answer element — DeepSeek UI may have changed");
 }
 
-// Fix 4 + 6: use exact role locator for stop button, idle-ms fallback
 async function waitForAnswerComplete(page: Page, answerSelector: string): Promise<void> {
-  // Fix 3: match both English "Stop" and Chinese "停止"
+  // 先等答案出现（确保消息已生成）
+  await page.waitForSelector(answerSelector, { timeout: 300000, state: "visible" });
+
+  // 快速检查 stop 按钮: 可见→等它消失, 不可见→回答已完成
+  const stopBtn = page.locator(
+    'button:has-text("Stop"), button:has-text("停止"), [aria-label*="stop" i], [aria-label*="Stop"], [aria-label*="停止"]'
+  ).first();
   try {
-    const stopBtn = page.locator(
-      'button:has-text("Stop"), button:has-text("停止"), [aria-label*="stop" i], [aria-label*="Stop"], [aria-label*="停止"]'
-    ).first();
-    await stopBtn.waitFor({ state: "visible", timeout: 10000 });
-    log("Stop button visible, waiting for it to disappear...");
-    await stopBtn.waitFor({ state: "hidden", timeout: 600000 });
-    log("Stop button gone, generation complete");
-    await sleep(500);
-    return;
-  } catch {
-    log("Stop button not detected, falling back to idle tracking");
-  }
-
-  // Fallback: track only the latest message element, not all history
-  let lastLen = 0;
-  let idleMs = 0;
-  const POLL_MS = 2000;
-
-  while (idleMs < IDLE_LIMIT_MS) {
-    await sleep(POLL_MS);
-    const latestLen = await page.evaluate((sel) => {
-      const els = document.querySelectorAll(sel);
-      const last = els[els.length - 1];
-      return last ? (last.textContent || "").length : 0;
-    }, answerSelector);
-    if (latestLen > lastLen) {
-      log(`Latest message growing: ${lastLen} → ${latestLen}`);
-      idleMs = 0;
-      lastLen = latestLen;
-    } else {
-      idleMs += POLL_MS;
-      log(`Idle ${idleMs}/${IDLE_LIMIT_MS}ms (${lastLen} chars)`);
+    const visible = await stopBtn.isVisible().catch(() => false);
+    if (visible) {
+      log("Stop button visible, waiting for it to disappear...");
+      await stopBtn.waitFor({ state: "hidden", timeout: 600000 });
+      log("Stop button gone, generation complete");
     }
-  }
-  log(`Generation complete, latest message: ${lastLen} chars`);
+  } catch { /* stop btn never appeared, answer done */ }
+  await sleep(200);
 }
 
 // Extract messages starting from startIndex (to skip previous conversation)
