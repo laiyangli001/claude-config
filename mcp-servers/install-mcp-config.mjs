@@ -12,9 +12,13 @@ const mcpServers = {
     command: "cmd",
     args: ["/c", "node", path.join(serversDir, "deepseek-mcp", "dist", "index.js")],
   },
-  chatgpt: {
+  "chatgpt-mirror": {
     command: "cmd",
-    args: ["/c", "node", path.join(serversDir, "chatgpt-mcp", "dist", "index.js")],
+    args: ["/c", "node", path.join(serversDir, "chatgpt-mirror-mcp", "dist", "index.js")],
+  },
+  "chatgpt-official": {
+    command: "cmd",
+    args: ["/c", "node", path.join(serversDir, "chatgpt-official-mcp", "dist", "index.js")],
   },
 };
 
