@@ -23,8 +23,8 @@ function getProfileDir(target: string): string {
 
 const HEADLESS = process.env.CHATGPT_HEADLESS === "true";
 const DEBUG = process.env.CHATGPT_DEBUG === "true";
-const _idleMs = parseInt(process.env.CHATGPT_IDLE_LIMIT_MS || "3000", 10);
-const IDLE_LIMIT_MS = Number.isNaN(_idleMs) ? 3000 : _idleMs;
+const _idleMs = parseInt(process.env.CHATGPT_IDLE_LIMIT_MS || "1500", 10);
+const IDLE_LIMIT_MS = Number.isNaN(_idleMs) ? 1500 : _idleMs;
 
 const CONSTRAINTS = `
 【强制约束】
@@ -254,9 +254,13 @@ function cleanup() {
   if (cleaning) return;
   cleaning = true;
   process.exitCode = 0;
+  const ctx = browserContext;
   Promise.race([
     (async () => {
       await closeBrowserResources();
+      if (ctx) {
+        try { await ctx.close(); } catch (e) { log("Error closing browser on exit:", e); }
+      }
     })(),
     new Promise((r) => setTimeout(r, 15000)),
   ]).finally(() => setTimeout(() => process.exit(), 200));
@@ -692,36 +696,25 @@ async function askChatGPT(
           }
         }
 
-        // 发送后立即监听 stop 按钮（在 waitForSelector 之前，防止错过快完成的请求）
-        const stopBtn = pg.locator(SEL.STOP_BTN).first();
-        const stopPromise = (async () => {
-          try {
-            await stopBtn.waitFor({ state: "visible", timeout: 15000 });
-            await stopBtn.waitFor({ state: "hidden", timeout: 600000 });
-            await sleep(500);
-            return true;
-          } catch {
-            return false;
-          }
-        })();
-
-        // 等待新消息数量增加（确认是新生成的回答，而非已有元素）
+        // 等待新消息数量增加（确认是新生成的回答）
         const countIncreaseWait = async () => {
           for (let i = 0; i < 300; i++) {
             const cnt = await pg.locator(prevCountSel).count();
             if (cnt > prevMsgCount) return;
-            await sleep(1000);
+            await sleep(500);
           }
-          throw new Error("Timed out waiting for new answer message");
         };
         await countIncreaseWait().catch(() => {});
 
-        // stop 按钮出现过并消失 → 回答已完成。否则走 idle 兜底
-        const stopped = await stopPromise;
-        if (!stopped) {
-          log("Stop button not detected, using idle detection...");
-          await waitForContentStable(pg, prevCountSel).catch(() => {});
-        }
+        // 新消息出现后检查 stop 按钮: 可见→等它消失(生成完成), 不可见/不存在→直接提取
+        const stopBtn = pg.locator(SEL.STOP_BTN).first();
+        try {
+          const visible = await stopBtn.isVisible().catch(() => false);
+          if (visible) {
+            await stopBtn.waitFor({ state: "hidden", timeout: 60000 });
+            await sleep(300);
+          }
+        } catch { /* stop btn never appeared, answer done */ }
 
         answerText = await extractNewAnswers(pg, prevCountSel, prevMsgCount);
         const ansCount = await pg.locator(prevCountSel).count();
