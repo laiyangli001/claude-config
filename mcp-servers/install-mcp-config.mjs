@@ -8,17 +8,17 @@ const configPath = path.join(os.homedir(), ".claude.json");
 const serversDir = path.resolve(import.meta.dirname); // mcp-servers/
 
 const mcpServers = {
-  deepseek: {
+  "deepseek": {
     command: "cmd",
-    args: ["/c", "node", path.join(serversDir, "deepseek-mcp", "dist", "index.js")],
+    args: ["/c", "node", path.join(serversDir, "mcp-deepseek", "dist", "index.js")],
   },
   "chatgpt-mirror": {
     command: "cmd",
-    args: ["/c", "node", path.join(serversDir, "chatgpt-mirror-mcp", "dist", "index.js")],
+    args: ["/c", "node", path.join(serversDir, "mcp-chatgpt-mirror", "dist", "index.js")],
   },
   "chatgpt-official": {
     command: "cmd",
-    args: ["/c", "node", path.join(serversDir, "chatgpt-official-mcp", "dist", "index.js")],
+    args: ["/c", "node", path.join(serversDir, "mcp-chatgpt-official", "dist", "index.js")],
   },
 };
 
