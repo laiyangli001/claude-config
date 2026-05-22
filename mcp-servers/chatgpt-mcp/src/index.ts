@@ -1,5 +1,6 @@
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { execSync } from "child_process";
 import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
@@ -129,18 +130,11 @@ let activeRole: string | null = null;
 let activeTarget: string | null = null;
 
 async function closeBrowserResources() {
-  const ctx = browserContext;
   browserContext = null;
   page = null;
   initPromise = null;
   isPageReady = false;
-  if (ctx) {
-    try {
-      await ctx.close();
-    } catch (e) {
-      log("Error closing browser:", e);
-    }
-  }
+  // 不关闭浏览器进程 — 保持打开以便后续复用
 }
 
 async function findChatPage(ctx: BrowserContext, target: string): Promise<Page | null> {
@@ -181,6 +175,19 @@ async function ensureBrowser(target: string = "mirror") {
       for (const f of ["lockfile", "SingletonLock", "SingletonCookie", "SingletonSocket"]) {
         try { await fs.promises.unlink(path.join(profileDir, f)); } catch {}
       }
+
+      // 杀掉占用本配置目录的旧 chrome.exe（孤儿进程），释放锁
+      try {
+        const result = execSync(
+          `wmic process where "name='chrome.exe' and commandline like '%${profileDir}%'" get processid /format:csv 2>nul`,
+          { encoding: "utf8", timeout: 10000 }
+        );
+        const pids = result.trim().split(/\s*\n\s*/).slice(1).filter(id => id && id !== "ProcessId").map(l => l.split(",").pop() || "").filter(id => /^\d+$/.test(id));
+        for (const pid of pids) {
+          try { execSync("taskkill /f /pid " + pid + " 2>nul", { timeout: 3000 }); } catch {}
+        }
+        if (pids.length > 0) await sleep(1500);
+      } catch { /* no orphan process */ }
 
       browserContext = await chromium.launchPersistentContext(profileDir, {
         headless: HEADLESS,
@@ -545,37 +552,13 @@ async function askChatGPT(
             }
           }
         } else {
-        // === 镜像站：直接走邀请码流程 ===
-        log("Opening mirror start page...");
-
-        // 提前注册 popup 监听器和轮询，不遗漏事件
-        const popupPromise = new Promise<Page>((resolve) => {
-          pg.once("popup", (p) => { log("popup event fired"); resolve(p); });
-        });
-        let pollIv: ReturnType<typeof setInterval>;
-        const pollPromise = new Promise<Page>((resolve) => {
-          const initialCount = browserContext!.pages().length;
-          pollIv = setInterval(() => {
-            const pages = browserContext!.pages();
-            for (const p of pages) {
-              if (p !== pg) {
-                try {
-                  const url = p.url();
-                  if (url && url !== "about:blank") { clearInterval(pollIv); resolve(p); return; }
-                } catch { /* 页面未就绪 */ }
-              }
-            }
-            if (pages.length > initialCount) {
-              const candidate = pages[pages.length - 1];
-              if (candidate !== pg) { clearInterval(pollIv); resolve(candidate); return; }
-            }
-          }, 1000);
-        });
+        // === 镜像站：导航到聊天页 ===
+        log("Opening mirror chat...");
 
         await pg.goto(SEL.INVITE_URL, { waitUntil: "domcontentloaded" });
         await pg.waitForTimeout(3000);
 
-        // Auto-click "立即开始" regardless of headless mode
+        // 点击"立即开始"（无论是否已登录）
         const startBtn = pg.locator(SEL.START_BTN);
         if ((await startBtn.count()) > 0 && (await startBtn.isVisible())) {
           log("Auto-clicking 立即开始");
@@ -585,32 +568,28 @@ async function askChatGPT(
           await sleep(200);
           await startBtn.first().click();
         } else {
-          // Fallback: prompt user to click manually (e.g. if page layout changed)
+          // Fallback
           if (!HEADLESS) await pg.bringToFront();
-          console.error("=== 请点击「立即开始」按钮，等待新标签页打开 ===");
+          console.error("=== 请点击「立即开始」按钮 ===");
         }
-        log("Waiting for popup (new tab) event...");
 
-        let chatPage: Page;
-        try {
-          chatPage = await Promise.race([
-            popupPromise,
-            pollPromise,
-            new Promise<never>((_, reject) =>
-              setTimeout(() => reject(new Error("New tab not detected — did you click 立即开始?")), 300000)
-            ),
-          ]);
-        } finally {
-          clearInterval(pollIv!);
+        // 等待页面跳转（不再弹 popup，而是当前页跳转到套餐页或聊天页）
+        await sleep(3000);
+        const currentUrl = pg.url();
+        log("After click URL: " + currentUrl);
+
+        // 无论去了套餐页还是哪里，直接导航到聊天页
+        await pg.goto(SEL.CHAT_URL, { waitUntil: "domcontentloaded" });
+        const chatReady = await pg.locator(SEL.CHAT_INPUT).waitFor({ state: "visible", timeout: 30000 }).then(() => true).catch(() => false);
+        if (chatReady) {
+          isPageReady = true;
+          log("Mirror chat page ready");
+        } else {
+          if (!HEADLESS) await pg.bringToFront();
+          console.error("=== 请在镜像站登录，等待页面加载完成 ===");
+          await pg.locator(SEL.CHAT_INPUT).waitFor({ state: "visible", timeout: 120000 });
+          isPageReady = true;
         }
-        log("New tab detected, switching pg to popup page...");
-        pg = chatPage;
-        page = chatPage;
-        await chatPage.waitForURL(new RegExp(SEL.MIRROR_URL.replace(/\./g, "\\.")), { timeout: 60000 });
-        log(`Chat page URL: ${chatPage.url()}`);
-        await chatPage.waitForLoadState("domcontentloaded");
-        await chatPage.locator(SEL.CHAT_INPUT).waitFor({ state: "visible", timeout: 15000 }).catch(() => {});
-        isPageReady = true;
         log("Mirror site navigation complete");
       } // close mirror else
       } else {
@@ -863,7 +842,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         content: [
           {
             type: "text",
-            text: `【${siteLabel} answer】${source}\n\n${answer}\n\n---\nGenerated by ${target === "official" ? "chatgpt.com" : "chatgpt.2233.ai"}. Zero API token consumed.`,
+            text: `【${siteLabel} answer】${source}${(()=>{try{if(page&&!page.isClosed()){let u=page.url();return u?"\n[当前页面: "+u+"]":"";}return "";}catch{return "";}})()}\n[activeTarget: ${activeTarget}]\n\n${answer}\n\n---\nGenerated by ${target === "official" ? "chatgpt.com" : "chatgpt.2233.ai"}. Zero API token consumed.`,
           },
         ],
       };
