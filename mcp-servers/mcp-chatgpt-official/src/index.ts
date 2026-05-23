@@ -54,8 +54,9 @@ async function ensureBrowser(): Promise<{ page: Page; context: BrowserContext }>
   initPromise = (async (): Promise<{ page: Page; context: BrowserContext }> => {
     await closeB();
     browserContext = await launchBrowser(chromium, PROFILE_DIR, HEADLESS);
-    for (const p of browserContext!.pages()) try { await p.close(); } catch {}
-    page = await browserContext!.newPage();
+    const existing = browserContext!.pages();
+    page = existing[0] || await browserContext!.newPage();
+    for (let i = 1; i < existing.length; i++) try { await existing[i].close(); } catch {}
     isPageReady = false;
     return { page: page!, context: browserContext! };
   })();

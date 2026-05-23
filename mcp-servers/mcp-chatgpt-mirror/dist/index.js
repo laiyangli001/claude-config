@@ -61,12 +61,13 @@ async function ensureBrowser() {
     initPromise = (async () => {
         await closeB();
         browserContext = await launchBrowser(chromium, PROFILE_DIR, HEADLESS);
-        for (const p of browserContext.pages())
+        const existing = browserContext.pages();
+        page = existing[0] || await browserContext.newPage();
+        for (let i = 1; i < existing.length; i++)
             try {
-                await p.close();
+                await existing[i].close();
             }
             catch { }
-        page = await browserContext.newPage();
         isPageReady = false;
         return { page: page, context: browserContext };
     })();
@@ -82,7 +83,7 @@ async function askChatGPT(question, attachments, role) {
             await sleep(200);
             await btn.first().click();
         }
-        await pg.goto(SEL.CHAT_URL, { waitUntil: "domcontentloaded" });
+        // 不强制跳转，让页面自然流转（套餐页→登录→聊天页）
         if (!(await pg.locator(SEL.CHAT_INPUT).waitFor({ state: "visible", timeout: 30000 }).then(() => true).catch(() => false))) {
             if (!HEADLESS)
                 await pg.bringToFront();
