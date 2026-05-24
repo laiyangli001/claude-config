@@ -20,6 +20,10 @@ const mcpServers = {
     command: "cmd",
     args: ["/c", "node", path.join(serversDir, "mcp-chatgpt-official", "dist", "index.js")],
   },
+  "doubao": {
+    command: "cmd",
+    args: ["/c", "node", path.join(serversDir, "mcp-doubao", "dist", "index.js")],
+  },
 };
 
 let config = {};
