@@ -88,36 +88,61 @@ async function askDoubao(question: string, attachments?: string[]): Promise<stri
     isPageReady = true;
   }
 
-  // 处理附件上传
-  if (attachments?.length) {
-    await showToast(pg, "📎 上传附件...");
-    await pg.locator('input[type="file"]').first().setInputFiles(attachments);
-    await sleep(1000);
-    // 检测是否有真人验证弹窗（豆包的反机器人机制）
-    const verifyTexts = ["拖拽", "到这里", "符合上文描述"];
-    const pageText = await pg.evaluate(() => document.body.innerText);
-    const needVerify = verifyTexts.some(t => pageText.includes(t));
-    if (needVerify) {
-      if (!HEADLESS) await pg.bringToFront();
-      await showToast(pg, "🧑 请完成页面上的真人验证（需手动操作）");
-      // 等待验证通过（检测验证元素消失或新消息出现）
-      for (let i = 0; i < 120; i++) {
-        await sleep(1000);
-        const curText = await pg.evaluate(() => document.body.innerText);
-        if (!verifyTexts.some(t => curText.includes(t))) break;
+  // 根据关键词进入对应功能模式（如表格→数据分析、PPT→PPT 生成等）
+  const funcMap: Record<string, string> = {
+    "表格": "AI 表格", "excel": "AI 表格", "csv": "AI 表格",
+    "ppt": "PPT 生成", "演示": "PPT 生成",
+    "翻译": "翻译", "编程": "编程", "代码": "编程",
+  };
+  const ql = question.toLowerCase();
+  for (const [kw, btn] of Object.entries(funcMap)) {
+    if (ql.includes(kw)) {
+      const moreBtn = pg.locator('button:has-text("更多")');
+      if (await moreBtn.isVisible().catch(() => false)) {
+        await moreBtn.click();
+        await sleep(500);
+        const btns = await pg.locator('button').all();
+        for (const b of btns) {
+          if ((await b.textContent() || "").trim() === btn && await b.isVisible().catch(() => false)) {
+            await b.click();
+            await sleep(1500);
+            break;
+          }
+        }
       }
+      break;
     }
   }
 
   await showToast(pg, "📤 发送中...");
-  const input = pg.locator(SEL.CHAT_INPUT).first();
-  await input.click();
-  await input.fill(question);
-  await input.evaluate((el: HTMLTextAreaElement, text: string) => {
-    const setter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, "value")?.set;
-    setter?.call(el, text);
-    el.dispatchEvent(new Event("input", { bubbles: true }));
-  }, question);
+  // 找输入框：支持 textarea、contenteditable、或其他可输入控件
+  const inputLocators = [
+    SEL.CHAT_INPUT,
+    'textarea',
+    '[contenteditable="true"]',
+    'input:not([type="hidden"]):not([type="file"])',
+  ];
+  let input = pg.locator(inputLocators.join(", ")).first();
+  await input.click().catch(() => {});
+  try {
+    await input.fill(question);
+  } catch {
+    // fill 失败时用原生 setter 设值
+    await input.evaluate((el: HTMLTextAreaElement, text: string) => {
+      const setter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, "value")?.set;
+      if (setter) setter.call(el, text);
+      else (el as any).value = text;
+      el.dispatchEvent(new Event("input", { bubbles: true }));
+    }, question);
+  }
+
+  // 附件：打完字后设文件，避免 React 重渲染重置文件输入
+  if (attachments?.length) {
+    await showToast(pg, "📎 上传附件...");
+    await pg.locator('input[type="file"]').first().setInputFiles(attachments);
+    await sleep(1500);
+  }
+
   await sleep(300);
   await pg.keyboard.press("Enter");
 
@@ -150,18 +175,26 @@ async function askDoubao(question: string, attachments?: string[]): Promise<stri
     if (!verified) throw new Error("真人验证未完成，请重新尝试");
   }
 
-  // 等回答生成
+  // 等回答生成：文本增长 → stop 按钮消失 → 提取
   await showToast(pg, "⏳ 等待回答...");
   const textBefore = await pg.evaluate(() => document.body.innerText.length);
   for (let i = 0; i < 120; i++) {
     await sleep(500);
-    const curLen = await pg.evaluate(() => document.body.innerText.length);
-    if (curLen > textBefore) break;
+    if ((await pg.evaluate(() => document.body.innerText.length)) > textBefore) break;
   }
-
-  // 提取回答
-  await sleep(3000);
+  // 等 stop 按钮消失（不管出没出现过）
+  await pg.locator(SEL.STOP_BTN).first().waitFor({ state: "hidden", timeout: 60000 }).catch(() => {});
+  // 等内容不再增长（连续 3 秒稳定 = 回答完成）
+  await showToast(pg, "⏳ 等待输出完毕...");
+  let stableCount = 0, lastLen = await pg.evaluate(() => document.body.innerText.length);
+  for (let i = 0; i < 60; i++) {
+    await sleep(1000);
+    const curLen = await pg.evaluate(() => document.body.innerText.length);
+    if (curLen === lastLen) { stableCount++; if (stableCount >= 3) break; }
+    else { stableCount = 0; lastLen = curLen; }
+  }
   await showToast(pg, "✅ 回答完成", 2000);
+
   let answer = await pg.evaluate(() => {
     const msgs = document.querySelectorAll('[class*="message"], article, [role="article"]');
     const texts = [];
@@ -175,11 +208,58 @@ async function askDoubao(question: string, attachments?: string[]): Promise<stri
   return answer;
 }
 
+/** 检测并下载豆包生成的 PPT 等文件（需先调 ask_doubao，同会话内使用） */
+async function checkDoubaoDownloads(): Promise<string> {
+  if (!page || page.isClosed()) throw new Error("浏览器未打开，请先调用 ask_doubao 生成 PPT");
+  const pg = page;
+  // 确保在豆包页面
+  if (!pg.url().includes("doubao.com")) {
+    await pg.goto(SEL.URL, { waitUntil: "domcontentloaded", timeout: 30000 }).catch(() => {});
+    await sleep(2000);
+  }
+  // 关闭可能的弹窗（恢复页面等）
+  pg.on("dialog", (d) => d.dismiss().catch(() => {}));
+  await pg.keyboard.press("Escape").catch(() => {});
+  await sleep(1000);
+
+  // 找下载按钮（在 PPT 生成结果区域）
+  const dlBtn = pg.locator('button:has-text("下载"), a:has-text("下载")').first();
+  if (!(await dlBtn.isVisible().catch(() => false))) throw new Error("未检测到可下载的文件");
+
+  // 点击下载 → 弹出格式选择菜单（PPTX/PDF）
+  await dlBtn.click();
+  await sleep(1000);
+
+  // 选 PPTX 格式开始下载
+  let result = "";
+  const p1 = pg.waitForEvent("download", { timeout: 20000 }).then(async (d) => {
+    const dir = (process.env.USERPROFILE || "C:/Users/default") + "\\Downloads";
+    result = dir + "\\" + d.suggestedFilename();
+    await d.saveAs(result).catch(() => {});
+  }).catch(() => {});
+  const p2 = pg.waitForEvent("popup", { timeout: 20000 }).then(async (popup) => {
+    await popup.waitForLoadState();
+    result = await popup.url();
+  }).catch(() => {});
+
+  // 点 PPTX 选项（按钮或菜单项）
+  await pg.locator('button:has-text("PPTX"), [class*="pptx"], [role="menuitem"]:has-text("PPTX")').first().click().catch(() => {});
+  await Promise.race([p1, p2, new Promise(r => setTimeout(r, 20000))]);
+  if (!result) throw new Error("下载失败");
+  return `文件已下载: ${result}`;
+}
+
 const server = new Server({ name: "mcp-doubao", version: "1.0.0" }, { capabilities: { tools: {} } });
 server.setRequestHandler(ListToolsRequestSchema, async () => ({
-  tools: [{ name: "ask_doubao", description: "Use Doubao (doubao.com) free version. Supports image/file attachments.", inputSchema: { type: "object", properties: { question: { type: "string" }, attachments: { type: "array", items: { type: "string" } } } } }],
+  tools: [
+    { name: "ask_doubao", description: "Use Doubao (doubao.com) free version. Supports image/file attachments.", inputSchema: { type: "object", properties: { question: { type: "string" }, attachments: { type: "array", items: { type: "string" } } } } },
+    { name: "download_doubao_file", description: "Download files (PPT etc.) generated by Doubao.", inputSchema: { type: "object", properties: {} } },
+  ],
 }));
 server.setRequestHandler(CallToolRequestSchema, async (req) => {
+  if (req.params.name === "download_doubao_file") {
+    return checkDoubaoDownloads().then(r => ({ content: [{ type: "text", text: r }] })).catch(e => ({ content: [{ type: "text", text: e.message }], isError: true }));
+  }
   if (req.params.name !== "ask_doubao") throw new Error("Unknown tool");
   const raw = req.params.arguments || {};
   const q = typeof req.params.arguments?.question === "string" ? req.params.arguments.question : "";
