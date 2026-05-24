@@ -1,25 +1,26 @@
 @echo off
 setlocal enabledelayedexpansion
-title æ‰«æä»£ç†ç«¯å£
+chcp 936 >nul
+title É¨Ãè´úÀí¶Ë¿Ú
 echo.
-echo æ­£åœ¨æ‰«æå¸¸è§ä»£ç†ç«¯å£...
+echo ÕýÔÚÉ¨Ãè³£¼û´úÀí¶Ë¿Ú...
 echo.
 
 for %%p in (7890 7891 7892 10809 1080 1081 8888 8080) do (
   curl -s --connect-timeout 1 --proxy http://127.0.0.1:%%p -I https://github.com >nul 2>&1
   if !errorlevel! equ 0 (
-    echo [å¯ç”¨] ç«¯å£ %%p
+    echo [¿ÉÓÃ] ¶Ë¿Ú %%p
     git config --global http.proxy http://127.0.0.1:%%p
     git config --global https.proxy http://127.0.0.1:%%p
-    echo å·²é…ç½®åˆ° git å…¨å±€è®¾ç½®ã€‚
+    echo ÒÑÅäÖÃµ½ git È«¾ÖÉèÖÃ¡£
     echo.
     pause
     exit /b 0
   ) else (
-    echo [ä¸å¯ç”¨] ç«¯å£ %%p
+    echo [²»¿ÉÓÃ] ¶Ë¿Ú %%p
   )
 )
 
 echo.
-echo æœªæ‰¾åˆ°ä»£ç†ç«¯å£ï¼Œè¯·ç¡®è®¤ä»£ç†è½¯ä»¶å·²å¼€å¯ã€‚
+echo Î´ÕÒµ½´úÀí¶Ë¿Ú£¬ÇëÈ·ÈÏ´úÀíÈí¼þÒÑ¿ªÆô¡£
 pause
