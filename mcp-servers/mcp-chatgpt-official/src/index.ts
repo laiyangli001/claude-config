@@ -5,15 +5,16 @@ import { chromium, BrowserContext, Page } from "playwright";
 import * as path from "path";
 import { fileURLToPath } from "url";
 // @ts-ignore
-import { launchBrowser, closeBrowser } from "../../shared/browser.mjs";
+import { launchBrowser, withRetry, isTransientError } from "../../shared/browser.mjs";
 // @ts-ignore
-import { waitForAnswer, extractNewAnswers, waitForNewMessage } from "../../shared/answer.mjs";
+import { waitForAnswer, extractNewAnswers, waitForNewMessage, setupPageErrorMonitor, showToast } from "../../shared/answer.mjs";
 // @ts-ignore
 import { uploadFiles } from "../../shared/upload.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(__dirname, "..");
 const PROFILE_DIR = path.join(PROJECT_ROOT, ".chatgpt-official-profile");
+const SITE_URL = "https://chatgpt.com/";
 const HEADLESS = process.env.CHATGPT_HEADLESS === "true";
 
 const SEL = {
@@ -53,7 +54,7 @@ async function ensureBrowser(): Promise<{ page: Page; context: BrowserContext }>
   if (initPromise) return initPromise;
   initPromise = (async (): Promise<{ page: Page; context: BrowserContext }> => {
     await closeB();
-    browserContext = await launchBrowser(chromium, PROFILE_DIR, HEADLESS);
+    browserContext = await launchBrowser(chromium, PROFILE_DIR, HEADLESS, SITE_URL);
     const existing = browserContext!.pages();
     page = existing[0] || await browserContext!.newPage();
     for (let i = 1; i < existing.length; i++) try { await existing[i].close(); } catch {}

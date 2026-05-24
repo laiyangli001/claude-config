@@ -58,11 +58,11 @@ export async function uploadFiles(page, filePaths, opts = {}) {
     } catch {}
   }
 
-  // 等待附件出现
+  // 快速等附件出现（最多 5 秒）
   const attachSel = '[class*="attachment"], [class*="file-preview"]';
-  for (let i = 0; i < 15; i++) {
+  for (let i = 0; i < 10; i++) {
     const count = await page.locator(attachSel).count().catch(() => 0);
     if (count >= filePaths.length) break;
-    await new Promise(r => setTimeout(r, 1000));
+    await new Promise(r => setTimeout(r, 500));
   }
 }

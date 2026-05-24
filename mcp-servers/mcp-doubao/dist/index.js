@@ -5,15 +5,15 @@ import { chromium } from "playwright";
 import * as path from "path";
 import { fileURLToPath } from "url";
 // @ts-ignore
-import { launchBrowser } from "../../shared/browser.mjs";
+import { launchBrowser, withRetry } from "../../shared/browser.mjs";
 // @ts-ignore
-import { waitForAnswer, extractNewAnswers, waitForNewMessage } from "../../shared/answer.mjs";
+import { setupPageErrorMonitor, showToast } from "../../shared/answer.mjs";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(__dirname, "..");
 const PROFILE_DIR = path.join(PROJECT_ROOT, ".doubao-profile");
 const HEADLESS = process.env.DOUBDAO_HEADLESS === "true";
 const SEL = {
-    CHAT_INPUT: '[contenteditable="true"]',
+    CHAT_INPUT: 'textarea[placeholder*="发消息"]',
     // 发送按钮选择器（登录后出现）
     SEND_BTN: 'button:has-text("发送"), button[aria-label*="send" i], button[aria-label*="Send"]',
     STOP_BTN: 'button[aria-label*="stop" i], button[aria-label*="Stop"]',
@@ -55,7 +55,7 @@ async function ensureBrowser() {
         return initPromise;
     initPromise = (async () => {
         await closeB();
-        browserContext = await launchBrowser(chromium, PROFILE_DIR, HEADLESS);
+        browserContext = await launchBrowser(chromium, PROFILE_DIR, HEADLESS, SEL.URL);
         const existing = browserContext.pages();
         page = existing[0] || await browserContext.newPage();
         for (let i = 1; i < existing.length; i++)
@@ -63,6 +63,7 @@ async function ensureBrowser() {
                 await existing[i].close();
             }
             catch { }
+        setupPageErrorMonitor(page);
         isPageReady = false;
         return { page: page, context: browserContext };
     })();
@@ -71,39 +72,63 @@ async function ensureBrowser() {
 async function askDoubao(question) {
     const { page: pg } = await ensureBrowser();
     if (!isPageReady) {
-        await pg.goto(SEL.URL, { waitUntil: "domcontentloaded" });
-        // 检测是否需要登录
-        if (await pg.locator(SEL.LOGIN_BTN).first().isVisible().catch(() => false)) {
+        await showToast(pg, "⏳ 打开豆包...");
+        await withRetry(() => pg.goto(SEL.URL, { waitUntil: "domcontentloaded", timeout: 30000 }));
+        await sleep(2000);
+        // 检测是否有登录 session（通过 cookie 判断）
+        const cookies = await browserContext.cookies();
+        const hasSession = cookies.some(c => c.name === "flow_cur_user_sec_id" && c.value.length > 10);
+        if (!hasSession && await pg.locator(SEL.LOGIN_BTN).first().isVisible().catch(() => false)) {
             if (!HEADLESS)
                 await pg.bringToFront();
-            // 等待登录（最多 3 分钟）
-            await pg.locator(SEL.CHAT_INPUT).waitFor({ state: "visible", timeout: 180000 }).catch(() => { });
+            await showToast(pg, "🔑 请登录豆包（登录后自动继续）");
+            try {
+                await pg.locator(SEL.LOGIN_BTN).first().waitFor({ state: "hidden", timeout: 180000 });
+            }
+            catch {
+                throw new Error("登录超时，请重新调用并在浏览器中完成登录");
+            }
         }
-        if (!(await pg.locator(SEL.CHAT_INPUT).waitFor({ state: "visible", timeout: 30000 }).then(() => true).catch(() => false))) {
-            if (!HEADLESS)
-                await pg.bringToFront();
-            await pg.locator(SEL.CHAT_INPUT).waitFor({ state: "visible", timeout: 120000 });
+        // 登录验证：确认聊天输入框已出现
+        if (!(await pg.locator(SEL.CHAT_INPUT).waitFor({ state: "visible", timeout: 10000 }).then(() => true).catch(() => false))) {
+            throw new Error("未检测到聊天输入框，请确保已登录");
         }
         isPageReady = true;
     }
-    // 输入问题
-    await pg.locator(SEL.CHAT_INPUT).first().evaluate((el, t) => {
-        el.innerText = t;
+    await showToast(pg, "📤 发送中...");
+    const input = pg.locator(SEL.CHAT_INPUT).first();
+    await input.click();
+    await input.fill(question);
+    await input.evaluate((el, text) => {
+        const setter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, "value")?.set;
+        setter?.call(el, text);
         el.dispatchEvent(new Event("input", { bubbles: true }));
     }, question);
-    // 点击发送按钮（或回车）
-    const btn = pg.locator(SEL.SEND_BTN).first();
-    if ((await btn.count()) > 0 && (await btn.isVisible()))
-        await btn.click();
-    else
-        await pg.keyboard.press("Enter");
-    // 等待回答
-    const answerSel = '[class*="message"], [class*="answer"], [class*="reply"]';
-    const prevCount = await pg.locator(answerSel).count();
-    await waitForNewMessage(pg, answerSel, prevCount);
-    await waitForAnswer(pg, answerSel, SEL.STOP_BTN);
-    const answer = await extractNewAnswers(pg, answerSel, prevCount);
-    if (!answer)
+    await sleep(300);
+    await pg.keyboard.press("Enter");
+    // 等回答生成（轮询检测新内容出现，最长 60 秒）
+    await showToast(pg, "⏳ 等待回答...");
+    const textBefore = await pg.evaluate(() => document.body.innerText.length);
+    for (let i = 0; i < 120; i++) {
+        await sleep(500);
+        const curLen = await pg.evaluate(() => document.body.innerText.length);
+        if (curLen > textBefore)
+            break; // 页面文本增长 → 回答来了
+    }
+    // 提取回答
+    await sleep(3000);
+    await showToast(pg, "✅ 回答完成", 2000);
+    let answer = await pg.evaluate(() => {
+        const msgs = document.querySelectorAll('[class*="message"], article, [role="article"]');
+        const texts = [];
+        for (const el of msgs) {
+            const t = (el.textContent || "").trim();
+            if (t.length > 5)
+                texts.push(t);
+        }
+        return texts.length > 0 ? texts[texts.length - 1] : "";
+    });
+    if (!answer || answer.length < 5)
         throw new Error("Failed to extract answer");
     return answer;
 }

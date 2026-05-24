@@ -13,6 +13,7 @@ import { uploadFiles } from "../../shared/upload.mjs";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(__dirname, "..");
 const PROFILE_DIR = path.join(PROJECT_ROOT, ".chatgpt-official-profile");
+const SITE_URL = "https://chatgpt.com/";
 const HEADLESS = process.env.CHATGPT_HEADLESS === "true";
 const SEL = {
     CHAT_INPUT: "#prompt-textarea",
@@ -58,7 +59,7 @@ async function ensureBrowser() {
         return initPromise;
     initPromise = (async () => {
         await closeB();
-        browserContext = await launchBrowser(chromium, PROFILE_DIR, HEADLESS);
+        browserContext = await launchBrowser(chromium, PROFILE_DIR, HEADLESS, SITE_URL);
         const existing = browserContext.pages();
         page = existing[0] || await browserContext.newPage();
         for (let i = 1; i < existing.length; i++)

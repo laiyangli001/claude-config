@@ -5,9 +5,9 @@ import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprot
 import * as path from "path";
 import { fileURLToPath } from "url";
 // @ts-ignore
-import { launchBrowser, closeBrowser } from "../../shared/browser.mjs";
+import { launchBrowser, withRetry, isTransientError, closeBrowser } from "../../shared/browser.mjs";
 // @ts-ignore
-import { waitForAnswer, extractNewAnswers, waitForNewMessage } from "../../shared/answer.mjs";
+import { waitForAnswer, extractNewAnswers, waitForNewMessage, setupPageErrorMonitor, showToast } from "../../shared/answer.mjs";
 // @ts-ignore
 import { uploadFiles } from "../../shared/upload.mjs";
 // @ts-ignore
@@ -17,6 +17,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(__dirname, "..");
 const PROFILE_DIR = path.join(PROJECT_ROOT, ".deepseek-browser-profile");
 const ROLES_DIR = path.resolve(PROJECT_ROOT, "..", "roles");
+const SITE_URL = "https://chat.deepseek.com/";
 const HEADLESS = process.env.DEEPSEEK_HEADLESS === "true";
 
 const INPUT_SEL = 'textarea, [contenteditable="true"]';
@@ -49,7 +50,7 @@ process.on("SIGTERM", cleanup);
 async function ensureBrowser() {
   if (browserContext && page && !page.isClosed() && isPageReady) return { page, context: browserContext };
   if (browserContext) await closeBrowser(browserContext);
-  browserContext = await launchBrowser(chromium, PROFILE_DIR, HEADLESS);
+  browserContext = await launchBrowser(chromium, PROFILE_DIR, HEADLESS, SITE_URL);
   page = await browserContext!.newPage();
   isPageReady = false;
   return { page: page!, context: browserContext! };
@@ -74,6 +75,7 @@ async function askFree(question: string, attachments?: string[], role?: string):
   if (!isPageReady) {
     await pg.goto("https://chat.deepseek.com/", { waitUntil: "networkidle" });
     if ((await pg.locator(LOGIN_BTN_SEL).first().isVisible().catch(() => false))) {
+      await showToast(pg, "🔑 请登录 DeepSeek");
       throw new Error("DeepSeek is not logged in. Please log in in the opened browser window.");
     }
     await pg.waitForSelector(INPUT_SEL, { timeout: 30000 });
