@@ -69,7 +69,7 @@ async function ensureBrowser() {
     })();
     return initPromise;
 }
-async function askDoubao(question) {
+async function askDoubao(question, attachments) {
     const { page: pg } = await ensureBrowser();
     if (!isPageReady) {
         await showToast(pg, "⏳ 打开豆包...");
@@ -95,6 +95,28 @@ async function askDoubao(question) {
         }
         isPageReady = true;
     }
+    // 处理附件上传
+    if (attachments?.length) {
+        await showToast(pg, "📎 上传附件...");
+        await pg.locator('input[type="file"]').first().setInputFiles(attachments);
+        await sleep(1000);
+        // 检测是否有真人验证弹窗（豆包的反机器人机制）
+        const verifyTexts = ["拖拽", "到这里", "符合上文描述"];
+        const pageText = await pg.evaluate(() => document.body.innerText);
+        const needVerify = verifyTexts.some(t => pageText.includes(t));
+        if (needVerify) {
+            if (!HEADLESS)
+                await pg.bringToFront();
+            await showToast(pg, "🧑 请完成页面上的真人验证（需手动操作）");
+            // 等待验证通过（检测验证元素消失或新消息出现）
+            for (let i = 0; i < 120; i++) {
+                await sleep(1000);
+                const curText = await pg.evaluate(() => document.body.innerText);
+                if (!verifyTexts.some(t => curText.includes(t)))
+                    break;
+            }
+        }
+    }
     await showToast(pg, "📤 发送中...");
     const input = pg.locator(SEL.CHAT_INPUT).first();
     await input.click();
@@ -106,14 +128,50 @@ async function askDoubao(question) {
     }, question);
     await sleep(300);
     await pg.keyboard.press("Enter");
-    // 等回答生成（轮询检测新内容出现，最长 60 秒）
+    // 发送后检测真人验证弹窗
+    const verifyTexts = ["拖拽", "到这里", "符合上文描述"];
+    const checkVerify = async () => {
+        const t = await pg.evaluate(() => document.body.innerText);
+        return verifyTexts.some(v => t.includes(v));
+    };
+    if (await checkVerify()) {
+        if (!HEADLESS)
+            await pg.bringToFront();
+        await showToast(pg, "🧑 请完成页面上的真人验证（拖拽操作）");
+        // 等弹窗消失（用户处理完或关闭）
+        for (let i = 0; i < 180; i++) {
+            await sleep(1000);
+            if (!(await checkVerify()))
+                break;
+        }
+        // 弹窗消失后判断是否真的通过验证：
+        // 1. 停止按钮出现（说明正在生成回答）
+        // 2. 或新消息出现
+        let verified = false;
+        for (let i = 0; i < 30; i++) {
+            await sleep(1000);
+            const stopVisible = await pg.locator(SEL.STOP_BTN).first().isVisible().catch(() => false);
+            if (stopVisible) {
+                verified = true;
+                break;
+            }
+            const newMsg = await pg.evaluate(() => document.querySelectorAll('[class*="message"], article, [role="article"]').length);
+            if (newMsg > 0) {
+                verified = true;
+                break;
+            }
+        }
+        if (!verified)
+            throw new Error("真人验证未完成，请重新尝试");
+    }
+    // 等回答生成
     await showToast(pg, "⏳ 等待回答...");
     const textBefore = await pg.evaluate(() => document.body.innerText.length);
     for (let i = 0; i < 120; i++) {
         await sleep(500);
         const curLen = await pg.evaluate(() => document.body.innerText.length);
         if (curLen > textBefore)
-            break; // 页面文本增长 → 回答来了
+            break;
     }
     // 提取回答
     await sleep(3000);
@@ -134,14 +192,16 @@ async function askDoubao(question) {
 }
 const server = new Server({ name: "mcp-doubao", version: "1.0.0" }, { capabilities: { tools: {} } });
 server.setRequestHandler(ListToolsRequestSchema, async () => ({
-    tools: [{ name: "ask_doubao", description: "Use Doubao (doubao.com) free version.", inputSchema: { type: "object", properties: { question: { type: "string" } } } }],
+    tools: [{ name: "ask_doubao", description: "Use Doubao (doubao.com) free version. Supports image/file attachments.", inputSchema: { type: "object", properties: { question: { type: "string" }, attachments: { type: "array", items: { type: "string" } } } } }],
 }));
 server.setRequestHandler(CallToolRequestSchema, async (req) => {
     if (req.params.name !== "ask_doubao")
         throw new Error("Unknown tool");
+    const raw = req.params.arguments || {};
     const q = typeof req.params.arguments?.question === "string" ? req.params.arguments.question : "";
+    const files = Array.isArray(raw.attachments) ? raw.attachments.filter((v) => typeof v === "string") : undefined;
     try {
-        const answer = await askDoubao(q);
+        const answer = await askDoubao(q, files);
         return { content: [{ type: "text", text: `【Doubao answer】\n\n${answer}` }] };
     }
     catch (e) {
