@@ -7,7 +7,7 @@ import { fileURLToPath } from "url";
 // @ts-ignore
 import { launchBrowser, closeBrowser } from "../../shared/browser.mjs";
 // @ts-ignore
-import { waitForAnswer, extractNewAnswers } from "../../shared/answer.mjs";
+import { waitForAnswer, extractNewAnswers, waitForNewMessage } from "../../shared/answer.mjs";
 // @ts-ignore
 import { uploadFiles } from "../../shared/upload.mjs";
 // @ts-ignore
@@ -33,6 +33,18 @@ let browserContext: BrowserContext | null = null;
 let page: Page | null = null;
 let isPageReady = false;
 let activeRole: string | null = null;
+
+let cleaning = false;
+function cleanup() {
+  if (cleaning) return;
+  cleaning = true;
+  process.exitCode = 0;
+  const ctx = browserContext;
+  Promise.race([(async () => { if (ctx) try { await ctx.close(); } catch {} })(), new Promise(r => setTimeout(r, 15000))])
+    .finally(() => setTimeout(() => process.exit(), 200));
+}
+process.on("SIGINT", cleanup);
+process.on("SIGTERM", cleanup);
 
 async function ensureBrowser() {
   if (browserContext && page && !page.isClosed() && isPageReady) return { page, context: browserContext };
@@ -83,7 +95,7 @@ async function askFree(question: string, attachments?: string[], role?: string):
   await typeAndSend(pg, q + (needC ? CONSTRAINTS : ""));
   if (!HEADLESS) await pg.bringToFront();
 
-  await pg.waitForSelector(ANSWER_SEL, { timeout: 300000, state: "visible" });
+  await waitForNewMessage(pg, ANSWER_SEL, prevCount);
   await waitForAnswer(pg, ANSWER_SEL, STOP_BTN_SEL);
   const answerText = await extractNewAnswers(pg, ANSWER_SEL, prevCount);
   if (!answerText) throw new Error("Failed to extract answer");

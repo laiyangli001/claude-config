@@ -6,7 +6,7 @@ import * as fs from "fs";
 async function killOrphanChrome(profileDir) {
   try {
     const result = execSync(
-      `wmic process where "name='chrome.exe' and commandline like '%${profileDir}%'" get processid /format:csv 2>nul`,
+      `wmic process where "name='chrome.exe' and commandline like '%${profileDir.replace(/\\/g, '\\\\')}%'" get processid /format:csv 2>nul`,
       { encoding: "utf8", timeout: 10000 }
     );
     const pids = result.trim().split(/\s*\n\s*/).slice(1)
