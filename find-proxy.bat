@@ -6,12 +6,12 @@ echo 正在扫描常见代理端口...
 echo.
 
 for %%p in (7890 7891 7892 10809 1080 1081 8888 8080) do (
-  curl -s --connect-timeout 1 --proxy http://127.0.0.1:%%p -o nul -s -w "%%%%{http_code}" https://github.com 2>nul | findstr "200" >nul
+  >nul 2>&1 curl -s --connect-timeout 1 --proxy http://127.0.0.1:%%p -I https://github.com
   if !errorlevel! equ 0 (
     echo [可用] 端口 %%p
     git config --global http.proxy http://127.0.0.1:%%p
     git config --global https.proxy http://127.0.0.1:%%p
-    echo 已自动配置 git 代理。
+    echo 已配置到 git 全局设置。
     pause
     exit /b 0
   ) else (
