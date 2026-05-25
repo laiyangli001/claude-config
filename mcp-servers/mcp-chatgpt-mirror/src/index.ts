@@ -5,7 +5,7 @@ import { chromium, BrowserContext, Page } from "playwright";
 import * as path from "path";
 import { fileURLToPath } from "url";
 // @ts-ignore
-import { launchBrowser, navigateWithToast, withRetry, isTransientError } from "../../shared/browser.mjs";
+import { launchBrowser, navigateWithToast, withRetry, isTransientError, checkSite } from "../../shared/browser.mjs";
 // @ts-ignore
 import { waitForAnswer, extractNewAnswers, waitForNewMessage, setupPageErrorMonitor, showToast } from "../../shared/answer.mjs";
 // @ts-ignore
@@ -75,35 +75,46 @@ async function askChatGPT(question: string, attachments?: string[], role?: strin
   const { page: pg } = await ensureBrowser();
 
   if (!isPageReady) {
-    await navigateWithToast(pg, SEL.INVITE_URL, "ChatGPT 镜像站");
+    await withRetry(() => navigateWithToast(pg, SEL.INVITE_URL, "ChatGPT 镜像站"));
     const btn = pg.locator(SEL.START_BTN);
     if ((await btn.count()) > 0 && (await btn.isVisible())) {
       await btn.first().evaluate((el: HTMLButtonElement) => (el.disabled = false));
       await sleep(200); await btn.first().click();
     }
-    // 不强制跳转，让页面自然流转（套餐页→登录→聊天页）
-    if (!(await pg.locator(SEL.CHAT_INPUT).waitFor({ state: "visible", timeout: 30000 }).then(() => true).catch(() => false))) {
+    // Cookie 检测登录态
+    const cookies = await browserContext!.cookies();
+    const hasSession = cookies.some(c => c.name.includes("session") && c.value.length > 10);
+    if (!hasSession && !(await pg.locator(SEL.CHAT_INPUT).waitFor({ state: "visible", timeout: 30000 }).then(() => true).catch(() => false))) {
       if (!HEADLESS) await pg.bringToFront();
-      await showToast(pg, "等待页面就绪...");
-      await pg.locator(SEL.CHAT_INPUT).waitFor({ state: "visible", timeout: 120000 });
+      await showToast(pg, "🔑 请登录镜像站");
+      await pg.locator(SEL.CHAT_INPUT).waitFor({ state: "visible", timeout: 180000 });
     }
     isPageReady = true;
   }
 
   if (attachments?.length) await uploadFiles(pg, attachments, { fileInputSelector: SEL.FILE_INPUT, duplicateBtnSelector: SEL.DUPLICATE_BTN });
 
+  await showToast(pg, "📤 发送中...");
   const answerSel = '[data-message-author-role="assistant"]';
   let prev = await pg.locator(answerSel).count();
   await pg.locator(SEL.CHAT_INPUT).first().evaluate((el: HTMLElement, t: string) => { el.innerText = t; el.dispatchEvent(new Event("input", { bubbles: true })); }, question);
-  const btn = pg.locator(SEL.SEND_BTN).first();
-  if ((await btn.count()) > 0 && (await btn.isVisible())) await btn.click(); else await pg.keyboard.press("Enter");
+  const sb = pg.locator(SEL.SEND_BTN).first();
+  if ((await sb.count()) > 0 && (await sb.isVisible())) await sb.click(); else await pg.keyboard.press("Enter");
 
-  await showToast(pg, "等待回答...");
+  await showToast(pg, "⏳ 等待回答...");
   await waitForNewMessage(pg, answerSel, prev);
   await waitForAnswer(pg, answerSel, SEL.STOP_BTN);
+  // 等 stop 消失 + 内容稳定 3 秒
+  let stable = 0, lastLen = await pg.evaluate(() => document.body.innerText.length);
+  for (let i = 0; i < 30; i++) {
+    await sleep(1000);
+    const curLen = await pg.evaluate(() => document.body.innerText.length);
+    if (curLen === lastLen) { stable++; if (stable >= 3) break; }
+    else { stable = 0; lastLen = curLen; }
+  }
   const answer = await extractNewAnswers(pg, answerSel, prev);
   if (!answer) throw new Error("Failed to extract answer");
-  await showToast(pg, "回答已收到");
+  await showToast(pg, "✅ 回答完成", 2000);
   return answer;
 }
 

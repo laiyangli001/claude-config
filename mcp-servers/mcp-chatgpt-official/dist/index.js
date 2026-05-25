@@ -5,7 +5,7 @@ import { chromium } from "playwright";
 import * as path from "path";
 import { fileURLToPath } from "url";
 // @ts-ignore
-import { launchBrowser, navigateWithToast } from "../../shared/browser.mjs";
+import { launchBrowser, navigateWithToast, withRetry } from "../../shared/browser.mjs";
 // @ts-ignore
 import { waitForAnswer, extractNewAnswers, waitForNewMessage, showToast } from "../../shared/answer.mjs";
 // @ts-ignore
@@ -29,6 +29,7 @@ let browserContext = null;
 let page = null;
 let isPageReady = false;
 let initPromise = null;
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 async function closeB() {
     const ctx = browserContext;
     browserContext = null;
@@ -86,38 +87,52 @@ async function ensureBrowser() {
 async function askChatGPT(question, attachments) {
     const { page: pg } = await ensureBrowser();
     if (!isPageReady) {
-        await navigateWithToast(pg, SEL.OFFICIAL_URL, "ChatGPT 官方站");
-        if (await pg.locator(SEL.CHAT_INPUT).waitFor({ state: "visible", timeout: 30000 }).then(() => true).catch(() => false)) {
-            isPageReady = true;
-        }
-        else if (await pg.locator(SEL.LOGIN_BTN).first().isVisible().catch(() => false)) {
+        await withRetry(() => navigateWithToast(pg, SEL.OFFICIAL_URL, "ChatGPT 官方站"));
+        const cookies = await browserContext.cookies();
+        const hasSession = cookies.some(c => c.name.includes("session") && c.value.length > 10);
+        if (!hasSession && await pg.locator(SEL.LOGIN_BTN).first().isVisible().catch(() => false)) {
             if (!HEADLESS)
                 await pg.bringToFront();
-            await showToast(pg, "请登录 ChatGPT（登录后自动继续）");
-            await pg.locator(SEL.CHAT_INPUT).waitFor({ state: "visible", timeout: 120000 });
-            isPageReady = true;
+            await showToast(pg, "🔑 请登录 ChatGPT（登录后自动继续）");
+            await pg.locator(SEL.LOGIN_BTN).first().waitFor({ state: "hidden", timeout: 180000 });
         }
-        else {
-            throw new Error("Cannot access ChatGPT. Please check if the site is accessible.");
+        if (!(await pg.locator(SEL.CHAT_INPUT).waitFor({ state: "visible", timeout: 30000 }).then(() => true).catch(() => false))) {
+            throw new Error("Cannot access ChatGPT.");
         }
+        isPageReady = true;
     }
     if (attachments?.length)
         await uploadFiles(pg, attachments, { fileInputSelector: SEL.FILE_INPUT, duplicateBtnSelector: SEL.DUPLICATE_BTN });
+    await showToast(pg, "📤 发送中...");
     const answerSel = '[data-message-author-role="assistant"]';
     let prev = await pg.locator(answerSel).count();
     await pg.locator(SEL.CHAT_INPUT).first().evaluate((el, t) => { el.innerText = t; el.dispatchEvent(new Event("input", { bubbles: true })); }, question);
-    const btn = pg.locator(SEL.SEND_BTN).first();
-    if ((await btn.count()) > 0 && (await btn.isVisible()))
-        await btn.click();
+    const sb = pg.locator(SEL.SEND_BTN).first();
+    if ((await sb.count()) > 0 && (await sb.isVisible()))
+        await sb.click();
     else
         await pg.keyboard.press("Enter");
-    await showToast(pg, "等待回答...");
+    await showToast(pg, "⏳ 等待回答...");
     await waitForNewMessage(pg, answerSel, prev);
     await waitForAnswer(pg, answerSel, SEL.STOP_BTN);
+    let stable = 0, lastLen = await pg.evaluate(() => document.body.innerText.length);
+    for (let i = 0; i < 30; i++) {
+        await sleep(1000);
+        const curLen = await pg.evaluate(() => document.body.innerText.length);
+        if (curLen === lastLen) {
+            stable++;
+            if (stable >= 3)
+                break;
+        }
+        else {
+            stable = 0;
+            lastLen = curLen;
+        }
+    }
     const answer = await extractNewAnswers(pg, answerSel, prev);
     if (!answer)
         throw new Error("Failed to extract answer");
-    await showToast(pg, "回答已收到");
+    await showToast(pg, "✅ 回答完成", 2000);
     return answer;
 }
 const server = new Server({ name: "chatgpt-official-mcp", version: "1.0.0" }, { capabilities: { tools: {} } });

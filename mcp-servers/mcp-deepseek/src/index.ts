@@ -35,6 +35,8 @@ let page: Page | null = null;
 let isPageReady = false;
 let activeRole: string | null = null;
 
+function sleep(ms: number) { return new Promise(r => setTimeout(r, ms)); }
+
 let cleaning = false;
 function cleanup() {
   if (cleaning) return;
@@ -73,10 +75,15 @@ async function askFree(question: string, attachments?: string[], role?: string):
   const { page: pg } = await ensureBrowser();
 
   if (!isPageReady) {
-    await navigateWithToast(pg, "https://chat.deepseek.com/", "DeepSeek");
-    if ((await pg.locator(LOGIN_BTN_SEL).first().isVisible().catch(() => false))) {
-      await showToast(pg, "🔑 请登录 DeepSeek");
-      throw new Error("DeepSeek is not logged in. Please log in in the opened browser window.");
+    await withRetry(() => navigateWithToast(pg, "https://chat.deepseek.com/", "DeepSeek"));
+    await sleep(2000);
+    // Cookie 检测登录态
+    const cookies = await browserContext!.cookies();
+    const hasSession = cookies.some(c => (c.name.includes("session") || c.name.includes("token")) && c.value.length > 10);
+    if (!hasSession && (await pg.locator(LOGIN_BTN_SEL).first().isVisible().catch(() => false))) {
+      if (!HEADLESS) await pg.bringToFront();
+      await showToast(pg, "🔑 请登录 DeepSeek（登录后自动继续）");
+      await pg.locator(LOGIN_BTN_SEL).first().waitFor({ state: "hidden", timeout: 180000 });
     }
     await pg.waitForSelector(INPUT_SEL, { timeout: 30000 });
     isPageReady = true;
@@ -97,12 +104,20 @@ async function askFree(question: string, attachments?: string[], role?: string):
   await typeAndSend(pg, q + (needC ? CONSTRAINTS : ""));
   if (!HEADLESS) await pg.bringToFront();
 
-  await showToast(pg, "等待回答...");
+  await showToast(pg, "⏳ 等待回答...");
   await waitForNewMessage(pg, ANSWER_SEL, prevCount);
   await waitForAnswer(pg, ANSWER_SEL, STOP_BTN_SEL);
+  // 等内容稳定
+  let stable = 0, lastLen = await pg.evaluate(() => document.body.innerText.length);
+  for (let i = 0; i < 30; i++) {
+    await sleep(1000);
+    const curLen = await pg.evaluate(() => document.body.innerText.length);
+    if (curLen === lastLen) { stable++; if (stable >= 3) break; }
+    else { stable = 0; lastLen = curLen; }
+  }
   const answerText = await extractNewAnswers(pg, ANSWER_SEL, prevCount);
   if (!answerText) throw new Error("Failed to extract answer");
-  await showToast(pg, "回答已收到");
+  await showToast(pg, "✅ 回答完成", 2000);
   return answerText;
 }
 
