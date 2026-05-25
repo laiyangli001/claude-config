@@ -5,7 +5,7 @@ import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprot
 import * as path from "path";
 import { fileURLToPath } from "url";
 // @ts-ignore
-import { launchBrowser, withRetry, isTransientError, closeBrowser } from "../../shared/browser.mjs";
+import { launchBrowser, navigateWithToast, withRetry, isTransientError, closeBrowser } from "../../shared/browser.mjs";
 // @ts-ignore
 import { waitForAnswer, extractNewAnswers, waitForNewMessage, setupPageErrorMonitor, showToast } from "../../shared/answer.mjs";
 // @ts-ignore
@@ -50,7 +50,7 @@ process.on("SIGTERM", cleanup);
 async function ensureBrowser() {
   if (browserContext && page && !page.isClosed() && isPageReady) return { page, context: browserContext };
   if (browserContext) await closeBrowser(browserContext);
-  browserContext = await launchBrowser(chromium, PROFILE_DIR, HEADLESS, SITE_URL);
+  browserContext = await launchBrowser(chromium, PROFILE_DIR, HEADLESS);
   page = await browserContext!.newPage();
   isPageReady = false;
   return { page: page!, context: browserContext! };
@@ -73,7 +73,7 @@ async function askFree(question: string, attachments?: string[], role?: string):
   const { page: pg } = await ensureBrowser();
 
   if (!isPageReady) {
-    await pg.goto("https://chat.deepseek.com/", { waitUntil: "networkidle" });
+    await navigateWithToast(pg, "https://chat.deepseek.com/", "DeepSeek");
     if ((await pg.locator(LOGIN_BTN_SEL).first().isVisible().catch(() => false))) {
       await showToast(pg, "🔑 请登录 DeepSeek");
       throw new Error("DeepSeek is not logged in. Please log in in the opened browser window.");
@@ -97,10 +97,12 @@ async function askFree(question: string, attachments?: string[], role?: string):
   await typeAndSend(pg, q + (needC ? CONSTRAINTS : ""));
   if (!HEADLESS) await pg.bringToFront();
 
+  await showToast(pg, "等待回答...");
   await waitForNewMessage(pg, ANSWER_SEL, prevCount);
   await waitForAnswer(pg, ANSWER_SEL, STOP_BTN_SEL);
   const answerText = await extractNewAnswers(pg, ANSWER_SEL, prevCount);
   if (!answerText) throw new Error("Failed to extract answer");
+  await showToast(pg, "回答已收到");
   return answerText;
 }
 

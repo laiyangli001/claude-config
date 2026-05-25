@@ -5,7 +5,7 @@ import { chromium, BrowserContext, Page } from "playwright";
 import * as path from "path";
 import { fileURLToPath } from "url";
 // @ts-ignore
-import { launchBrowser, withRetry, isTransientError } from "../../shared/browser.mjs";
+import { launchBrowser, navigateWithToast, withRetry, isTransientError } from "../../shared/browser.mjs";
 // @ts-ignore
 import { waitForAnswer, extractNewAnswers, waitForNewMessage, setupPageErrorMonitor, showToast } from "../../shared/answer.mjs";
 // @ts-ignore
@@ -36,7 +36,11 @@ let initPromise: Promise<{ page: Page; context: BrowserContext }> | null = null;
 
 function sleep(ms: number) { return new Promise(r => setTimeout(r, ms)); }
 
-async function closeB() { browserContext = null; page = null; initPromise = null; isPageReady = false; }
+async function closeB() {
+  const ctx = browserContext;
+  browserContext = null; page = null; initPromise = null; isPageReady = false;
+  if (ctx) try { await ctx.close(); } catch {}
+}
 
 let cleaning = false;
 function cleanup() {
@@ -57,7 +61,7 @@ async function ensureBrowser(): Promise<{ page: Page; context: BrowserContext }>
   if (initPromise) return initPromise;
   initPromise = (async (): Promise<{ page: Page; context: BrowserContext }> => {
     await closeB();
-    browserContext = await launchBrowser(chromium, PROFILE_DIR, HEADLESS, SITE_URL);
+    browserContext = await launchBrowser(chromium, PROFILE_DIR, HEADLESS);
     const existing = browserContext!.pages();
     page = existing[0] || await browserContext!.newPage();
     for (let i = 1; i < existing.length; i++) try { await existing[i].close(); } catch {}
@@ -71,7 +75,7 @@ async function askChatGPT(question: string, attachments?: string[], role?: strin
   const { page: pg } = await ensureBrowser();
 
   if (!isPageReady) {
-    await pg.goto(SEL.INVITE_URL, { waitUntil: "domcontentloaded" });
+    await navigateWithToast(pg, SEL.INVITE_URL, "ChatGPT 镜像站");
     const btn = pg.locator(SEL.START_BTN);
     if ((await btn.count()) > 0 && (await btn.isVisible())) {
       await btn.first().evaluate((el: HTMLButtonElement) => (el.disabled = false));
@@ -80,6 +84,7 @@ async function askChatGPT(question: string, attachments?: string[], role?: strin
     // 不强制跳转，让页面自然流转（套餐页→登录→聊天页）
     if (!(await pg.locator(SEL.CHAT_INPUT).waitFor({ state: "visible", timeout: 30000 }).then(() => true).catch(() => false))) {
       if (!HEADLESS) await pg.bringToFront();
+      await showToast(pg, "等待页面就绪...");
       await pg.locator(SEL.CHAT_INPUT).waitFor({ state: "visible", timeout: 120000 });
     }
     isPageReady = true;
@@ -93,10 +98,12 @@ async function askChatGPT(question: string, attachments?: string[], role?: strin
   const btn = pg.locator(SEL.SEND_BTN).first();
   if ((await btn.count()) > 0 && (await btn.isVisible())) await btn.click(); else await pg.keyboard.press("Enter");
 
+  await showToast(pg, "等待回答...");
   await waitForNewMessage(pg, answerSel, prev);
   await waitForAnswer(pg, answerSel, SEL.STOP_BTN);
   const answer = await extractNewAnswers(pg, answerSel, prev);
   if (!answer) throw new Error("Failed to extract answer");
+  await showToast(pg, "回答已收到");
   return answer;
 }
 

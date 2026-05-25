@@ -5,9 +5,9 @@ import { chromium } from "playwright";
 import * as path from "path";
 import { fileURLToPath } from "url";
 // @ts-ignore
-import { launchBrowser } from "../../shared/browser.mjs";
+import { launchBrowser, navigateWithToast } from "../../shared/browser.mjs";
 // @ts-ignore
-import { waitForAnswer, extractNewAnswers, waitForNewMessage } from "../../shared/answer.mjs";
+import { waitForAnswer, extractNewAnswers, waitForNewMessage, showToast } from "../../shared/answer.mjs";
 // @ts-ignore
 import { uploadFiles } from "../../shared/upload.mjs";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -29,7 +29,18 @@ let browserContext = null;
 let page = null;
 let isPageReady = false;
 let initPromise = null;
-async function closeB() { browserContext = null; page = null; initPromise = null; isPageReady = false; }
+async function closeB() {
+    const ctx = browserContext;
+    browserContext = null;
+    page = null;
+    initPromise = null;
+    isPageReady = false;
+    if (ctx)
+        try {
+            await ctx.close();
+        }
+        catch { }
+}
 let cleaning = false;
 function cleanup() {
     if (cleaning)
@@ -59,7 +70,7 @@ async function ensureBrowser() {
         return initPromise;
     initPromise = (async () => {
         await closeB();
-        browserContext = await launchBrowser(chromium, PROFILE_DIR, HEADLESS, SITE_URL);
+        browserContext = await launchBrowser(chromium, PROFILE_DIR, HEADLESS);
         const existing = browserContext.pages();
         page = existing[0] || await browserContext.newPage();
         for (let i = 1; i < existing.length; i++)
@@ -75,13 +86,14 @@ async function ensureBrowser() {
 async function askChatGPT(question, attachments) {
     const { page: pg } = await ensureBrowser();
     if (!isPageReady) {
-        await pg.goto(SEL.OFFICIAL_URL, { waitUntil: "domcontentloaded" });
+        await navigateWithToast(pg, SEL.OFFICIAL_URL, "ChatGPT 官方站");
         if (await pg.locator(SEL.CHAT_INPUT).waitFor({ state: "visible", timeout: 30000 }).then(() => true).catch(() => false)) {
             isPageReady = true;
         }
         else if (await pg.locator(SEL.LOGIN_BTN).first().isVisible().catch(() => false)) {
             if (!HEADLESS)
                 await pg.bringToFront();
+            await showToast(pg, "请登录 ChatGPT（登录后自动继续）");
             await pg.locator(SEL.CHAT_INPUT).waitFor({ state: "visible", timeout: 120000 });
             isPageReady = true;
         }
@@ -99,11 +111,13 @@ async function askChatGPT(question, attachments) {
         await btn.click();
     else
         await pg.keyboard.press("Enter");
+    await showToast(pg, "等待回答...");
     await waitForNewMessage(pg, answerSel, prev);
     await waitForAnswer(pg, answerSel, SEL.STOP_BTN);
     const answer = await extractNewAnswers(pg, answerSel, prev);
     if (!answer)
         throw new Error("Failed to extract answer");
+    await showToast(pg, "回答已收到");
     return answer;
 }
 const server = new Server({ name: "chatgpt-official-mcp", version: "1.0.0" }, { capabilities: { tools: {} } });

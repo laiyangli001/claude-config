@@ -5,7 +5,7 @@ import { chromium, BrowserContext, Page } from "playwright";
 import * as path from "path";
 import { fileURLToPath } from "url";
 // @ts-ignore
-import { launchBrowser, withRetry, isTransientError } from "../../shared/browser.mjs";
+import { launchBrowser, navigateWithToast, withRetry, isTransientError } from "../../shared/browser.mjs";
 // @ts-ignore
 import { setupPageErrorMonitor, showToast } from "../../shared/answer.mjs";
 
@@ -30,7 +30,11 @@ let initPromise: Promise<{ page: Page; context: BrowserContext }> | null = null;
 
 function sleep(ms: number) { return new Promise(r => setTimeout(r, ms)); }
 
-async function closeB() { browserContext = null; page = null; initPromise = null; isPageReady = false; }
+async function closeB() {
+  const ctx = browserContext;
+  browserContext = null; page = null; initPromise = null; isPageReady = false;
+  if (ctx) try { await ctx.close(); } catch {}
+}
 
 let cleaning = false;
 function cleanup() {
@@ -51,7 +55,7 @@ async function ensureBrowser(): Promise<{ page: Page; context: BrowserContext }>
   if (initPromise) return initPromise;
   initPromise = (async (): Promise<{ page: Page; context: BrowserContext }> => {
     await closeB();
-    browserContext = await launchBrowser(chromium, PROFILE_DIR, HEADLESS, SEL.URL);
+    browserContext = await launchBrowser(chromium, PROFILE_DIR, HEADLESS);
     const existing = browserContext!.pages();
     page = existing[0] || await browserContext!.newPage();
     for (let i = 1; i < existing.length; i++) try { await existing[i].close(); } catch {}
@@ -67,7 +71,7 @@ async function askDoubao(question: string, attachments?: string[]): Promise<stri
 
   if (!isPageReady) {
     await showToast(pg, "⏳ 打开豆包...");
-    await withRetry(() => pg.goto(SEL.URL, { waitUntil: "domcontentloaded", timeout: 30000 }));
+    await withRetry(() => navigateWithToast(pg, SEL.URL, "豆包"));
     await sleep(2000);
     // 检测是否有登录 session（通过 cookie 判断）
     const cookies = await browserContext!.cookies();
@@ -214,7 +218,7 @@ async function checkDoubaoDownloads(): Promise<string> {
   const pg = page;
   // 确保在豆包页面
   if (!pg.url().includes("doubao.com")) {
-    await pg.goto(SEL.URL, { waitUntil: "domcontentloaded", timeout: 30000 }).catch(() => {});
+    await navigateWithToast(pg, SEL.URL, "豆包").catch(() => {});
     await sleep(2000);
   }
   // 关闭可能的弹窗（恢复页面等）

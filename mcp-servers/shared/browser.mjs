@@ -4,24 +4,22 @@ import * as fs from "fs";
 import https from "https";
 import http from "http";
 
-// ── 网络健康检测 ──
+function log(...args) { console.error("[browser]", ...args); }
+
+// ── 网络检测（走系统代理需各服务自行处理）──
 
 /**
- * 检测目标网站是否可达
- * @param {string} url
- * @param {number} timeout 毫秒
- * @returns {Promise<void>}
+ * 检测目标网站是否可达（Node.js 直连，仅作参考，不阻断流程）
  */
-export async function checkSiteReachable(url, timeout = 10000) {
+export async function checkSite(url, timeout = 10000) {
   const proto = url.startsWith("https") ? https : http;
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     const req = proto.get(url, { timeout }, (res) => {
       res.resume();
-      if (res.statusCode && res.statusCode < 500) resolve();
-      else reject(new Error(`HTTP ${res.statusCode}`));
+      resolve(res.statusCode && res.statusCode < 500);
     });
-    req.on("error", (e) => reject(new Error(`网络不可达: ${e.message}`)));
-    req.on("timeout", () => { req.destroy(); reject(new Error("连接超时")); });
+    req.on("error", () => resolve(false));
+    req.on("timeout", () => { req.destroy(); resolve(false); });
   });
 }
 
@@ -97,7 +95,7 @@ export async function withRetry(fn, opts = {}) {
         await new Promise(r => setTimeout(r, 60000));
         continue;
       }
-      if (!isTransientError(err)) break; // 永久错误不重试
+      if (!isTransientError(err)) break;
 
       const delay = backoffDelay(attempt, baseDelay);
       await new Promise(r => setTimeout(r, delay));
@@ -109,26 +107,100 @@ export async function withRetry(fn, opts = {}) {
 // ── 浏览器启动 ──
 
 /**
- * @param {object} chromium - playwright.chromium
- * @param {string} profileDir
- * @param {boolean} headless
- * @param {string} [siteUrl] - 可选，启动前检测站点可达性
+ * 启动浏览器（不包含网络检测，各服务自行导航时走系统代理）
  */
-export async function launchBrowser(chromium, profileDir, headless = false, siteUrl) {
-  // 先检测网络
-  if (siteUrl) {
-    await checkSiteReachable(siteUrl);
-  }
-
+export async function launchBrowser(chromium, profileDir, headless = false) {
+  log("正在清理旧进程...");
   for (const f of ["lockfile", "SingletonLock", "SingletonCookie", "SingletonSocket"]) {
     try { fs.unlinkSync(profileDir + "/" + f); } catch {}
   }
   await killOrphanChrome(profileDir);
-  return await chromium.launchPersistentContext(profileDir, {
+
+  log("正在启动浏览器...");
+  const ctx = await chromium.launchPersistentContext(profileDir, {
     headless,
     viewport: { width: 1280, height: 800 },
     args: ["--disable-blink-features=AutomationControlled"],
   });
+  log("浏览器已启动");
+  return ctx;
+}
+
+// ── 浏览器内导航（带页面提示）──
+
+/**
+ * 在浏览器页面中显示 toast 并导航到目标网址，用户可看到检测过程
+ * @param {import("playwright").Page} page
+ * @param {string} url
+ * @param {string} [label] 站点名称
+ */
+export async function navigateWithToast(page, url, label = "") {
+  const siteName = label || new URL(url).hostname;
+  try { await page.bringToFront(); } catch {}
+  // 先加载一个简单的本地页面，确保 DOM 存在且不被 Chrome 错误页覆盖
+  await page.setContent("<html><body></body></html>");
+  await showPageToast(page, `正在连接 ${siteName}...`, "info");
+  try {
+    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30000 });
+    await showPageToast(page, `已连接到 ${siteName}`, "ok");
+  } catch (e) {
+    const msg = e.message || "";
+    let hint = "";
+    if (msg.includes("ERR_CONNECTION_TIMED_OUT") || msg.includes("ERR_TIMED_OUT")) {
+      hint = "请检查 VPN/代理是否开启，或稍后重试";
+    } else if (msg.includes("ERR_NAME_NOT_RESOLVED") || msg.includes("ERR_CONNECTION_REFUSED")) {
+      hint = "网站不可达，请检查网络连接";
+    } else if (msg.includes("ERR_CERT") || msg.includes("SSL")) {
+      hint = "证书错误，可能是代理或网络问题";
+    } else {
+      hint = msg.length > 40 ? "请检查网络或 VPN 设置" : msg;
+    }
+    // 新开标签页显示错误提示，避免 Chrome 错误页 JS 限制
+    try {
+      const ctx = page.context();
+      const errPage = await ctx.newPage();
+      await errPage.setContent(`<html><head><meta charset="utf-8"></head><body style="background:#1a1a2e;color:#fff;font-family:system-ui;display:flex;align-items:center;justify-content:center;height:100vh;margin:0"><div style="text-align:center;padding:40px"><div style="font-size:48px;margin-bottom:16px">⚠️</div><div style="font-size:22px;font-weight:600">${siteName} 连接失败</div><div style="font-size:16px;color:#f87171;margin-top:16px">${hint}</div><div style="font-size:13px;color:#888;margin-top:32px">请关闭此标签页并重试</div></div></body></html>`);
+      try { await errPage.bringToFront(); } catch {}
+      // 关闭旧的错误页（如果还活着）
+      try { await page.close(); } catch {}
+    } catch {}
+    throw new Error(`${siteName} 不可达: ${hint}`);
+  }
+}
+
+async function showPageToast(page, msg, type) {
+  try {
+    // 确保 body 存在
+    await page.evaluate(() => {
+      if (!document.body) {
+        const b = document.createElement("body");
+        document.documentElement.appendChild(b);
+      }
+    });
+    await page.evaluate(({ msg, type }) => {
+      const id = "_mcp_toast";
+      let d = document.getElementById(id);
+      if (!d) {
+        d = document.createElement("div");
+        d.id = id;
+        const isError = type === "error";
+        d.style.cssText = `
+          position:fixed; left:16px; top:16px; z-index:2147483647;
+          background:` + (isError ? "rgba(220,38,38,0.95)" : "rgba(26,26,46,0.94)") + `; color:#fff;
+          padding:18px 28px; border-radius:12px; font-size:18px;
+          font-family:system-ui,sans-serif; font-weight:600;
+          box-shadow:0 4px 24px rgba(0,0,0,0.6);
+          border:2px solid ` + (isError ? "#ef4444" : "rgba(99,102,241,0.5)") + `;
+          pointer-events:none;
+        `;
+        document.body.appendChild(d);
+      }
+      d.textContent = msg;
+      void d.offsetHeight;
+    }, { msg, type });
+  } catch (e) {
+    console.error("[browser] showPageToast failed:", e.message);
+  }
 }
 
 /** @param {object} ctx */
