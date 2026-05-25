@@ -330,7 +330,7 @@ function sendCommand(workspacePath, command) {
 
 // ── 启动 GUI 配置界面 ──
 function launchConfigGui() {
-  const guiScript = "D:\\AI_2D_to_3D\\4.LC700X_Desktop2Stereo\\Desktop2Stereo_v2.4.1_Windows_NVIDIA\\config_gui.py";
+  const guiScript = path.join(MONITOR_DIR, "config_gui.py");
   const pythonPath = path.join(process.env.USERPROFILE || "C:/Users/default", "AppData", "Local", "Python", "bin", "python.exe");
   const py = fs.existsSync(pythonPath) ? pythonPath : "python";
   const child = require("child_process");
