@@ -331,8 +331,9 @@ function sendCommand(workspacePath, command) {
 // ── 启动 GUI 配置界面 ──
 function launchConfigGui() {
   const guiScript = path.join(MONITOR_DIR, "config_gui.py");
-  const pythonPath = path.join(process.env.USERPROFILE || "C:/Users/default", "AppData", "Local", "Python", "bin", "python.exe");
-  const py = fs.existsSync(pythonPath) ? pythonPath : "python";
+  // 使用内嵌 Python（无需系统安装）
+  let py = path.join(MONITOR_DIR, "..", "python3.13.3", "python.exe");
+  if (!fs.existsSync(py)) py = "python";
   const child = require("child_process");
   child.exec(`"${py}" "${guiScript}"`, (err, stdout, stderr) => {
     if (err) {

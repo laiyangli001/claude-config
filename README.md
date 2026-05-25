@@ -42,7 +42,9 @@ dir              # Windows 查看文件列表
 | **MCP 免费工具** | `mcp-servers/mcp-chatgpt-mirror/` | ChatGPT 镜像站，不消耗 API token |
 | | `mcp-servers/mcp-chatgpt-official/` | ChatGPT 官方站，不消耗 API token |
 | | `mcp-servers/mcp-deepseek/` | DeepSeek 网页版，不消耗 API token |
+| | `mcp-servers/mcp-doubao/` | 豆包 AI，支持图片/文档识别、PPT 生成 |
 | **死循环监控** | `mcp-servers/deadloop-monitor/` | 检测输出死循环 → AutoIt 打断 → 摘要求助 |
+| **内嵌 Python** | `mcp-servers/python3.13.3/` | 嵌入式 Python，无需系统安装，供 GUI 配置界面使用 |
 | **会话数据** | `projects/**/*.jsonl` | 对话记录（git 排除，不上传） |
 | **跨对话记忆** | `projects/<slug>/memory/` | 持久化的用户偏好和项目上下文 |
 
@@ -98,7 +100,9 @@ copy ~/.claude\settings.json.example ~\.claude\settings.json
     "allow": [
       "mcp__chatgpt-mirror__ask_chatgpt_mirror",
       "mcp__chatgpt-official__ask_chatgpt_official",
-      "mcp__deepseek__ask_deepseek"
+      "mcp__deepseek__ask_deepseek",
+      "mcp__doubao__ask_doubao",
+      "mcp__doubao__download_doubao_file"
     ]
   }
 }
@@ -201,6 +205,8 @@ cd ~/.claude && git pull
 | `ask_chatgpt_mirror` | `mcp-chatgpt-mirror` | ChatGPT 镜像站 2233.ai，优先使用 |
 | `ask_chatgpt_official` | `mcp-chatgpt-official` | ChatGPT 官方站 chatgpt.com，需 VPN |
 | `ask_deepseek` | `mcp-deepseek` | DeepSeek 网页版，国内直连 |
+| `ask_doubao` | `mcp-doubao` | 豆包 AI，图片/文档识别、PPT 生成、Excel 表格 |
+| `download_doubao_file` | `mcp-doubao` | 下载豆包生成的 PPT/Excel 文件 |
 
 
 
@@ -209,20 +215,17 @@ cd ~/.claude && git pull
 ```
 ~/.claude/mcp-servers/
 ├── mcp-chatgpt-mirror/   # ChatGPT 镜像站
-│   ├── src/index.ts      # MCP 服务入口
-│   └── dist/index.js
 ├── mcp-chatgpt-official/ # ChatGPT 官方站
-│   ├── src/index.ts
-│   └── dist/index.js
 ├── mcp-deepseek/         # DeepSeek 网页版
-│   ├── src/index.ts
-│   └── dist/index.js
-├── shared/               # 共享模块（三服务共用）
+├── mcp-doubao/           # 豆包 AI（图片识别/PPT 生成）
+├── deadloop-monitor/     # 死循环监控
+├── shared/               # 共享模块（四服务共用）
 │   ├── browser.mjs       # 浏览器生命周期
 │   ├── answer.mjs        # 回答检测/提取
 │   ├── upload.mjs        # 文件上传
 │   └── role.mjs          # 角色模板
-├── node_modules/          # 依赖（三服务共用）
+├── python3.13.3/          # 内嵌 Python（GUI 配置界面）
+├── node_modules/          # 依赖（四服务共用）
 ├── install-mcp-deps.bat  # 一键安装
 └── install-mcp-config.mjs # 自动注册 MCP 配置
 ```
@@ -255,12 +258,12 @@ pause
 
 首次调用任意 MCP 工具时，Playwright 会自动弹出 Chromium 浏览器窗口：
 
-1. 在弹出窗口中 **手动登录** 对应服务（ChatGPT / DeepSeek）
+1. 在弹出窗口中 **手动登录** 对应服务（ChatGPT / DeepSeek / 豆包）
 2. 登录完成后 **关闭浏览器窗口**，session 会自动保存到独立的浏览器配置文件中
 3. 后续调用不再需要重新登录，直接复用已保存的会话
 
-> 注意：三个服务使用独立的浏览器配置文件，需要分别登录一次。
-> 若需隐藏浏览器窗口（无人值守场景），在 `settings.json` 的 `env` 中设置 `"CHATGPT_HEADLESS": "true"` 或 `"DEEPSEEK_HEADLESS": "true"`。
+> 注意：四个服务使用独立的浏览器配置文件，需要分别登录一次。
+> 若需隐藏浏览器窗口（无人值守场景），在 `settings.json` 的 `env` 中设置 `"CHATGPT_HEADLESS": "true"`、`"DEEPSEEK_HEADLESS": "true"` 或 `"DOUBAO_HEADLESS": "true"`。
 
 #### 提示词模板（代码审查专用），一定要找AI大模型帮你写
 
@@ -302,7 +305,22 @@ pause
 
 #### 角色模板文件
 
-> [待补充：用户提供的角色模板格式说明]
+角色模板存放在 `mcp-servers/roles/` 目录下，每个文件是一个 `.md` 文件，文件名即为角色名（如 `python_tutor.md` → 角色名 `python_tutor`）。
+
+调用时通过 `role` 参数传入角色名：
+
+```javascript
+askChatGPT(question, attachments, "python_tutor")
+```
+
+目前已预置的角色：
+
+| 角色名 | 适用场景 |
+|--------|----------|
+| `python_tutor` | Python 代码审查、教学、调试（Django/Flask/数据分析） |
+| `nodejs_tutor` | Node.js/TypeScript/前端代码审查、教学、调试 |
+
+角色模板文件格式示例：[python_tutor.md](mcp-servers/roles/python_tutor.md)
 
 ---
 
@@ -449,12 +467,12 @@ cmd //c "@C:\Users\<用户名>\.claude\Aut2Exe\Aut2exe_x64.exe /in "C:\full\path
 
 1. **监控阶段** — 死循环监控持续扫描 `.jsonl` 日志
 2. **检测到死循环** → `deadloop_control.exe esc` 打断输出 → 确认停止（扫描 `stop_reason: "end_turn"`）
-3. **注入求助指令** → `inject_file` 将预置的摘要生成指令粘贴到 Claude Code 输入框并自动提交 → 收到注入消息后，Claude Code 自动调用 `ask_chatgpt` 发送问题
-4. **获取外部答案** → ChatGPT 网页版返回代码审查结果或修复建议 → Claude Code 按返回内容修改代码
+3. **注入求助指令** → `inject_file` 将预置的摘要生成指令粘贴到 Claude Code 输入框并自动提交 → 收到注入消息后，Claude Code 自动调用 MCP 工具（`ask_chatgpt_mirror` / `ask_deepseek` / `ask_doubao`）发送问题
+4. **获取外部答案** → AI 网页版返回代码审查结果或修复建议 → Claude Code 按返回内容修改代码
 5. **冷却恢复** → 10 秒冷却后继续监控
 
 #### 配置要点
 
-- 确保 `settings.json` 中 `permissions.allow` 包含 `mcp__chatgpt-mirror__ask_chatgpt_mirror`、`mcp__chatgpt-official__ask_chatgpt_official` 和 `mcp__deepseek__ask_deepseek`
+- 确保 `settings.json` 中 `permissions.allow` 包含所有 MCP 工具：`mcp__chatgpt-mirror__ask_chatgpt_mirror`、`mcp__chatgpt-official__ask_chatgpt_official`、`mcp__deepseek__ask_deepseek`、`mcp__doubao__ask_doubao`、`mcp__doubao__download_doubao_file`
 - 死循环监控的 `config.mjs` 中的冷却时间、触发阈值可根据工作节奏调整
 - 若需长期无人值守，将 `CHATGPT_HEADLESS=true` 设为隐藏浏览器模式（但首次仍需登录）
