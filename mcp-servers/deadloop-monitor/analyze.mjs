@@ -22,7 +22,7 @@ const RE_PATTERN = buildReversalPattern();
 // ── 自动发现会话文件（同 monitor.mjs 逻辑）──
 function autoDiscoverSessionFile(wsPath) {
   if (!wsPath) return "";
-  const slug = wsPath.replace(/[:\\/.]/g, '-').toLowerCase();
+  const slug = wsPath.replace(/[:\\\/._]/g, '-').toLowerCase();
   const sessionDir = path.join(
     process.env.HOME || process.env.USERPROFILE,
     ".claude", "projects", slug

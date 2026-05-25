@@ -297,7 +297,7 @@ def analyze_sequence(
 def auto_discover_session_file(ws_path: str) -> str:
     if not ws_path:
         return ""
-    slug = ws_path.replace(":", "-").replace("\\", "-").replace("/", "-").replace(".", "-").lower()
+    slug = ws_path.replace(":", "-").replace("\\", "-").replace("/", "-").replace(".", "-").replace("_", "-").lower()
     session_dir = os.path.join(os.environ.get("USERPROFILE", os.environ.get("HOME", "")),
                                ".claude", "projects", slug)
     if os.path.isdir(session_dir):

@@ -91,7 +91,7 @@ function autoDiscoverSessionFile() {
   // 用传入的工作区路径匹配 projects 子目录
   const wsPath = process.argv[2] || process.cwd();
   if (wsPath) {
-    const slug = wsPath.replace(/[:\\/.]/g, '-').toLowerCase();
+    const slug = wsPath.replace(/[:\\\/._]/g, '-').toLowerCase();
     const sessionDir = path.join(
       process.env.HOME || process.env.USERPROFILE,
       ".claude", "projects", slug

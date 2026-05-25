@@ -508,7 +508,7 @@ function activate(context) {
   };
 
   statusBar.registerCommands(context, commands);
-  const slug = wsPath.replace(/[:\\/.]/g, '-').toLowerCase();
+  const slug = wsPath.replace(/[:\\\/._]/g, '-').toLowerCase();
   statusBar.updateState({
     workspace: wsPath,
     file: slug,
