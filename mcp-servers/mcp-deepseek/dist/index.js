@@ -107,6 +107,7 @@ async function askFree(question, attachments, role) {
         await uploadFiles(pg, attachments);
     const q = (question || "Please analyze this file").trim();
     const needC = !EXPLAIN_ONLY_RE.test(q) && CODE_MODIFY_RE.test(q);
+    await showToast(pg, "📤 发送中...");
     await typeAndSend(pg, q + (needC ? CONSTRAINTS : ""));
     if (!HEADLESS)
         await pg.bringToFront();
