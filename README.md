@@ -236,11 +236,12 @@ cd ~/.claude && git pull
 
 ```batch
 @echo off
-echo Installing MCP dependencies...
-cd /d "%~dp0" && npm install playwright @modelcontextprotocol/sdk typescript @types/node
+echo [1/2] Installing Chromium browser for Playwright...
+cd /d "%~dp0"
 npx playwright install chromium
-echo All MCP dependencies installed.
-cd /d "%~dp0" && node install-mcp-config.mjs
+echo [2/2] Registering MCP server config...
+node install-mcp-config.mjs
+echo Done! Please Reload Window (Ctrl+Shift+P -> Reload Window).
 pause
 ```
 
@@ -249,8 +250,8 @@ pause
 **注意事项：**
 
 - Chromium 浏览器约 300MB，首次安装需要较长时间（视网速 5-30 分钟）。
-- 三个服务共用同一份 Chromium 和 `node_modules/`，只安装一次。
-- `node_modules/` 已被 `.gitignore` 排除，不会上传到 GitHub。
+- `node_modules/` 和 `python3.13.3/` 已直接入仓，clone 后无需额外安装依赖。
+- 四个服务共用同一份 Chromium。
 
 > 💡 也可以直接对我说"**帮我安装 MCP 依赖**"，AI 会自动完成以上安装步骤。
 
@@ -367,11 +368,10 @@ pause
 
 **安装步骤：**
 
-1. **安装依赖** — 运行 `install-deadloop.bat`，或在终端手动执行：
+1. **安装扩展** — 运行 `install-deadloop.bat`，或在终端手动执行：
 
 ```bash
 cd ~/.claude/mcp-servers/deadloop-monitor
-npm install
 node install-extension.mjs
 ```
 
