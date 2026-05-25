@@ -257,10 +257,12 @@ dir</code></pre>
         <tr><th>组件</th><th>路径</th><th>说明</th></tr>
         <tr><td><strong>全局 CLAUDE.md</strong></td><td><code>CLAUDE.md</code></td><td>身份定义、行为边界、工具规则</td></tr>
         <tr><td><strong>设置</strong></td><td><code>settings.json</code></td><td>API 端点、模型、权限</td></tr>
-        <tr><td><strong>MCP 免费工具</strong></td><td><code>mcp-servers/chatgpt-mcp/</code></td><td>ChatGPT 网页版，不消耗 API token</td></tr>
-        <tr><td></td><td><code>mcp-servers/deepseek-mcp/</code></td><td>DeepSeek 网页版，不消耗 API token</td></tr>
+        <tr><td><strong>MCP 免费工具</strong></td><td><code>mcp-servers/mcp-chatgpt-mirror/</code></td><td>ChatGPT 镜像站，不消耗 API token</td></tr>
+        <tr><td></td><td><code>mcp-servers/mcp-chatgpt-official/</code></td><td>ChatGPT 官方站，不消耗 API token</td></tr>
+        <tr><td></td><td><code>mcp-servers/mcp-deepseek/</code></td><td>DeepSeek 网页版，不消耗 API token</td></tr>
+        <tr><td></td><td><code>mcp-servers/mcp-doubao/</code></td><td>豆包 AI，图片/文档识别、PPT 生成</td></tr>
         <tr><td><strong>死循环监控</strong></td><td><code>mcp-servers/deadloop-monitor/</code></td><td>输出死循环检测 → AutoIt 打断 → 摘要求助</td></tr>
-        <tr><td><strong>会话数据</strong></td><td><code>projects/**/*.jsonl</code></td><td>对话记录（git 排除，不上传）</td></tr>
+        <tr><td><strong>内嵌 Python</strong></td><td><code>mcp-servers/python3.13.3/</code></td><td>嵌入式 Python，无需系统安装，供 GUI 使用</td></tr>
         <tr><td><strong>跨对话记忆</strong></td><td><code>projects/&lt;slug&gt;/memory/</code></td><td>持久化的用户偏好和项目上下文</td></tr>
       </table>
     </div>
@@ -302,8 +304,11 @@ dir</code></pre>
   "effortLevel": "high",
   "permissions": {
     "allow": [
-      "mcp__chatgpt__ask_chatgpt",
-      "mcp__deepseek__ask_deepseek"
+      "mcp__chatgpt-mirror__ask_chatgpt_mirror",
+      "mcp__chatgpt-official__ask_chatgpt_official",
+      "mcp__deepseek__ask_deepseek",
+      "mcp__doubao__ask_doubao",
+      "mcp__doubao__download_doubao_file"
     ]
   }
 }</code></pre>
@@ -364,7 +369,6 @@ git push</code></pre>
       <p><strong>自动排除的内容（已在 .gitignore 中配置）：</strong></p>
       <ul>
         <li><code>settings.json</code>（含 API token，需手动复制）</li>
-        <li><code>node_modules/</code>（各设备自行 npm install）</li>
         <li><code>projects/**/*.jsonl</code>（对话记录，不跨设备共享）</li>
         <li>运行时标记文件（<code>.deadloop-*</code>, <code>*.heartbeat</code>）</li>
       </ul>
@@ -377,22 +381,27 @@ git push</code></pre>
 
 <!-- ============ Section 2: MCP 免费工具 ============ -->
 <div class="section" id="s2">
-  <h2><span class="icon" style="background:rgba(34,197,94,0.2);">🤖</span> MCP 免费工具：ask_chatgpt &amp; ask_deepseek</h2>
+  <h2><span class="icon" style="background:rgba(34,197,94,0.2);">🤖</span> MCP 免费工具：四合一</h2>
 
-  <p>这两个 MCP 服务分别调用 ChatGPT 网页版和 DeepSeek 网页版，不消耗 API token，适合复杂代码审查、长文本分析、联网查资料等场景。</p>
-
-  <div class="highlight">
-    <strong>💡 说明：</strong> <code>ask_chatgpt</code> 通过 <code>target</code> 参数统一支持镜像站（<code>"mirror"</code>）和官方站（<code>"official"</code>），无需独立的 mirror MCP 服务。默认先尝试第三方镜像，再尝试官方网站。
-  </div>
+  <p>四个独立 MCP 服务，分别调用 ChatGPT 镜像站、ChatGPT 官方站、DeepSeek 网页版和豆包 AI，不消耗 API token，适合复杂代码审查、长文本分析、联网查资料、图片识别等场景。</p>
 
   <div class="service-grid">
     <div class="service-card" onclick="this.classList.toggle('active')">
       <span class="tag tag-primary">✨ 优先使用</span>
-      <h3>ask_chatgpt</h3>
-      <p>ChatGPT 网页版 · target 参数支持 official / mirror</p>
+      <h3>ask_chatgpt_mirror</h3>
+      <p>ChatGPT 镜像站 2233.ai</p>
       <div class="detail">
         <p>自动打开 Chromium 浏览器 → 手动登录 → session 自动保存 → 后续免登录</p>
-        <p>支持 target="official"（chatgpt.com）和 target="mirror"（镜像站）</p>
+        <p>国内网络可直接访问，无需 VPN</p>
+      </div>
+    </div>
+    <div class="service-card" onclick="this.classList.toggle('active')">
+      <span class="tag tag-green">🔄 备用</span>
+      <h3>ask_chatgpt_official</h3>
+      <p>ChatGPT 官方站 chatgpt.com</p>
+      <div class="detail">
+        <p>自动打开 Chromium 浏览器 → 手动登录 → session 自动保存 → 后续免登录</p>
+        <p>需要 VPN 访问</p>
       </div>
     </div>
     <div class="service-card" onclick="this.classList.toggle('active')">
@@ -404,31 +413,50 @@ git push</code></pre>
         <p>国内网络可直接访问，无需 VPN</p>
       </div>
     </div>
+    <div class="service-card" onclick="this.classList.toggle('active')">
+      <span class="tag tag-green">🖼️ 视觉</span>
+      <h3>ask_doubao</h3>
+      <p>豆包 AI · 图片/文档识别、PPT 生成</p>
+      <div class="detail">
+        <p>自动打开 Chromium 浏览器 → 手动登录豆包 → session 自动保存 → 后续免登录</p>
+        <p>支持图片识别、PPT 生成、Excel 表格处理</p>
+        <p>使用 <code>download_doubao_file</code> 工具下载生成的文件</p>
+      </div>
+    </div>
   </div>
 
   <h3>文件结构</h3>
   <pre><code>~/.claude/mcp-servers/
-├── chatgpt-mcp/          # ChatGPT 官方站
-│   ├── server.js         # MCP 服务入口
-│   ├── package.json
-│   └── node_modules/
-├── deepseek-mcp/         # DeepSeek 网页版
-│   ├── server.js
-│   └── ...</code></pre>
+├── mcp-chatgpt-mirror/   # ChatGPT 镜像站
+├── mcp-chatgpt-official/ # ChatGPT 官方站
+├── mcp-deepseek/         # DeepSeek 网页版
+├── mcp-doubao/           # 豆包 AI（图片识别/PPT 生成）
+├── deadloop-monitor/     # 死循环监控
+├── shared/               # 共享模块（四服务共用）
+│   ├── browser.mjs       # 浏览器生命周期
+│   ├── answer.mjs        # 回答检测/提取
+│   ├── upload.mjs        # 文件上传
+│   └── role.mjs          # 角色模板
+├── python3.13.3/          # 内嵌 Python（GUI 配置界面）
+├── node_modules/          # 依赖（四服务共用）
+├── install-mcp-deps.bat  # 一键安装
+└── install-mcp-config.mjs # 自动注册 MCP 配置</code></pre>
 
-  <h3>一键安装依赖（批处理）</h3>
-  <p>在 <code>~/.claude/</code> 目录下创建 <code>install-mcp-deps.bat</code>：</p>
+  <h3>一键安装（批处理）</h3>
+  <p>在 <code>~/.claude/</code> 目录下双击 <code>install-mcp-deps.bat</code>：</p>
   <pre><code>@echo off
-echo Installing MCP dependencies...
-cd /d "%~dp0mcp-servers\chatgpt-mcp" && npm install && npx playwright install chromium
-cd /d "%~dp0mcp-servers\deepseek-mcp" && npm install && npx playwright install chromium
-echo All MCP dependencies installed.
+echo [1/2] Installing Chromium browser for Playwright...
+cd /d "%~dp0"
+npx playwright install chromium
+echo [2/2] Registering MCP server config...
+node install-mcp-config.mjs
+echo Done! Please Reload Window (Ctrl+Shift+P -> Reload Window).
 pause</code></pre>
   <p><strong>运行方式：</strong>右键 → <strong>以管理员身份运行</strong>（或双击运行）。</p>
   <ul style="color:#cbd5e1;font-size:0.95em;padding-left:20px;">
-    <li>每个服务安装 Chromium 浏览器约 300MB，总下载量约 600MB</li>
-    <li>如果中途失败，可以单独执行对应服务的安装命令重试</li>
-    <li><code>node_modules/</code> 已被 .gitignore 排除，不会上传到 GitHub</li>
+    <li>Chromium 浏览器约 300MB，首次安装需要较长时间（视网速 5-30 分钟）</li>
+    <li><code>node_modules/</code> 和 <code>python3.13.3/</code> 已直接入仓，clone 后无需额外安装依赖</li>
+    <li>四个服务共用同一份 Chromium</li>
   </ul>
   <div class="highlight">
     💡 也可以直接对我说 <strong>"帮我安装 MCP 依赖"</strong>，AI 会自动完成以上安装步骤。
@@ -438,11 +466,11 @@ pause</code></pre>
   <div class="step-list">
     <div class="step-card">
       <h3>手动登录</h3>
-      <p>在弹出窗口中手动登录对应服务（ChatGPT / DeepSeek）</p>
+      <p>在弹出窗口中手动登录对应服务（ChatGPT 镜像站 / ChatGPT 官方站 / DeepSeek / 豆包）</p>
     </div>
     <div class="step-card">
       <h3>关闭窗口</h3>
-      <p>登录完成后关闭浏览器窗口，session 自动保存</p>
+      <p>登录完成后关闭浏览器窗口，session 自动保存到独立配置文件中</p>
     </div>
     <div class="step-card">
       <h3>后续复用</h3>
@@ -450,18 +478,50 @@ pause</code></pre>
     </div>
   </div>
   <div class="highlight">
-    <strong>注意：</strong>两个服务使用独立的浏览器配置文件，需要分别登录一次。<br>
-    若需隐藏浏览器窗口（无人值守场景），在 settings.json 的 env 中设置 <code>"CHATGPT_HEADLESS": "true"</code>。
+    <strong>注意：</strong>四个服务使用独立的浏览器配置文件，需要分别登录一次。<br>
+    若需隐藏浏览器窗口（无人值守场景），在 settings.json 的 env 中设置 <code>"CHATGPT_HEADLESS": "true"</code>、<code>"DEEPSEEK_HEADLESS": "true"</code> 或 <code>"DOUBAO_HEADLESS": "true"</code>。
   </div>
 
   <h3>提示词模板（代码审查专用）</h3>
-  <div class="highlight">
-    <strong>[待补充：用户提供的提示词模板]</strong>
-  </div>
+  <pre><code># 代码审查请求
+
+请对以下代码进行全面的代码审查。请遵循以下要求：
+
+## 一、代码背景（请根据实际情况填写）
+- **代码语言**：[如 Python / TypeScript / Go / Rust]
+- **功能简介**：[用一两句话说明代码的作用]
+- **审查重点**：[可选：性能 / 安全性 / 可维护性 / 边界条件 / 并发安全]
+
+## 二、输出格式要求
+请按以下结构输出审查结果：
+1. **总体评价**（简短总结，2-3 句）
+2. **具体问题列表**（按严重程度从高到低排序）- 问题描述- 位置（行号/函数名）- 影响- 建议修复方式
+3. **优化建议**（非必须但能提升质量）
+
+## 三、审查维度（请全部覆盖）
+- **正确性与逻辑**：是否存在潜在的逻辑漏洞、条件遗漏、边界未处理？
+- **错误处理**：异常是否被捕获？错误信息是否有用？资源是否释放？
+- **性能**：有无不必要的循环、重复计算、IO 阻塞？算法复杂度是否合理？
+- **安全性**：是否存在注入风险（SQL/命令）、敏感信息泄露、权限绕过？
+- **可维护性**：命名是否清晰？函数是否过长？有无重复代码？注释是否恰当？
+- **测试性**：代码是否易于测试？依赖是否可注入？
+
+## 四、特殊要求
+- 如果发现**死循环**或**无限递归**的风险，请明确指出并给出检测方法。
+- 如果代码涉及并发（多线程/异步），请审查竞态条件和死锁风险。
+- 对于不安全的操作（如 eval、exec、直接拼接用户输入）给出警告。</code></pre>
 
   <h3>角色模板文件</h3>
+  <p>角色模板存放在 <code>mcp-servers/roles/</code> 目录下，每个文件是一个 <code>.md</code> 文件，文件名即为角色名（如 <code>python_tutor.md</code> → 角色名 <code>python_tutor</code>）。</p>
+  <p>调用时通过 <code>role</code> 参数传入角色名：</p>
+  <pre><code>askChatGPT(question, attachments, "python_tutor")</code></pre>
+  <table>
+    <tr><th>角色名</th><th>适用场景</th></tr>
+    <tr><td><code>python_tutor</code></td><td>Python 代码审查、教学、调试（Django/Flask/数据分析）</td></tr>
+    <tr><td><code>nodejs_tutor</code></td><td>Node.js/TypeScript/前端代码审查、教学、调试</td></tr>
+  </table>
   <div class="highlight">
-    <strong>[待补充：用户提供的角色模板格式说明]</strong>
+    💡 也可以直接对我说 <strong>"帮我配置 settings.json"</strong>，AI 会自动从模板复制并引导你填写关键字段。
   </div>
 </div>
 
@@ -486,12 +546,10 @@ pause</code></pre>
 └── install-extension.mjs      # 扩展安装脚本</code></pre>
 
   <h3>一键安装（批处理）</h3>
-  <p>创建 <code>install-deadloop.bat</code>：</p>
+  <p>运行 <code>install-deadloop.bat</code>：</p>
   <pre><code>@echo off
-echo Installing deadloop monitor dependencies...
+echo [1/1] Installing deadloop VS Code extension...
 cd /d "%~dp0mcp-servers\deadloop-monitor"
-npm install
-echo Extension installation...
 node install-extension.mjs
 echo Done. Please reload VS Code window (Ctrl+Shift+P -> Reload Window).
 pause</code></pre>
@@ -502,10 +560,9 @@ pause</code></pre>
   <h3>扩展安装与界面</h3>
   <div class="step-list">
     <div class="step-card">
-      <h3>安装依赖</h3>
+      <h3>安装扩展</h3>
       <p>运行 <code>install-deadloop.bat</code>，或在终端手动执行：</p>
       <pre><code>cd ~/.claude/mcp-servers/deadloop-monitor
-npm install
 node install-extension.mjs</code></pre>
     </div>
     <div class="step-card">
@@ -602,11 +659,11 @@ node install-extension.mjs</code></pre>
     </div>
     <div class="step-card">
       <h3>注入求助指令</h3>
-      <p><code>inject_file</code> 将预置的摘要生成指令粘贴到 Claude Code 输入框并自动提交 → 收到注入消息后，Claude Code 自动调用 <code>ask_chatgpt</code> 发送问题</p>
+      <p><code>inject_file</code> 将预置的摘要生成指令粘贴到 Claude Code 输入框并自动提交 → 收到注入消息后，Claude Code 自动调用 MCP 工具（<code>ask_chatgpt_mirror</code> / <code>ask_deepseek</code> / <code>ask_doubao</code>）发送问题</p>
     </div>
     <div class="step-card">
       <h3>获取外部答案</h3>
-      <p>ChatGPT 网页版返回代码审查结果或修复建议 → Claude Code 按返回内容修改代码</p>
+      <p>AI 网页版返回代码审查结果或修复建议 → Claude Code 按返回内容修改代码</p>
     </div>
     <div class="step-card">
       <h3>冷却恢复</h3>
@@ -616,7 +673,7 @@ node install-extension.mjs</code></pre>
 
   <h3>配置要点</h3>
   <ul style="color:#cbd5e1;font-size:0.95em;padding-left:20px;">
-    <li>确保 settings.json 中 permissions.allow 包含 <code>mcp__chatgpt__ask_chatgpt</code> 和 <code>mcp__deepseek__ask_deepseek</code></li>
+    <li>确保 settings.json 中 permissions.allow 包含所有 MCP 工具：<code>mcp__chatgpt-mirror__ask_chatgpt_mirror</code>、<code>mcp__chatgpt-official__ask_chatgpt_official</code>、<code>mcp__deepseek__ask_deepseek</code>、<code>mcp__doubao__ask_doubao</code>、<code>mcp__doubao__download_doubao_file</code></li>
     <li>死循环监控的 <code>config.mjs</code> 中的冷却时间、触发阈值可根据工作节奏调整</li>
     <li>若需长期无人值守，将 <code>CHATGPT_HEADLESS=true</code> 设为隐藏浏览器模式（但首次仍需登录）</li>
   </ul>
@@ -639,15 +696,15 @@ node install-extension.mjs</code></pre>
       <span>"Failed to launch browser" 错误</span>
       <span class="arrow">▼</span>
     </div>
-    <div class="faq-a">Playwright Chromium 没有正确安装。手动运行：<br><code>cd ~/.claude/mcp-servers/chatgpt-mcp && npx playwright install chromium</code></div>
+    <div class="faq-a">Playwright Chromium 没有正确安装。手动运行：<br><code>cd ~/.claude/mcp-servers && npx playwright install chromium</code></div>
   </div>
 
   <div class="faq-item" onclick="toggleFaq(this)">
     <div class="faq-q">
-      <span>ask_chatgpt 报 "Page crashed"</span>
+      <span>MCP 工具报 "Page crashed"</span>
       <span class="arrow">▼</span>
     </div>
-    <div class="faq-a">常见原因：1) 无法访问目标站点（尝试切换 target 参数）；2) 浏览器配置目录被锁定（结束所有 Chrome 进程后重试）。</div>
+    <div class="faq-a">常见原因：1) 无法访问目标站点（国内访问官方站需 VPN，尝试切换镜像站）；2) 浏览器配置目录被锁定（结束所有 Chrome 进程后重试）。</div>
   </div>
 
   <div class="faq-item" onclick="toggleFaq(this)">
@@ -697,7 +754,7 @@ install-deadloop.bat</code></pre>
 </div>
 
 <footer style="text-align:center;padding:40px 0 20px;color:#475569;font-size:0.85em;">
-  <p>基于 README.md 最新内容生成 · 2026-05-22</p>
+  <p>基于 README.md 最新内容生成 · 2026-05-26</p>
 </footer>
 
 </div>
