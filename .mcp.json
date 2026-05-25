@@ -1,0 +1,36 @@
+{
+  "mcpServers": {
+    "deepseek": {
+      "command": "cmd",
+      "args": [
+        "/c",
+        "node",
+        "c:/Users/LaiYangLi/.claude/mcp-servers/mcp-deepseek/dist/index.js"
+      ]
+    },
+    "chatgpt-mirror": {
+      "command": "cmd",
+      "args": [
+        "/c",
+        "node",
+        "c:/Users/LaiYangLi/.claude/mcp-servers/mcp-chatgpt-mirror/dist/index.js"
+      ]
+    },
+    "chatgpt-official": {
+      "command": "cmd",
+      "args": [
+        "/c",
+        "node",
+        "c:/Users/LaiYangLi/.claude/mcp-servers/mcp-chatgpt-official/dist/index.js"
+      ]
+    },
+    "doubao": {
+      "command": "cmd",
+      "args": [
+        "/c",
+        "node",
+        "c:/Users/LaiYangLi/.claude/mcp-servers/mcp-doubao/dist/index.js"
+      ]
+    }
+  }
+}
