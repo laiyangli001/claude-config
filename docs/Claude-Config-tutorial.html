@@ -440,7 +440,7 @@ git push</code></pre>
 ├── python3.13.3/          # 内嵌 Python（GUI 配置界面）
 ├── node_modules/          # 依赖（四服务共用）
 ├── install-mcp-deps.bat  # 一键安装
-└── install-mcp-config.mjs # 自动注册 MCP 配置</code></pre>
+└── install-mcp-config.mjs # 注册 MCP 配置 → 写入 ~/.claude.json</code></pre>
 
   <h3>一键安装（批处理）</h3>
   <p>在 <code>~/.claude/</code> 目录下双击 <code>install-mcp-deps.bat</code>：</p>
@@ -462,7 +462,27 @@ pause</code></pre>
     💡 也可以直接对我说 <strong>"帮我安装 MCP 依赖"</strong>，AI 会自动完成以上安装步骤。
   </div>
 
-  <h3>首次使用与登录</h3>
+    <h3>MCP 配置文件说明</h3>
+    <p>Claude Code 通过两个配置文件加载 MCP 服务：</p>
+    <table>
+      <tr><th>配置文件</th><th>位置</th><th>优先级</th><th>说明</th></tr>
+      <tr><td><strong>.claude.json</strong></td><td><code>~/.claude.json</code>（用户家目录）</td><td><strong>高（主要）</strong></td><td><code>install-mcp-config.mjs</code> 写入此文件，始终被 Claude Code 加载</td></tr>
+      <tr><td><code>.mcp.json</code></td><td><code>~/.claude/.mcp.json</code></td><td>低（次要）</td><td>本地参考副本，某些工作区可能不自动加载</td></tr>
+    </table>
+    <div class="highlight">
+      <strong>关键逻辑：</strong><br>
+      • <code>~/.claude.json</code> 是 MCP 服务注册的<strong>主要配置文件</strong>，<code>install-mcp-config.mjs</code> 自动将四个服务的启动路径写入此文件<br>
+      • <code>.mcp.json</code> 是本仓库内的参考副本，实际运行时不一定被 Claude Code 读取<br>
+      • 仓库克隆后必须执行 <code>install-mcp-deps.bat</code>（或 <code>node install-mcp-config.mjs</code>）将 MCP 配置写入 <code>~/.claude.json</code>
+    </div>
+    <div class="highlight">
+      <strong>切换工作区的注意事项：</strong><br>
+      • MCP 服务路径由 <code>~/.claude.json</code> 决定，与当前 VSCode 工作区无关<br>
+      • 如果切换工作区后某 MCP 服务无法调用，优先检查 <code>~/.claude.json</code> 中的 <code>mcpServers</code> 配置是否完整<br>
+      • 四个服务的启动命令都使用绝对路径（<code>c:/Users/&lt;用户名&gt;/.claude/mcp-servers/...</code>），不依赖工作区路径
+    </div>
+
+    <h3>首次使用与登录</h3>
   <div class="step-list">
     <div class="step-card">
       <h3>手动登录</h3>
@@ -482,47 +502,17 @@ pause</code></pre>
     若需隐藏浏览器窗口（无人值守场景），在 settings.json 的 env 中设置 <code>"CHATGPT_HEADLESS": "true"</code>、<code>"DEEPSEEK_HEADLESS": "true"</code> 或 <code>"DOUBAO_HEADLESS": "true"</code>。
   </div>
 
-  <h3>提示词模板（代码审查专用）</h3>
-  <pre><code># 代码审查请求
-
-请对以下代码进行全面的代码审查。请遵循以下要求：
-
-## 一、代码背景（请根据实际情况填写）
-- **代码语言**：[如 Python / TypeScript / Go / Rust]
-- **功能简介**：[用一两句话说明代码的作用]
-- **审查重点**：[可选：性能 / 安全性 / 可维护性 / 边界条件 / 并发安全]
-
-## 二、输出格式要求
-请按以下结构输出审查结果：
-1. **总体评价**（简短总结，2-3 句）
-2. **具体问题列表**（按严重程度从高到低排序）- 问题描述- 位置（行号/函数名）- 影响- 建议修复方式
-3. **优化建议**（非必须但能提升质量）
-
-## 三、审查维度（请全部覆盖）
-- **正确性与逻辑**：是否存在潜在的逻辑漏洞、条件遗漏、边界未处理？
-- **错误处理**：异常是否被捕获？错误信息是否有用？资源是否释放？
-- **性能**：有无不必要的循环、重复计算、IO 阻塞？算法复杂度是否合理？
-- **安全性**：是否存在注入风险（SQL/命令）、敏感信息泄露、权限绕过？
-- **可维护性**：命名是否清晰？函数是否过长？有无重复代码？注释是否恰当？
-- **测试性**：代码是否易于测试？依赖是否可注入？
-
-## 四、特殊要求
-- 如果发现**死循环**或**无限递归**的风险，请明确指出并给出检测方法。
-- 如果代码涉及并发（多线程/异步），请审查竞态条件和死锁风险。
-- 对于不安全的操作（如 eval、exec、直接拼接用户输入）给出警告。</code></pre>
-
-  <h3>角色模板文件</h3>
-  <p>角色模板存放在 <code>mcp-servers/roles/</code> 目录下，每个文件是一个 <code>.md</code> 文件，文件名即为角色名（如 <code>python_tutor.md</code> → 角色名 <code>python_tutor</code>）。</p>
-  <p>调用时通过 <code>role</code> 参数传入角色名：</p>
-  <pre><code>askChatGPT(question, attachments, "python_tutor")</code></pre>
+  <h3>提示词模板</h3>
+  <p>模板文件存放在 <code>mcp-servers/shared/templates/</code> 目录下，以 <code>.md</code> 格式存储，可通过 <code>/mcp-baipiao</code> skill 自动加载。当前已预置模板：</p>
   <table>
-    <tr><th>角色名</th><th>适用场景</th></tr>
-    <tr><td><code>python_tutor</code></td><td>Python 代码审查、教学、调试（Django/Flask/数据分析）</td></tr>
-    <tr><td><code>nodejs_tutor</code></td><td>Node.js/TypeScript/前端代码审查、教学、调试</td></tr>
+    <tr><th>模板</th><th>文件名</th><th>适用场景</th></tr>
+    <tr><td>代码审查</td><td><code>code_review.md</code></td><td>Python/JS/TS 等代码审查，含角色设定、分析维度、输出格式</td></tr>
+    <tr><td>视觉分析</td><td><code>vision_analysis.md</code></td><td>界面截图/UI Bug 分析，支持点阵归一化坐标</td></tr>
+    <tr><td>长文本</td><td><code>long_text.md</code></td><td>长文档/日志总结</td></tr>
+    <tr><td>批量任务</td><td><code>batch_task.md</code></td><td>批量格式化/生成/转换</td></tr>
+    <tr><td>格式化</td><td><code>format_task.md</code></td><td>纯文本整理/代码高亮等</td></tr>
   </table>
-  <div class="highlight">
-    💡 也可以直接对我说 <strong>"帮我配置 settings.json"</strong>，AI 会自动从模板复制并引导你填写关键字段。
-  </div>
+  <p>模板中支持变量插值：<code>{{user_concern}}</code>（关注点）、<code>{{file_name}}</code>（文件名）。<code>/mcp-baipiao</code> 调用时自动完成替换。</p>
 </div>
 
 <!-- ============ Section 3: 死循环监控 ============ -->
@@ -659,7 +649,7 @@ node install-extension.mjs</code></pre>
     </div>
     <div class="step-card">
       <h3>注入求助指令</h3>
-      <p><code>inject_file</code> 将预置的摘要生成指令粘贴到 Claude Code 输入框并自动提交 → 收到注入消息后，Claude Code 自动调用 MCP 工具（<code>ask_chatgpt_mirror</code> / <code>ask_deepseek</code> / <code>ask_doubao</code>）发送问题</p>
+      <p><code>inject_file</code> 将预置的摘要生成指令粘贴到 Claude Code 输入框并自动提交 → 收到注入消息后，Claude Code 自动触发 <code>/mcp-baipiao</code> skill，按场景选择最优服务发送问题</p>
     </div>
     <div class="step-card">
       <h3>获取外部答案</h3>

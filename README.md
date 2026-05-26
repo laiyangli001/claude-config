@@ -227,7 +227,7 @@ cd ~/.claude && git pull
 ├── python3.13.3/          # 内嵌 Python（GUI 配置界面）
 ├── node_modules/          # 依赖（四服务共用）
 ├── install-mcp-deps.bat  # 一键安装
-└── install-mcp-config.mjs # 自动注册 MCP 配置
+└── install-mcp-config.mjs # 注册 MCP 配置 → 写入 ~/.claude.json
 ```
 
 #### 一键安装依赖（批处理）
@@ -255,6 +255,25 @@ pause
 
 > 💡 也可以直接对我说"**帮我安装 MCP 依赖**"，AI 会自动完成以上安装步骤。
 
+#### MCP 配置文件说明
+
+Claude Code 通过两个配置文件加载 MCP 服务：
+
+| 配置文件 | 位置 | 优先级 | 说明 |
+|---------|------|-------|------|
+| **`.claude.json`** | `~/.claude.json`（用户家目录） | **高（主要）** | `install-mcp-config.mjs` 写入此文件，始终被 Claude Code 加载 |
+| `.mcp.json` | `~/.claude/.mcp.json` | 低（次要） | 本地参考副本，某些工作区可能不自动加载 |
+
+**关键逻辑：**
+- `~/.claude.json` 是 MCP 服务注册的**主要配置文件**，`install-mcp-config.mjs` 自动将四个服务的启动路径写入此文件
+- `.mcp.json` 是本仓库内的参考副本，实际运行时不一定被 Claude Code 读取
+- 仓库克隆后必须执行 `install-mcp-deps.bat`（或 `node install-mcp-config.mjs`）将 MCP 配置写入 `~/.claude.json`
+
+**切换工作区的注意事项：**
+- MCP 服务路径由 `~/.claude.json` 决定，与当前 VSCode 工作区无关
+- 如果切换工作区后某 MCP 服务无法调用，优先检查 `~/.claude.json` 中的 `mcpServers` 配置是否完整
+- 四个服务的启动命令都使用绝对路径（`c:/Users/<用户名>/.claude/mcp-servers/...`），不依赖工作区路径
+
 #### 首次使用与登录
 
 首次调用任意 MCP 工具时，Playwright 会自动弹出 Chromium 浏览器窗口：
@@ -266,62 +285,19 @@ pause
 > 注意：四个服务使用独立的浏览器配置文件，需要分别登录一次。
 > 若需隐藏浏览器窗口（无人值守场景），在 `settings.json` 的 `env` 中设置 `"CHATGPT_HEADLESS": "true"`、`"DEEPSEEK_HEADLESS": "true"` 或 `"DOUBAO_HEADLESS": "true"`。
 
-#### 提示词模板（代码审查专用），一定要找AI大模型帮你写
+#### 提示词模板
 
-# 代码审查请求
+模板文件存放在 `mcp-servers/shared/templates/` 目录下，以 `.md` 格式存储，可通过 `/mcp-baipiao` skill 自动加载。当前已预置模板：
 
-请对以下代码进行全面的代码审查。请遵循以下要求：
+| 模板 | 文件名 | 适用场景 |
+|------|--------|---------|
+| 代码审查 | `code_review.md` | Python/JS/TS 等代码审查，含角色设定、分析维度、输出格式 |
+| 视觉分析 | `vision_analysis.md` | 界面截图/UI Bug 分析，支持点阵归一化坐标 |
+| 长文本 | `long_text.md` | 长文档/日志总结 |
+| 批量任务 | `batch_task.md` | 批量格式化/生成/转换 |
+| 格式化 | `format_task.md` | 纯文本整理/代码高亮等 |
 
-## 一、代码背景（请根据实际情况填写）
-- **代码语言**：[如 Python / TypeScript / Go / Rust]
-- **功能简介**：[用一两句话说明代码的作用]
-- **审查重点**：[可选：性能 / 安全性 / 可维护性 / 边界条件 / 并发安全]
-
-## 二、输出格式要求
-请按以下结构输出审查结果：
-
-1. **总体评价**（简短总结，2-3 句）
-2. **具体问题列表**（按严重程度从高到低排序）
-   - 问题描述
-   - 位置（行号/函数名）
-   - 影响
-   - 建议修复方式
-3. **优化建议**（非必须但能提升质量）
-
-## 三、审查维度（请全部覆盖）
-- **正确性与逻辑**：是否存在潜在的逻辑漏洞、条件遗漏、边界未处理？
-- **错误处理**：异常是否被捕获？错误信息是否有用？资源是否释放？
-- **性能**：有无不必要的循环、重复计算、IO 阻塞？算法复杂度是否合理？
-- **安全性**：是否存在注入风险（SQL/命令）、敏感信息泄露、权限绕过？
-- **可维护性**：命名是否清晰？函数是否过长？有无重复代码？注释是否恰当？
-- **测试性**：代码是否易于测试？依赖是否可注入？
-
-## 四、特殊要求
-- 如果发现**死循环**或**无限递归**的风险，请明确指出并给出检测方法。
-- 如果代码涉及并发（多线程/异步），请审查竞态条件和死锁风险。
-- 对于不安全的操作（如 `eval`、`exec`、直接拼接用户输入）给出警告。
-
-## 五、代码内容
-[请在此处粘贴代码]
-
-#### 角色模板文件
-
-角色模板存放在 `mcp-servers/roles/` 目录下，每个文件是一个 `.md` 文件，文件名即为角色名（如 `python_tutor.md` → 角色名 `python_tutor`）。
-
-调用时通过 `role` 参数传入角色名：
-
-```javascript
-askChatGPT(question, attachments, "python_tutor")
-```
-
-目前已预置的角色：
-
-| 角色名 | 适用场景 |
-|--------|----------|
-| `python_tutor` | Python 代码审查、教学、调试（Django/Flask/数据分析） |
-| `nodejs_tutor` | Node.js/TypeScript/前端代码审查、教学、调试 |
-
-角色模板文件格式示例：[python_tutor.md](mcp-servers/roles/python_tutor.md)
+模板中支持变量插值：`{{user_concern}}`（关注点）、`{{file_name}}`（文件名）。`/mcp-baipiao` 调用时自动完成替换。
 
 ---
 
@@ -467,7 +443,7 @@ cmd //c "@C:\Users\<用户名>\.claude\Aut2Exe\Aut2exe_x64.exe /in "C:\full\path
 
 1. **监控阶段** — 死循环监控持续扫描 `.jsonl` 日志
 2. **检测到死循环** → `deadloop_control.exe esc` 打断输出 → 确认停止（扫描 `stop_reason: "end_turn"`）
-3. **注入求助指令** → `inject_file` 将预置的摘要生成指令粘贴到 Claude Code 输入框并自动提交 → 收到注入消息后，Claude Code 自动调用 MCP 工具（`ask_chatgpt_mirror` / `ask_deepseek` / `ask_doubao`）发送问题
+3. **注入求助指令** → `inject_file` 将预置的摘要生成指令粘贴到 Claude Code 输入框并自动提交 → 收到注入消息后，Claude Code 自动触发 `/mcp-baipiao` skill，按场景选择最优服务发送问题
 4. **获取外部答案** → AI 网页版返回代码审查结果或修复建议 → Claude Code 按返回内容修改代码
 5. **冷却恢复** → 10 秒冷却后继续监控
 

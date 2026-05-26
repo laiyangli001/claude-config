@@ -232,7 +232,7 @@ function injectSummary() {
     "4. 最需要被解决的一个具体问题\n" +
     "注意：只输出总结，不要道歉，不要继续之前的输出。\n" +
     "\n" +
-    "总结后，请立即调用 ask_chatgpt_mirror 工具（指定 role: \"nodejs_tutor\"），将以上总结作为问题发送。如果 ask_chatgpt_mirror 不可用，依次回退到 ask_chatgpt → ask_deepseek。收到回答后根据建议修改代码。";
+    "总结后，请发送 `/mcp-baipiao` 将以上总结发送出去分析。收到回答后根据建议修改代码。";
 
 	// AutoIt 注入（Ctrl+V 粘贴 + Enter + Ctrl+Enter 提交）
   injectViaAutoIt(instruction);
@@ -339,7 +339,7 @@ async function main() {
         "4. 最需要被解决的一个具体问题\n" +
         "注意：只输出总结，不要道歉，不要继续之前的输出。\n" +
         "\n" +
-        "总结后，请立即调用 ask_chatgpt_mirror 工具（指定 role: \"nodejs_tutor\"），将以上总结作为问题发送。如果 ask_chatgpt_mirror 不可用，依次回退到 ask_chatgpt → ask_deepseek。收到回答后根据建议修改代码。";
+        "总结后，请发送 `/mcp-baipiao` 将以上总结发送出去分析。收到回答后根据建议修改代码。";
       pasteViaAutoIt(instruction);
       console.log("MANUAL_SEND_REQUIRED");
     }
