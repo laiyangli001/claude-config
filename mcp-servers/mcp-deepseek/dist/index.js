@@ -11,13 +11,13 @@ import { waitForAnswer, extractNewAnswers, waitForNewMessage, showToast } from "
 // @ts-ignore
 import { uploadFiles } from "../../shared/upload.mjs";
 // @ts-ignore
-import { loadRole } from "../../shared/role.mjs";
+import { loadTemplate } from "../../shared/role.mjs";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(__dirname, "..");
 const PROFILE_DIR = path.join(PROJECT_ROOT, ".deepseek-browser-profile");
-const ROLES_DIR = path.resolve(PROJECT_ROOT, "..", "roles");
 const SITE_URL = "https://chat.deepseek.com/";
 const HEADLESS = process.env.DEEPSEEK_HEADLESS === "true";
+const TEMPLATES_DIR = path.resolve(__dirname, "../../shared/templates");
 const INPUT_SEL = 'textarea, [contenteditable="true"]';
 const STOP_BTN_SEL = 'button:has-text("Stop"), button:has-text("停止"), [aria-label*="stop" i], [aria-label*="Stop"], [aria-label*="停止"]';
 const ANSWER_SEL = '.ds-assistant-message-main-content, .ds-markdown.ds-assistant-message-main-content, [data-testid="assistant-message"], .chat-message-assistant';
@@ -29,7 +29,6 @@ const CONSTRAINTS = `【强制约束】\n1. 最小修改原则：只改 bug 相�
 let browserContext = null;
 let page = null;
 let isPageReady = false;
-let activeRole = null;
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 let cleaning = false;
 function cleanup() {
@@ -39,17 +38,19 @@ function cleanup() {
     process.exitCode = 0;
     const ctx = browserContext;
     Promise.race([(async () => { if (ctx)
-            try {
-                await ctx.close();
-            }
-            catch { } })(), new Promise(r => setTimeout(r, 15000))])
+            await closeBrowser(ctx); })(), new Promise(r => setTimeout(r, 15000))])
         .finally(() => setTimeout(() => process.exit(), 200));
 }
 process.on("SIGINT", cleanup);
 process.on("SIGTERM", cleanup);
 async function ensureBrowser() {
-    if (browserContext && page && !page.isClosed() && isPageReady)
+    if (browserContext && page && !page.isClosed() && isPageReady) {
+        try {
+            await page.bringToFront();
+        }
+        catch { }
         return { page, context: browserContext };
+    }
     if (browserContext)
         await closeBrowser(browserContext);
     browserContext = await launchBrowser(chromium, PROFILE_DIR, HEADLESS);
@@ -77,29 +78,21 @@ async function typeAndSend(pg, text) {
     else
         await pg.keyboard.press("Enter");
 }
-async function askFree(question, attachments, role) {
+async function askFree(question, attachments) {
     const { page: pg } = await ensureBrowser();
     if (!isPageReady) {
         await withRetry(() => navigateWithToast(pg, "https://chat.deepseek.com/", "DeepSeek"));
-        await sleep(2000);
-        // Cookie 检测登录态
-        const cookies = await browserContext.cookies();
-        const hasSession = cookies.some(c => (c.name.includes("session") || c.name.includes("token")) && c.value.length > 10);
-        if (!hasSession && (await pg.locator(LOGIN_BTN_SEL).first().isVisible().catch(() => false))) {
+        await sleep(3000);
+        // localStorage 检测登录态（DeepSeek 无登录专用 cookie）
+        const userToken = await pg.evaluate(() => localStorage.getItem("userToken")).catch(() => null);
+        if (!userToken) {
             if (!HEADLESS)
                 await pg.bringToFront();
             await showToast(pg, "🔑 请登录 DeepSeek（登录后自动继续）");
-            await pg.locator(LOGIN_BTN_SEL).first().waitFor({ state: "hidden", timeout: 180000 });
+            await pg.waitForSelector(INPUT_SEL, { timeout: 180000 });
         }
-        await pg.waitForSelector(INPUT_SEL, { timeout: 30000 });
+        await pg.waitForSelector(INPUT_SEL, { timeout: 60000 });
         isPageReady = true;
-    }
-    const effectiveRole = role || null;
-    if (effectiveRole && effectiveRole !== activeRole) {
-        activeRole = effectiveRole;
-        const tmpl = loadRole(ROLES_DIR, effectiveRole);
-        if (tmpl)
-            await typeAndSend(pg, tmpl);
     }
     await pg.waitForSelector(INPUT_SEL, { timeout: 10000 });
     const prevCount = await pg.locator(ANSWER_SEL).count();
@@ -144,9 +137,9 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
             inputSchema: {
                 type: "object",
                 properties: {
+                    template: { type: "string" },
                     question: { type: "string" },
                     attachments: { type: "array", items: { type: "string" } },
-                    role: { type: "string" },
                 },
             },
         }],
@@ -155,11 +148,17 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     if (request.params.name !== "ask_deepseek")
         throw new Error("Unknown tool");
     const raw = request.params.arguments || {};
+    const tpl = typeof raw.template === "string" ? raw.template : "";
     const question = typeof raw.question === "string" ? raw.question : "";
     const attachments = Array.isArray(raw.attachments) ? raw.attachments.filter((v) => typeof v === "string") : undefined;
-    const role = typeof raw.role === "string" && raw.role.trim() ? raw.role.trim() : undefined;
+    let finalQuestion = question;
+    if (tpl) {
+        const content = loadTemplate(TEMPLATES_DIR, tpl);
+        if (content)
+            finalQuestion = `${content}\n\n---\n\n${question}`;
+    }
     try {
-        const answer = await askFree(question, attachments, role);
+        const answer = await askFree(finalQuestion, attachments);
         return { content: [{ type: "text", text: `【DeepSeek free answer】\n\n${answer}\n\n---\nGenerated by DeepSeek web version. Zero API token consumed.` }] };
     }
     catch (error) {

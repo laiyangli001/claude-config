@@ -5,16 +5,19 @@ import { chromium } from "playwright";
 import * as path from "path";
 import { fileURLToPath } from "url";
 // @ts-ignore
-import { launchBrowser, navigateWithToast, withRetry } from "../../shared/browser.mjs";
+import { launchBrowser, navigateWithToast, withRetry, closeBrowser } from "../../shared/browser.mjs";
 // @ts-ignore
 import { waitForAnswer, extractNewAnswers, waitForNewMessage, showToast } from "../../shared/answer.mjs";
 // @ts-ignore
 import { uploadFiles } from "../../shared/upload.mjs";
+// @ts-ignore
+import { loadTemplate } from "../../shared/role.mjs";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(__dirname, "..");
 const PROFILE_DIR = path.join(PROJECT_ROOT, ".chatgpt-mirror-profile");
 const SITE_URL = "https://chatgpt.2233.ai/";
 const HEADLESS = process.env.CHATGPT_HEADLESS === "true";
+const TEMPLATES_DIR = path.resolve(__dirname, "../../shared/templates");
 const SEL = {
     CHAT_INPUT: "#prompt-textarea",
     SEND_BTN: 'button.composer-submit-button-color, button[aria-label="Send"], [data-testid="send-button"]',
@@ -38,10 +41,7 @@ async function closeB() {
     initPromise = null;
     isPageReady = false;
     if (ctx)
-        try {
-            await ctx.close();
-        }
-        catch { }
+        await closeBrowser(ctx);
 }
 let cleaning = false;
 function cleanup() {
@@ -62,8 +62,13 @@ process.on("SIGTERM", cleanup);
 async function ensureBrowser() {
     if (browserContext && page) {
         try {
-            if (!page.isClosed() && (await page.locator(SEL.CHAT_INPUT).count()) > 0)
+            if (!page.isClosed() && (await page.locator(SEL.CHAT_INPUT).count()) > 0) {
+                try {
+                    await page.bringToFront();
+                }
+                catch { }
                 return { page: page, context: browserContext };
+            }
         }
         catch { }
         await closeB();
@@ -85,7 +90,7 @@ async function ensureBrowser() {
     })();
     return initPromise;
 }
-async function askChatGPT(question, attachments, role) {
+async function askChatGPT(question, attachments) {
     const { page: pg } = await ensureBrowser();
     if (!isPageReady) {
         await withRetry(() => navigateWithToast(pg, SEL.INVITE_URL, "ChatGPT 镜像站"));
@@ -98,11 +103,14 @@ async function askChatGPT(question, attachments, role) {
         // Cookie 检测登录态
         const cookies = await browserContext.cookies();
         const hasSession = cookies.some(c => c.name.includes("session") && c.value.length > 10);
-        if (!hasSession && !(await pg.locator(SEL.CHAT_INPUT).waitFor({ state: "visible", timeout: 30000 }).then(() => true).catch(() => false))) {
+        if (!hasSession) {
             if (!HEADLESS)
                 await pg.bringToFront();
-            await showToast(pg, "🔑 请登录镜像站");
+            await showToast(pg, "🔑 请登录镜像站（登录后自动继续）");
             await pg.locator(SEL.CHAT_INPUT).waitFor({ state: "visible", timeout: 180000 });
+        }
+        if (!(await pg.locator(SEL.CHAT_INPUT).waitFor({ state: "visible", timeout: 30000 }).then(() => true).catch(() => false))) {
+            throw new Error("Cannot access ChatGPT mirror.");
         }
         isPageReady = true;
     }
@@ -143,16 +151,23 @@ async function askChatGPT(question, attachments, role) {
 }
 const server = new Server({ name: "chatgpt-mirror-mcp", version: "1.0.0" }, { capabilities: { tools: {} } });
 server.setRequestHandler(ListToolsRequestSchema, async () => ({
-    tools: [{ name: "ask_chatgpt_mirror", description: "Use ChatGPT mirror (chatgpt.2233.ai) free version.", inputSchema: { type: "object", properties: { question: { type: "string" }, attachments: { type: "array", items: { type: "string" } } } } }],
+    tools: [{ name: "ask_chatgpt_mirror", description: "Use ChatGPT mirror (chatgpt.2233.ai) free version.", inputSchema: { type: "object", properties: { template: { type: "string" }, question: { type: "string" }, attachments: { type: "array", items: { type: "string" } } } } }],
 }));
 server.setRequestHandler(CallToolRequestSchema, async (req) => {
     if (req.params.name !== "ask_chatgpt_mirror")
         throw new Error("Unknown tool");
     const raw = req.params.arguments || {};
+    const tpl = typeof raw.template === "string" ? raw.template : "";
     const q = typeof raw.question === "string" ? raw.question : "";
     const files = Array.isArray(raw.attachments) ? raw.attachments.filter((v) => typeof v === "string") : undefined;
+    let finalQuestion = q;
+    if (tpl) {
+        const content = loadTemplate(TEMPLATES_DIR, tpl);
+        if (content)
+            finalQuestion = `${content}\n\n---\n\n${q}`;
+    }
     try {
-        const answer = await askChatGPT(q, files);
+        const answer = await askChatGPT(finalQuestion, files);
         return { content: [{ type: "text", text: `【ChatGPT Mirror answer】\n\n${answer}` }] };
     }
     catch (e) {

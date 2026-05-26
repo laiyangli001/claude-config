@@ -107,23 +107,72 @@ export async function withRetry(fn, opts = {}) {
 // ── 浏览器启动 ──
 
 /**
+ * 删除 profile 目录下的所有 Chrome 锁文件
+ * @param {string} profileDir
+ */
+function removeLockFiles(profileDir) {
+  const lockFiles = [
+    "lockfile", "SingletonLock", "SingletonCookie", "SingletonSocket",
+    "SingletonLock.tmp", "SingletonCookie.tmp",
+    "First Run", "First Last",
+  ];
+  for (const f of lockFiles) {
+    try { const p = profileDir + "/" + f; if (fs.existsSync(p)) { fs.unlinkSync(p); log("删锁:", f); } } catch (e) { log("删锁失败:", f, e.message); }
+  }
+  // 也尝试删整个 Singleton 目录（如果存在）
+  try {
+    const singDir = profileDir + "/Singleton";
+    if (fs.existsSync(singDir)) { fs.rmSync(singDir, { recursive: true, force: true }); log("删 Singleton 目录"); }
+  } catch {}
+}
+
+/**
+ * 激进清理：杀所有 Chrome 进程 + 删锁文件
+ */
+async function aggressiveCleanup(profileDir) {
+  // 杀所有 Chrome 进程（宽泛匹配，宁杀错不放过）
+  try { execSync("taskkill /f /im chrome.exe 2>nul", { timeout: 5000 }); } catch {}
+  await new Promise(r => setTimeout(r, 2000));
+  // 再按 profile 定向杀一次
+  await killOrphanChrome(profileDir);
+  // 删锁文件
+  removeLockFiles(profileDir);
+  await new Promise(r => setTimeout(r, 1000));
+}
+
+/**
  * 启动浏览器（不包含网络检测，各服务自行导航时走系统代理）
  */
 export async function launchBrowser(chromium, profileDir, headless = false) {
   log("正在清理旧进程...");
-  for (const f of ["lockfile", "SingletonLock", "SingletonCookie", "SingletonSocket"]) {
-    try { fs.unlinkSync(profileDir + "/" + f); } catch {}
-  }
+  removeLockFiles(profileDir);
   await killOrphanChrome(profileDir);
 
-  log("正在启动浏览器...");
-  const ctx = await chromium.launchPersistentContext(profileDir, {
-    headless,
-    viewport: { width: 1280, height: 800 },
-    args: ["--disable-blink-features=AutomationControlled"],
-  });
-  log("浏览器已启动");
-  return ctx;
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    log(`正在启动浏览器(尝试 ${attempt})...`);
+    try {
+      const ctx = await chromium.launchPersistentContext(profileDir, {
+        headless,
+        viewport: { width: 1280, height: 800 },
+        args: ["--disable-blink-features=AutomationControlled"],
+      });
+      log("浏览器已启动");
+      return ctx;
+    } catch (err) {
+      const msg = (err && err.message) || "";
+      log("浏览器启动失败:", msg);
+      if (attempt >= 2) throw err;
+      // 判断是否为 profile 被占用的错误 → 激进清理后重试
+      if (msg.includes("Target page, context or browser has been closed") ||
+          msg.includes("已被占用") || msg.includes("in use") ||
+          msg.includes("already in use") || msg.includes("锁")) {
+        log("profile 被占用，执行激进清理后重试...");
+        await aggressiveCleanup(profileDir);
+        continue;
+      }
+      throw err;
+    }
+  }
 }
 
 // ── 浏览器内导航（带页面提示）──
@@ -203,9 +252,27 @@ async function showPageToast(page, msg, type) {
   }
 }
 
-/** @param {object} ctx */
+/**
+ * 关闭并保证销毁浏览器进程（通过 PID force kill）
+ * @param {object} ctx Playwright BrowserContext
+ */
 export async function closeBrowser(ctx) {
-  if (ctx) {
-    try { await ctx.close(); } catch {}
+  if (!ctx) return;
+  let pid = null;
+  try {
+    const browser = ctx.browser();
+    if (browser) {
+      const proc = browser.process();
+      if (proc) pid = proc.pid;
+    }
+  } catch {}
+  try { await ctx.close(); } catch {}
+  // 确保 Chrome 进程被杀死，不留孤儿
+  if (pid) {
+    try {
+      execSync("taskkill /f /pid " + pid + " 2>nul", { timeout: 5000 });
+      // 等进程完全退出，释放文件锁
+      await new Promise(r => setTimeout(r, 1000));
+    } catch {}
   }
 }

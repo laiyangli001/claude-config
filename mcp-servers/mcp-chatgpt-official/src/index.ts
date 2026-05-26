@@ -5,17 +5,20 @@ import { chromium, BrowserContext, Page } from "playwright";
 import * as path from "path";
 import { fileURLToPath } from "url";
 // @ts-ignore
-import { launchBrowser, navigateWithToast, withRetry, isTransientError } from "../../shared/browser.mjs";
+import { launchBrowser, navigateWithToast, withRetry, isTransientError, closeBrowser } from "../../shared/browser.mjs";
 // @ts-ignore
 import { waitForAnswer, extractNewAnswers, waitForNewMessage, setupPageErrorMonitor, showToast } from "../../shared/answer.mjs";
 // @ts-ignore
 import { uploadFiles } from "../../shared/upload.mjs";
+// @ts-ignore
+import { loadTemplate } from "../../shared/role.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(__dirname, "..");
 const PROFILE_DIR = path.join(PROJECT_ROOT, ".chatgpt-official-profile");
 const SITE_URL = "https://chatgpt.com/";
 const HEADLESS = process.env.CHATGPT_HEADLESS === "true";
+const TEMPLATES_DIR = path.resolve(__dirname, "../../shared/templates");
 
 const SEL = {
   CHAT_INPUT: "#prompt-textarea",
@@ -38,7 +41,7 @@ function sleep(ms: number) { return new Promise(r => setTimeout(r, ms)); }
 async function closeB() {
   const ctx = browserContext;
   browserContext = null; page = null; initPromise = null; isPageReady = false;
-  if (ctx) try { await ctx.close(); } catch {}
+  if (ctx) await closeBrowser(ctx);
 }
 
 let cleaning = false;
@@ -54,7 +57,7 @@ process.on("SIGINT", cleanup); process.on("SIGTERM", cleanup);
 
 async function ensureBrowser(): Promise<{ page: Page; context: BrowserContext }> {
   if (browserContext && page) {
-    try { if (!page.isClosed() && (await page.locator(SEL.CHAT_INPUT).count()) > 0) return { page: page!, context: browserContext! }; } catch {}
+    try { if (!page.isClosed() && (await page.locator(SEL.CHAT_INPUT).count()) > 0) { try { await page!.bringToFront(); } catch {} return { page: page!, context: browserContext! }; } } catch {}
     await closeB();
   }
   if (initPromise) return initPromise;
@@ -115,15 +118,21 @@ async function askChatGPT(question: string, attachments?: string[]): Promise<str
 
 const server = new Server({ name: "chatgpt-official-mcp", version: "1.0.0" }, { capabilities: { tools: {} } });
 server.setRequestHandler(ListToolsRequestSchema, async () => ({
-  tools: [{ name: "ask_chatgpt_official", description: "Use official ChatGPT (chatgpt.com) free version.", inputSchema: { type: "object", properties: { question: { type: "string" }, attachments: { type: "array", items: { type: "string" } } } } }],
+  tools: [{ name: "ask_chatgpt_official", description: "Use official ChatGPT (chatgpt.com) free version.", inputSchema: { type: "object", properties: { template: { type: "string" }, question: { type: "string" }, attachments: { type: "array", items: { type: "string" } } } } }],
 }));
 server.setRequestHandler(CallToolRequestSchema, async (req) => {
   if (req.params.name !== "ask_chatgpt_official") throw new Error("Unknown tool");
   const raw = req.params.arguments || {};
+  const tpl = typeof raw.template === "string" ? raw.template : "";
   const q = typeof raw.question === "string" ? raw.question : "";
   const files = Array.isArray(raw.attachments) ? raw.attachments.filter((v): v is string => typeof v === "string") : undefined;
+  let finalQuestion = q;
+  if (tpl) {
+    const content = loadTemplate(TEMPLATES_DIR, tpl);
+    if (content) finalQuestion = `${content}\n\n---\n\n${q}`;
+  }
   try {
-    const answer = await askChatGPT(q, files);
+    const answer = await askChatGPT(finalQuestion, files);
     return { content: [{ type: "text", text: `【ChatGPT Official answer】\n\n${answer}` }] };
   } catch (e: unknown) {
     return { content: [{ type: "text", text: `ChatGPT Official call failed: ${e instanceof Error ? e.message : String(e)}` }], isError: true };
