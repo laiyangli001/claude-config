@@ -50,22 +50,28 @@ class StatusBarManager {
 
   updateDisplay() {
     const { status, workspace, lastTrigger } = this.state;
-    let icon = "$(pulse)", tooltipStatus = "🟢 循环守护（Hook）";
+    let icon = "$(pulse)", tooltipStatus = "🟢 运行中";
     this.item.backgroundColor = undefined;
     if (status === "alert") {
       icon = "$(error)"; tooltipStatus = "🔴 检测到死循环！";
       this.item.backgroundColor = new vscode.ThemeColor("statusBarItem.errorBackground");
     }
+    const settings = readSettings();
+    const preset = PRESETS[settings.preset] || PRESETS.default;
     this.item.text = icon + " 循环守护";
     this.item.tooltip = [
       "循环守护    " + tooltipStatus,
       "──────────────────────────────",
-      "工作区: " + (workspace || "未知"),
-      "方式: Stop Hook（事件驱动）",
-      lastTrigger ? "最近触发: " + lastTrigger : "最近触发: 暂无",
+      "检测方式   Stop Hook（事件驱动）",
+      "预设方案   " + preset.label,
+      "相似阈值   " + preset.jaccardThreshold.toFixed(2),
+      "反转词     ≥" + preset.reversalMinCount + " 词/200字",
+      "信息增量   <" + preset.lowInfoThreshold.toFixed(2) + " 触发停滞",
+      workspace ? "工作区     " + workspace : "",
+      lastTrigger ? "最近触发: " + lastTrigger : "",
       "──────────────────────────────",
-      "鼠标左键 → 打开菜单",
-    ].join("\n");
+      "左键 → 菜单   右键 → 设置阈值",
+    ].filter(Boolean).join("\n");
     this.item.show();
   }
 
