@@ -1,0 +1,114 @@
+/* Minimal Web - 极简现代，类 Medium/Notion 风格 */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+body {
+  background: #fff;
+  color: #24292f;
+  font-family: 'Inter', -apple-system, 'Microsoft YaHei', sans-serif;
+  line-height: 1.8;
+  padding: 40px;
+}
+
+.markdown-body {
+  max-width: 780px;
+  margin: 0 auto;
+  padding: 20px 0;
+}
+
+.markdown-body h1 {
+  font-size: 2.4em;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: #111;
+  border: none;
+  margin-top: 0;
+  line-height: 1.3;
+}
+
+.markdown-body h2 {
+  font-size: 1.5em;
+  font-weight: 600;
+  color: #1a1a1a;
+  border: none;
+  margin-top: 32px;
+  padding-bottom: 4px;
+}
+
+.markdown-body h3 {
+  font-size: 1.2em;
+  font-weight: 600;
+  color: #333;
+}
+
+.markdown-body a {
+  color: #0969da;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.markdown-body a:hover { color: #0550ae; }
+
+.markdown-body p, .markdown-body li {
+  color: #24292f;
+  font-size: 1em;
+  line-height: 1.8;
+}
+
+.markdown-body strong { color: #111; }
+.markdown-body em { color: #444; }
+
+.markdown-body code {
+  background: rgba(27, 31, 36, 0.05);
+  color: #24292f;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.88em;
+}
+
+.markdown-body pre {
+  background: #f6f8fa;
+  border: 1px solid #e1e4e8;
+  border-radius: 12px;
+  padding: 20px;
+  overflow-x: auto;
+}
+.markdown-body pre code { background: none; padding: 0; border: none; }
+
+.markdown-body table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 16px 0;
+}
+.markdown-body th, .markdown-body td {
+  border: 1px solid #e1e4e8;
+  padding: 10px 14px;
+}
+.markdown-body th {
+  background: #f6f8fa;
+  color: #24292f;
+  font-weight: 600;
+}
+
+.markdown-body blockquote {
+  border-left: 4px solid #d0d7de;
+  background: #f6f8fa;
+  padding: 16px 24px;
+  margin: 16px 0;
+  border-radius: 0 8px 8px 0;
+  color: #57606a;
+}
+
+.markdown-body hr {
+  border: none;
+  height: 1px;
+  background: #e1e4e8;
+  margin: 32px 0;
+}
+
+.markdown-body img {
+  border-radius: 12px;
+  border: 1px solid #e1e4e8;
+}
+
+.markdown-body ul, .markdown-body ol { padding-left: 24px; }
+.markdown-body li { margin: 4px 0; }

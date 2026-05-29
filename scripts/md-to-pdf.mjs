@@ -102,9 +102,14 @@ try {
 
 function listThemes() {
   if (fs.existsSync(THEMES_DIR)) {
-    const dirs = fs.readdirSync(THEMES_DIR).filter(f => fs.statSync(path.join(THEMES_DIR, f)).isDirectory());
-    console.log("Available themes:");
-    for (const d of dirs) console.log(`  ${d}`);
+    const all = fs.readdirSync(THEMES_DIR).filter(f => fs.statSync(path.join(THEMES_DIR, f)).isDirectory());
+    const standard = all.filter(t => !["neon-dark","aurora","cyberpunk","glassmorphism","minimal-web"].includes(t));
+    const custom = all.filter(t => ["neon-dark","aurora","cyberpunk","glassmorphism","minimal-web"].includes(t));
+    console.log("Standard themes (markdown-styles):");
+    for (const d of standard) console.log(`  ${d}`);
+    console.log("\nCustom themes (web-style):");
+    for (const d of custom) console.log(`  ${d}`);
+    console.log(`\nUsage: node md-to-pdf.mjs input.md -t theme-name`);
   } else {
     console.log("No themes installed. Run script to auto-install.");
   }
