@@ -369,6 +369,59 @@ Claude Code 通过两个配置文件加载 MCP 服务：
 
 ---
 
+### MinerU 文档解析（MCP 工具）
+
+MinerU 是一个高精度文档解析引擎，通过 `mineru-open-mcp` MCP 服务集成到 Claude Code 中。支持 PDF、图片、Office 文档等转 Markdown。
+
+#### 安装
+
+```bash
+npm install -g mineru-open-api
+```
+
+MCP 服务已在 `install-mcp-config.mjs` 中注册，如未注册手动添加：
+
+```bash
+claude mcp add --transport stdio mineru-open-mcp -- npx -y mineru-open-mcp
+```
+
+#### 支持的格式
+
+| 类型 | 格式 |
+|------|------|
+| 文档 | PDF、DOCX、PPTX |
+| 图片 | PNG、JPG、JPEG、WebP、GIF、BMP |
+| 表格 | XLS、XLSX |
+| 网页 | HTML（需指定 `model='html'`） |
+
+#### 两种模式
+
+| 模式 | 条件 | 上限 | 输出 |
+|------|------|------|------|
+| Flash | 无需 token | ≤ 20 页/文件，≤ 10MB | Markdown（表格/公式/OCR） |
+| Precision | 需 `MINERU_API_TOKEN` | ≤ 600 页/文件 | MD/HTML/LaTeX/DOCX + VLM 布局 |
+
+#### 使用方式
+
+在 Claude Code 中直接提交文件即可自动触发：
+
+```text
+把这份 PDF 转成 Markdown
+提取这个扫描件中的表格和公式
+解析这个 Word 文档
+```
+
+或通过 `/mcp-baipiao` skill 自动匹配。
+
+#### 注意事项
+
+- Flash 模式免费，适合日常快捷解析
+- 精确模式需在 [mineru.net](https://mineru.net) 注册获取 token
+- 文件发送到 mineru.net 处理后不留存
+- 参数 `language` 默认 `ch`，英文文档建议设为 `en`
+
+---
+
 ### 死循环监控（Dead Loop Monitor）
 
 自动检测 Claude Code 输出是否陷入重复、反转、信息停滞，打断并求助第三方 AI 协助脱困。
