@@ -43,7 +43,7 @@ dir              # Windows 查看文件列表
 | | `mcp-servers/mcp-chatgpt-official/` | ChatGPT 官方站，不消耗 API token |
 | | `mcp-servers/mcp-deepseek/` | DeepSeek 网页版，不消耗 API token |
 | | `mcp-servers/mcp-doubao/` | 豆包 AI，支持图片/文档识别、PPT 生成 |
-| **死循环监控** | `mcp-servers/deadloop-monitor/` | 检测输出死循环 → AutoIt 打断 → 摘要求助 |
+| **死循环监控** | `deadloop-monitor/` | 检测输出死循环 → AutoIt 打断 → 摘要求助 |
 | **内嵌 Python** | `mcp-servers/python3.13.3/` | 嵌入式 Python，无需系统安装，供 GUI 配置界面使用 |
 | **会话数据** | `projects/**/*.jsonl` | 对话记录（git 排除，不上传） |
 | **跨对话记忆** | `projects/<slug>/memory/` | 持久化的用户偏好和项目上下文 |
@@ -213,21 +213,26 @@ cd ~/.claude && git pull
 #### 文件结构
 
 ```
-~/.claude/mcp-servers/
-├── mcp-chatgpt-mirror/   # ChatGPT 镜像站
-├── mcp-chatgpt-official/ # ChatGPT 官方站
-├── mcp-deepseek/         # DeepSeek 网页版
-├── mcp-doubao/           # 豆包 AI（图片识别/PPT 生成）
-├── deadloop-monitor/     # 死循环监控
-├── shared/               # 共享模块（四服务共用）
-│   ├── browser.mjs       # 浏览器生命周期
-│   ├── answer.mjs        # 回答检测/提取
-│   ├── upload.mjs        # 文件上传
-│   └── role.mjs          # 角色模板
-├── python3.13.3/          # 内嵌 Python（GUI 配置界面）
-├── node_modules/          # 依赖（四服务共用）
-├── install-mcp-deps.bat  # 一键安装
-└── install-mcp-config.mjs # 注册 MCP 配置 → 写入 ~/.claude.json
+~/.claude/
+├── mcp-servers/              # MCP 服务（聊天机器人网页版）
+│   ├── mcp-chatgpt-mirror/   # ChatGPT 镜像站
+│   ├── mcp-chatgpt-official/ # ChatGPT 官方站
+│   ├── mcp-deepseek/         # DeepSeek 网页版
+│   └── mcp-doubao/           # 豆包 AI（图片识别/PPT 生成）
+├── shared/                   # MCP 共享模块
+│   ├── browser.mjs
+│   ├── answer.mjs
+│   ├── upload.mjs
+│   └── role.mjs
+├── node_modules/             # MCP 依赖
+├── python3.13.3/             # 内嵌 Python
+├── deadloop-monitor/         # 死循环监控（可选装）
+├── scripts/                  # 工具脚本
+│   ├── setup-proxy.mjs       # 一键配置代理
+│   └── proxy-detect.sh       # 终端动态检测
+├── skills/                   # Skills
+├── install-mcp-deps.bat
+└── install-mcp-config.mjs
 ```
 
 #### 一键安装依赖（批处理）
@@ -344,7 +349,7 @@ Claude Code 通过两个配置文件加载 MCP 服务：
 #### 扩展包文件架构
 
 ```
-~/.claude/mcp-servers/deadloop-monitor/
+~/.claude/deadloop-monitor/
 ├── stop-hook.mjs              # Stop Hook 检测（事件驱动，零延迟）
 ├── detectors.mjs              # 重复/反转/停滞检测器（供各类脚本引用）
 ├── helpers.mjs                # AutoIt 调用、文件读取等工具函数
@@ -364,7 +369,7 @@ Claude Code 通过两个配置文件加载 MCP 服务：
 运行 `install-deadloop.bat` 或直接在终端执行：
 
 ```bash
-cd ~/.claude/mcp-servers/deadloop-monitor
+cd ~/.claude/deadloop-monitor
 node install-deadloop.mjs
 ```
 
@@ -382,7 +387,7 @@ node install-deadloop.mjs
 运行 `install-deadloop.mjs`，一步完成扩展安装和 Hook 注册：
 
 ```bash
-cd ~/.claude/mcp-servers/deadloop-monitor
+cd ~/.claude/deadloop-monitor
 node install-deadloop.mjs
 ```
 

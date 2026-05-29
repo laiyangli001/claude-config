@@ -49,7 +49,7 @@ GUI_HIDDEN_KEYS = {"name", "version", "description", "author", "license",
                    "main", "scripts", "private", "keywords", "repository"}
 
 # ── 死循环监控配置 ──
-DEADLOOP_DIR = os.path.expanduser("~/.claude/mcp-servers/deadloop-monitor")
+DEADLOOP_DIR = os.path.expanduser("~/.claude/deadloop-monitor")
 DEADLOOP_JSON = os.path.join(DEADLOOP_DIR, "deadloop-config.json")
 
 # 预设方案 key → 显示标签映射
