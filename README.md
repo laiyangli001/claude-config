@@ -345,7 +345,8 @@ Claude Code 通过两个配置文件加载 MCP 服务：
 
 ```
 ~/.claude/mcp-servers/deadloop-monitor/
-├── monitor.mjs                # 主监控进程
+├── monitor.mjs                # 主监控进程（轮询检测）
+├── stop-hook.mjs              # Stop Hook 检测（事件驱动，零延迟）
 ├── detectors.mjs              # 重复/反转/停滞检测器
 ├── helpers.mjs                # 文件读取、AutoIt 调用、停止确认
 ├── deadloop_control.au3       # AutoIt 源码
@@ -409,12 +410,16 @@ node install-extension.mjs
 
 **使用说明：**
 
-- 监控自动运行，无需人工干预。每次打开 VS Code 自动启动
-- 当检测到死循环时，自动执行：AutoIt ESC 长按 5 秒 → 确认是否停止 → 注入摘要指令 → 冷却
+- 监控由两层组成：**Stop Hook（事件驱动）** + **轮询监控（周期扫描）**，双保险工作
+- Stop Hook 在 Claude 每轮输出完成后**立即触发**，检测最近两轮文本相似度，> 0.85 判定为循环
+- 轮询监控持续扫描 `.jsonl`，可检测**正在输出中**的循环，触发 AutoIt ESC 中断
+- 检测到死循环时，自动执行：AutoIt ESC 长按 5 秒 → 确认是否停止 → 注入摘要指令 → 冷却
 - 状态栏显示当前状态：🟢 监控中 / 🟡 已暂停 / 🔴 检测到死循环 / ⚪ 已停止
 - 可在 `config.mjs` 中调整阈值（重复次数、反转词密度、信息增量率）
 
 **重装扩展：** 修改 `extension.js` 后，重新执行 `node install-extension.mjs` 再 Reload 即可。
+
+**Stop Hook 注册：** `stop-hook.mjs` 通过 `settings.json` 中的 `hooks.Stop` 配置激活，修改后同样需要 Reload Window 生效。
 
 > 💡 也可以直接对我说"**帮我安装死循环监控扩展**"，AI 会自动完成扩展安装步骤。
 > 💡 也可以直接对我说"**帮我调整循环检测阈值宽松一点**"，AI 会自动调整循环检测阈值。
