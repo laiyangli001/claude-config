@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Stop hook：收到 Stop 事件时检测死循环，检测到则触发 AutoIt 打断+注入
-// 取代 .jsonl 轮询检测 stop_reason，事件驱动，零延迟
+// 检测阈值从 config.mjs 读取，支持 preset 切换和 settings.json 覆盖
 
 import fs from "fs";
 import path from "path";
@@ -21,6 +21,20 @@ const transcriptPath = event.transcript_path || "";
 // 只对 end_turn 感兴趣（一轮完整结束）
 if (stopReason !== "end_turn") process.exit(0);
 if (!transcriptPath || !fs.existsSync(transcriptPath)) process.exit(0);
+
+// ── 从 config.mjs 加载检测参数 ──
+import config from "./config.mjs";
+
+// 应用当前预设
+const preset = config.presets[config.activePreset] || config.presets.default;
+let threshold = preset.jaccardThreshold;
+
+// 尝试从 settings.json 加载覆盖
+const SETTINGS_FILE = path.join(__dirname, "settings.json");
+try {
+  const overrides = JSON.parse(fs.readFileSync(SETTINGS_FILE, "utf-8"));
+  if (typeof overrides.jaccardThreshold === "number") threshold = overrides.jaccardThreshold;
+} catch {}
 
 // ── 读 transcript 末尾，提取最近几轮 ──
 const MAX_BYTES = 65536;
@@ -56,7 +70,7 @@ for (const line of lines) {
 // 不足 2 条消息，无法判断循环
 if (assistantTexts.length < 2) process.exit(0);
 
-// ── Jaccard 相似度检测 ──
+// ── Jaccard 相似度检测（阈值从 config.mjs 读取）──
 function jaccardSim(textA, textB) {
   const setA = new Set(textA);
   const setB = new Set(textB);
@@ -71,13 +85,13 @@ const last = assistantTexts[assistantTexts.length - 1];
 const prev = assistantTexts[assistantTexts.length - 2];
 const sim = jaccardSim(last, prev);
 
-// 相似度 > 0.85 可能循环
-if (sim < 0.85) process.exit(0);
+// 使用可配置阈值
+if (sim < threshold) process.exit(0);
 
-// ── 检测到循环，触发 AutoIt 打断 + 注入 ──
+// ── 检测到循环，触发 AutoIt 注入 ──
 const AUTOIT_EXE = path.join(__dirname, "deadloop_control.exe");
-const INJECT_MSG = `【死循环检测 - Stop Hook】
-检测到连续的相似输出（Jaccard 相似度: ${sim.toFixed(3)}），请分析并尝试修复。
+const INJECT_MSG = `【死循环检测】
+对话输出陷入循环（相似度 ${(sim * 100).toFixed(0)}%，阈值 ${(threshold * 100).toFixed(0)}%），请分析并尝试修复。
 
 按照以下 4 步处理：
 1. 生成最近 3 轮对话的总结摘要
@@ -89,19 +103,12 @@ if (!fs.existsSync(AUTOIT_EXE)) process.exit(0);
 
 import { execSync } from "child_process";
 
-// 第 1 步：ESC 打断
-try {
-  execSync(`"${AUTOIT_EXE}" esc`, { timeout: 10000 });
-} catch {}
-
-// 第 2 步：注入求助消息
+// 注入求助消息（已停止的循环无需 ESC 打断）
 const tmpFile = path.join(__dirname, ".deadloop_hook_msg.txt");
 fs.writeFileSync(tmpFile, INJECT_MSG, "utf-8");
 try {
   execSync(`"${AUTOIT_EXE}" inject_file "${tmpFile}"`, { timeout: 10000 });
 } catch {}
-
-// 清理
 try { fs.unlinkSync(tmpFile); } catch {}
 
 process.exit(0);
