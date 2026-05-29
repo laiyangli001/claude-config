@@ -1,122 +1,54 @@
 #!/usr/bin/env node
-// 一键配置 HTTP 代理：检测可用端口，写入 settings.json + .bashrc + VS Code
+// 一键配置 HTTP 代理
+// Windows 系统代理由 VPN 软件管理，脚本只确保各工具跟随系统设置
 import fs from "fs";
 import path from "path";
 import os from "os";
-import { execSync } from "child_process";
 
-const COMMON_PORTS = [7890, 7891, 7892, 10809, 1080, 1081, 8888, 8080];
 const HOME = os.homedir();
 
-// ── 解析参数 ──
-let proxyHost = "127.0.0.1";
-let proxyPort = 0;
-let skipDetect = false;
-
-for (let i = 2; i < process.argv.length; i++) {
-  const a = process.argv[i];
-  if (a === "--proxy" && i + 1 < process.argv.length) {
-    const u = new URL(process.argv[++i]);
-    proxyHost = u.hostname;
-    proxyPort = parseInt(u.port) || 0;
-    skipDetect = true;
-  } else if (a === "--port" && i + 1 < process.argv.length) {
-    proxyPort = parseInt(process.argv[++i]);
-    skipDetect = true;
-  }
-}
-
-// ── 扫描代理端口 ──
-function scanPorts() {
-  console.log("🔍 Scanning common proxy ports...");
-  for (const port of COMMON_PORTS) {
-    try {
-      execSync(`curl -s --connect-timeout 1 --proxy http://${proxyHost}:${port} -o /dev/null -w "%{http_code}" https://www.google.com`, {
-        timeout: 3000, stdio: "pipe",
-      });
-      console.log(`  ✅ ${proxyHost}:${port} — available`);
-      return port;
-    } catch {
-      // try next
-    }
-  }
-  return 0;
-}
-
-if (!skipDetect || proxyPort === 0) {
-  const found = scanPorts();
-  if (found) { proxyPort = found; }
-  else {
-    proxyPort = 7892;
-    console.log(`  ⚠️  No proxy detected, defaulting to ${proxyPort}`);
-  }
-}
-
-const proxyUrl = `http://${proxyHost}:${proxyPort}`;
-console.log(`\n📌 Using proxy: ${proxyUrl}`);
-
-// ── 1. 写入 ~/.claude/settings.json ──
+// ── 1. 写入 Claude settings（当前会话生效） ──
 const claudeSettings = path.join(HOME, ".claude", "settings.json");
 try {
   let cfg = {};
   try { cfg = JSON.parse(fs.readFileSync(claudeSettings, "utf-8")); } catch {}
   if (!cfg.env) cfg.env = {};
-  cfg.env.HTTP_PROXY = proxyUrl;
-  cfg.env.HTTPS_PROXY = proxyUrl;
+  // 不设固定值，写空让动态检测接管
+  delete cfg.env.HTTP_PROXY;
+  delete cfg.env.HTTPS_PROXY;
   fs.writeFileSync(claudeSettings, JSON.stringify(cfg, null, 2), "utf-8");
   console.log(`  ✅ Claude settings: ${claudeSettings}`);
 } catch (e) {
   console.error(`  ❌ Failed to write ${claudeSettings}: ${e.message}`);
 }
 
-// ── 2. 同步到 Windows 用户环境变量 ──
-const syncScript = path.join(path.dirname(process.argv[1]), "sync-proxy.mjs");
-try {
-  execSync(`node "${syncScript}"`, { stdio: "inherit", timeout: 15000 });
-} catch (e) {
-  console.error(`  ❌ Failed to sync env vars: ${e.message}`);
-}
-
-// ── 3. 确保 .bashrc 有 source proxy-detect.sh（终端 fallback）──
+// ── 2. 确保 .bashrc 有 source proxy-detect.sh ──
 const mcpDir = path.dirname(process.argv[1]).replace(/\\/g, "/");
 const bashrc = path.join(HOME, ".bashrc");
 const bashSourceLine = `source "${mcpDir}/proxy-detect.sh"`;
 try {
   let content = "";
   try { content = fs.readFileSync(bashrc, "utf-8"); } catch {}
-  if (content.includes(bashSourceLine)) {
+  if (content.includes("proxy-detect.sh")) {
     console.log(`  ⏭️ .bashrc: already configured`);
   } else {
-    // 删除旧的硬编码 proxy 行
-    const cleaned = content.split("\n").filter(l => {
-      const t = l.trim();
-      return !/^export (HTTP_PROXY|HTTPS_PROXY)=/.test(t)
-        && t !== "# Proxy" && t !== "# Proxy (auto-configured)"
-        && t !== "# Proxy — 自动从 Windows 系统代理设置读取"
-        && t !== "# Proxy — 自动跟随 Windows 系统代理"
-        && !t.includes("proxy-detect.sh");
-    });
-    while (cleaned.length && cleaned[cleaned.length - 1].trim() === "") cleaned.pop();
-    cleaned.push("", "# Proxy — 自动跟随 Windows 系统代理", bashSourceLine);
-    fs.writeFileSync(bashrc, cleaned.join("\n"), "utf-8");
+    content += `\n# Proxy — 动态检测 Windows 系统代理\n${bashSourceLine}\n`;
+    fs.writeFileSync(bashrc, content, "utf-8");
     console.log(`  ✅ .bashrc: ${bashrc}`);
   }
 } catch (e) {
   console.error(`  ❌ Failed to write ${bashrc}: ${e.message}`);
 }
 
-// ── 3. 清理 VS Code 设置中的显式代理（改为走系统代理） ──
+// ── 3. 清理 VS Code 中的显式 http.proxy（走系统代理） ──
 const vscodeSettings = path.join(process.env.APPDATA || path.join(HOME, "AppData", "Roaming"), "Code", "User", "settings.json");
 try {
   let cfg = {};
   try { cfg = JSON.parse(fs.readFileSync(vscodeSettings, "utf-8")); } catch {}
-  // 删除显式代理配置，让 VS Code 走 Windows 系统代理
   delete cfg["http.proxy"];
   delete cfg["http.proxyStrictSSL"];
   cfg["http.proxySupport"] = "on";
-  // 清除旧的嵌套格式
   delete cfg.claudeCode;
-  // Claude Code 环境变量中的代理也删除（终端走 .bashrc 动态检测）
   const envKey = "claudeCode.environmentVariables";
   if (cfg[envKey]) {
     cfg[envKey] = cfg[envKey].filter(e => e.name !== "HTTP_PROXY" && e.name !== "HTTPS_PROXY");
@@ -127,5 +59,7 @@ try {
   console.error(`  ❌ Failed to write ${vscodeSettings}: ${e.message}`);
 }
 
-console.log(`\n✅ Proxy configured: ${proxyUrl}`);
-console.log("   Reload VS Code or open new terminal to apply.");
+console.log("\n✅ Configured. Proxy follows Windows system settings automatically.");
+console.log("   New terminals: via .bashrc dynamic detection");
+console.log("   VS Code: via system proxy");
+console.log("   VPN on → proxy active   VPN off → direct connect");
