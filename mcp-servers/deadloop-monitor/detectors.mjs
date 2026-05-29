@@ -29,7 +29,7 @@ function loadMergedConfig() {
 
 let activeCfg = loadMergedConfig();
 
-// ── 公开：让 monitor.mjs 可触发重载 ──
+// ── 公开：让外部脚本可触发重载 ──
 export function reloadConfig() {
   activeCfg = loadMergedConfig();
   info("config reloaded", activeCfg);

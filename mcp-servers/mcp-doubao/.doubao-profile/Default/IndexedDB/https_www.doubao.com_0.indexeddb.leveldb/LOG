@@ -1,0 +1,12 @@
+2026/05/25-03:56:39.446 8ef4 Reusing MANIFEST c:\Users\LaiYangLi\.claude\mcp-servers\mcp-doubao\.doubao-profile\Default\IndexedDB\https_www.doubao.com_0.indexeddb.leveldb/MANIFEST-000001
+2026/05/25-03:56:39.447 8ef4 Recovering log #36
+2026/05/25-03:56:39.474 8ef4 Reusing old log c:\Users\LaiYangLi\.claude\mcp-servers\mcp-doubao\.doubao-profile\Default\IndexedDB\https_www.doubao.com_0.indexeddb.leveldb/000036.log 
+2026/05/25-04:02:01.173 968c Level-0 table #41: started
+2026/05/25-04:02:01.511 968c Level-0 table #41: 1432511 bytes OK
+2026/05/25-04:02:01.618 968c Delete type=0 #36
+2026/05/25-04:02:03.421 968c Compacting 1@1 + 1@2 files
+2026/05/25-04:02:03.543 968c Generated table #42@1: 2641 keys, 314291 bytes
+2026/05/25-04:02:03.543 968c Compacted 1@1 + 1@2 files => 314291 bytes
+2026/05/25-04:02:03.546 968c compacted to: files[ 0 0 1 0 0 0 0 ]
+2026/05/25-04:02:03.547 968c Delete type=2 #38
+2026/05/25-04:02:03.547 968c Delete type=2 #41

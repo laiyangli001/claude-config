@@ -4,7 +4,6 @@ const path = require("path");
 const fs = require("fs");
 
 const MONITOR_DIR = path.join(process.env.USERPROFILE || "C:/Users/default", ".claude", "mcp-servers", "deadloop-monitor");
-const MONITOR_SCRIPT = path.join(MONITOR_DIR, "monitor.mjs");
 const LOG_FILE = path.join(MONITOR_DIR, "deadloop-monitor.jsonl");
 const SETTINGS_FILE = path.join(MONITOR_DIR, "settings.json");
 
@@ -68,7 +67,7 @@ class StatusBarManager {
     let icon = "$(pulse)", tooltipStatus = "";
     this.item.backgroundColor = undefined;
     switch (status) {
-      case "monitoring": icon = "$(pulse)"; tooltipStatus = "🟢 已启动"; break;
+      case "monitoring": case "hook_mode": icon = "$(pulse)"; tooltipStatus = "🟢 循环守护（Hook）"; break;
       case "paused": icon = "$(debug-pause)"; tooltipStatus = "🟡 已暂停"; break;
       case "cooling": icon = "$(sync~spin)"; tooltipStatus = `🌀 冷却中（剩余 ${cooldownLeft} 秒）`; break;
       case "alert": icon = "$(error)"; tooltipStatus = "🔴 检测到死循环！"; this.item.backgroundColor = new vscode.ThemeColor("statusBarItem.errorBackground"); break;
@@ -201,114 +200,16 @@ function sendToTerminal(text, preserveFocus = true) {
 const processes = new Map();
 
 function startMonitor(workspacePath, onStatusUpdate, statusBar) {
+  // Stop Hook 模式：不再需要轮询进程，检测由 Stop hook 事件驱动
+  // 扩展仅负责状态栏显示和配置界面
   if (processes.has(workspacePath)) return;
+  processes.set(workspacePath, true);
+  onStatusUpdate({ status: "hook_mode" });
+  statusBar.updateDisplay();
+}
 
-  // 杀掉所有此工作区旧的 monitor.mjs 进程（防止 reload 后变成孤儿进程）
-  const pidFile = path.join(workspacePath, ".deadloop-pid");
-  try {
-    const result = require("child_process").execSync(
-      `powershell -Command "Get-CimInstance Win32_Process -Filter \\"Name='node.exe' AND CommandLine like '%deadloop-monitor%monitor.mjs%'\\" | Select-Object -ExpandProperty ProcessId"`,
-      { encoding: "utf8", timeout: 10000 }
-    );
-    const pids = result.trim().split(/\s+/).filter(id => id && parseInt(id) !== process.pid);
-    for (const pid of pids) {
-      try { process.kill(parseInt(pid)); } catch {}
-      try { require("child_process").execSync("taskkill /f /pid " + pid + " 2>nul", { timeout: 3000 }); } catch {}
-    }
-  } catch { /* 无旧进程 */ }
-
-  const parentPid = typeof process.ppid === "number" ? process.ppid : 0;
-  const proc = spawn("node", [MONITOR_SCRIPT, workspacePath, String(parentPid)], {
-    cwd: workspacePath,
-    stdio: ["pipe", "pipe", "inherit"],
-    env: { ...process.env },
-    windowsHide: true,
-  });
-
-  processes.set(workspacePath, proc);
-
-  const monitorDir = path.dirname(MONITOR_SCRIPT);
-  const heartbeatFile = path.join(monitorDir, ".deadloop-heartbeat");
-  try { fs.writeFileSync(path.join(monitorDir, ".deadloop-pid"), String(proc.pid)); } catch (e) { console.error(e); }
-
-  let stdoutBuf = "";
-
-  const stdoutHandler = (chunk) => {
-    stdoutBuf += chunk.toString();
-    const lines = stdoutBuf.split("\n");
-    stdoutBuf = lines.pop() || "";
-    for (const line of lines) {
-      if (!line.trim()) continue;
-      try {
-        const json = JSON.parse(line.trim());
-        // action 消息：发 ESC / 注入文本到终端
-        if (json.action === "sendEsc") {
-          sendToTerminal("\x1b");
-          continue;
-        }
-        if (json.action === "injectText" && json.text) {
-          sendToTerminal('\x1b', false);          // ESC 聚焦 Claude 对话框
-          sendToTerminal(json.text, false);        // 输入文本
-          sendToTerminal('\n', false);             // Enter
-          sendToTerminal('\n', false);             // Ctrl+Enter 提交
-          continue;
-        }
-        const upd = { status: json.status.toLowerCase() };
-        if (json.status.toLowerCase() !== "paused") upd.lastPoll = new Date().toLocaleTimeString();
-        if (typeof json.tokenCount === "number") upd.tokenCount = json.tokenCount;
-        if (typeof json.cooldownLeft === "number") upd.cooldownLeft = json.cooldownLeft;
-        if (json.detectors) upd.detectorDetails = json.detectors;
-        onStatusUpdate(upd);
-      } catch (e) {
-        if (line.includes("DEADLOOP_DETECTED")) {
-          const timeStr = new Date().toLocaleString();
-          statusBar.unreadAlert = true;
-          statusBar.writeReport(timeStr, statusBar.state.detectorDetails);
-          onStatusUpdate({ status: "alert", lastTrigger: timeStr, lastPoll: new Date().toLocaleTimeString() });
-          statusBar.updateDisplay();
-        } else if (line.includes("NEEDS_MANUAL")) {
-          vscode.window.showErrorMessage("自动中断失败，请手动 Ctrl+C 终止 Claude Code");
-          onStatusUpdate({ status: "intervention_needed", lastTrigger: new Date().toLocaleTimeString(), lastPoll: new Date().toLocaleTimeString() });
-        } else {
-          console.warn("[deadloop] unknown stdout line:", line.slice(0, 200));
-        }
-      }
-    }
-  };
-
-  proc.stdout.on("data", stdoutHandler);
-
-  const cleanUp = () => {
-    if (processes.has(workspacePath)) processes.delete(workspacePath);
-    try { proc.stdout.removeListener("data", stdoutHandler); } catch {}
-    try { proc.stdin.end(); } catch {}
-    clearInterval(checkInterval);
-    onStatusUpdate({ status: "stopped", stopReason: "监控进程已退出" });
-    try { fs.unlinkSync(heartbeatFile); } catch {}
-    try { fs.unlinkSync(pidFile); } catch {}
-  };
-
-  // 心跳文件检测：monitor.mjs 每 2 秒写文件，扩展每 3 秒读 mtime
-  // 连续 2 次（约 6 秒）检测不到心跳才判定死亡，防止 GC 停顿误杀
-  let heartbeatMisses = 0;
-  const checkInterval = setInterval(() => {
-    try {
-      const age = Date.now() - fs.statSync(heartbeatFile).mtimeMs;
-      if (age > 10000) {
-        heartbeatMisses++;
-        if (heartbeatMisses >= 2) {
-          cleanUp();
-        }
-      } else {
-        heartbeatMisses = 0;
-      }
-    } catch {
-      heartbeatMisses++;
-      if (heartbeatMisses >= 2) {
-        cleanUp();
-      }
-    }
-  }, 3000);
+function stopMonitor() {
+  // 无需操作，hook 模式无后台进程
 }
 
 function stopMonitor(workspacePath) {

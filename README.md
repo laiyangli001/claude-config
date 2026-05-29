@@ -345,15 +345,14 @@ Claude Code 通过两个配置文件加载 MCP 服务：
 
 ```
 ~/.claude/mcp-servers/deadloop-monitor/
-├── monitor.mjs                # 主监控进程（轮询检测）
 ├── stop-hook.mjs              # Stop Hook 检测（事件驱动，零延迟）
-├── detectors.mjs              # 重复/反转/停滞检测器
-├── helpers.mjs                # 文件读取、AutoIt 调用、停止确认
+├── detectors.mjs              # 重复/反转/停滞检测器（供各类脚本引用）
+├── helpers.mjs                # AutoIt 调用、文件读取等工具函数
 ├── deadloop_control.au3       # AutoIt 源码
 ├── deadloop_control.exe       # 编译后的无窗口 exe
 ├── config.mjs                 # 所有阈值参数
 ├── logger.mjs                 # JSON 日志，自动轮转
-├── workspace-watcher/         # VS Code 扩展
+├── workspace-watcher/         # VS Code 扩展（负责状态栏 + 配置界面）
 │   ├── extension.js
 │   └── package.json
 └── install-extension.mjs      # 扩展安装脚本
@@ -365,12 +364,15 @@ Claude Code 通过两个配置文件加载 MCP 服务：
 
 ```batch
 @echo off
-echo Installing deadloop monitor dependencies...
+echo [1/2] Installing VS Code extension...
 cd /d "%~dp0mcp-servers\deadloop-monitor"
-npm install
-echo Extension installation...
 node install-extension.mjs
-echo Done. Please reload VS Code window (Ctrl+Shift+P -> Reload Window).
+echo [2/2] 请手动将以下 hooks 配置添加到 settings.json 的 hooks 字段：
+echo.
+echo   "Stop": [{"hooks":[{"type":"command","command":"node",
+echo     "args":["c:/Users/你的用户名/.claude/mcp-servers/deadloop-monitor/stop-hook.mjs"]}]}]
+echo.
+echo Done! Please reload VS Code window (Ctrl+Shift+P -^> Reload Window).
 pause
 ```
 
@@ -386,6 +388,23 @@ pause
 ```bash
 cd ~/.claude/mcp-servers/deadloop-monitor
 node install-extension.mjs
+```
+
+2. **注册 Stop Hook** — 在 `settings.json` 的 `hooks` 字段添加：
+
+```json
+{
+  "hooks": {
+    "Stop": [{
+      "hooks": [{
+        "type": "command",
+        "command": "node",
+        "args": ["c:/Users/你的用户名/.claude/mcp-servers/deadloop-monitor/stop-hook.mjs"],
+        "timeout": 15
+      }]
+    }]
+  }
+}
 ```
 
 2. **安装成功后会提示：**
@@ -410,10 +429,10 @@ node install-extension.mjs
 
 **使用说明：**
 
-- 监控由两层组成：**Stop Hook（事件驱动）** + **轮询监控（周期扫描）**，双保险工作
-- Stop Hook 在 Claude 每轮输出完成后**立即触发**，检测最近两轮文本相似度，> 0.85 判定为循环
-- 轮询监控持续扫描 `.jsonl`，可检测**正在输出中**的循环，触发 AutoIt ESC 中断
-- 检测到死循环时，自动执行：AutoIt ESC 长按 5 秒 → 确认是否停止 → 注入摘要指令 → 冷却
+- 检测由 **Stop Hook** 事件驱动，在 Claude 每轮输出完成后**立即触发**
+- 检测最近两轮文本相似度，超过阈值（默认 Jaccard 相似度 > 0.85）判定为循环
+- 阈值可在 `config.mjs` 中调整（`jaccardThreshold`）或切换 preset（`default` / `conservative` / `sensitive`）
+- 检测到死循环时，自动执行：AutoIt 注入求助消息到输入框并提交
 - 状态栏显示当前状态：🟢 监控中 / 🟡 已暂停 / 🔴 检测到死循环 / ⚪ 已停止
 - 可在 `config.mjs` 中调整阈值（重复次数、反转词密度、信息增量率）
 

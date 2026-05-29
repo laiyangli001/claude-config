@@ -2,7 +2,7 @@
   "name": "deadloop-monitor",
   "version": "1.0.0",
   "type": "module",
-  "main": "monitor.mjs",
+  "main": "stop-hook.mjs",
   "description": "Claude Code 输出死循环检测与自动求助",
   "scripts": {
     "postinstall": "node install-extension.mjs"

@@ -31,6 +31,10 @@
         "node",
         "c:/Users/LaiYangLi/.claude/mcp-servers/mcp-doubao/dist/index.js"
       ]
+    },
+    "mineru-open-mcp": {
+      "command": "uvx",
+      "args": ["mineru-open-mcp"]
     }
   }
 }
