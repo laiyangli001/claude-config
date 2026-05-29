@@ -69,10 +69,18 @@ try {
   console.error(`  ❌ Failed to write ${claudeSettings}: ${e.message}`);
 }
 
-// ── 2. 确保 .bashrc 有 source proxy-detect.sh ──
-const scriptDir = path.dirname(process.argv[1]);
+// ── 2. 同步到 Windows 用户环境变量 ──
+const syncScript = path.join(path.dirname(process.argv[1]), "sync-proxy.mjs");
+try {
+  execSync(`node "${syncScript}"`, { stdio: "inherit", timeout: 15000 });
+} catch (e) {
+  console.error(`  ❌ Failed to sync env vars: ${e.message}`);
+}
+
+// ── 3. 确保 .bashrc 有 source proxy-detect.sh（终端 fallback）──
+const mcpDir = path.dirname(process.argv[1]).replace(/\\/g, "/");
 const bashrc = path.join(HOME, ".bashrc");
-const bashSourceLine = `source "${scriptDir.replace(/\\/g, "/")}/proxy-detect.sh"`;
+const bashSourceLine = `source "${mcpDir}/proxy-detect.sh"`;
 try {
   let content = "";
   try { content = fs.readFileSync(bashrc, "utf-8"); } catch {}
