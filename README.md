@@ -191,6 +191,33 @@ cd ~/.claude && git pull
 
 ---
 
+### 7. Reload Window（刷新配置）
+
+修改配置或安装新组件后，需要让 VS Code 重新加载才能生效。
+
+**哪些情况需要 Reload：**
+
+| 场景 | 原因 |
+|------|------|
+| 修改 `settings.json` 中的 `hooks`、`permissions`、`env` | Claude Code 在启动时读取配置 |
+| 安装或修改 VS Code 扩展（`extension.js`） | 扩展在启动时加载 |
+| 注册新的 MCP 服务或修改 MCP 配置 | MCP 进程在启动时建立 |
+| 切换 Stop Hook 开关 | hook 挂载在 settings.json 上 |
+| 更新 `CLAUDE.md` 或 `rules/` | Claude Code 会话开始时读取（新会话自动生效） |
+
+**操作方法：**
+
+```bash
+Ctrl+Shift+P   →   输入 "Reload Window"   →   回车
+```
+
+或通过命令面板：`查看` → `命令面板` → `Developer: Reload Window`。
+
+> 如果只是修改 `CLAUDE.md` 或 `rules/` 中的规则文件，**不需要 Reload**，重新开一个会话即可。
+> 修改 `README.md` 等文档文件也不影响功能，只影响阅读。
+
+---
+
 ## 🔧 高级设置
 
 本节适合需要深度定制自动化工作流、MCP 工具链和死循环监控的用户。
