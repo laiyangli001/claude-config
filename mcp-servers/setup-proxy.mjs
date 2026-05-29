@@ -69,46 +69,52 @@ try {
   console.error(`  ❌ Failed to write ${claudeSettings}: ${e.message}`);
 }
 
-// ── 2. 写入 ~/.bashrc ──
+// ── 2. 确保 .bashrc 有 source proxy-detect.sh ──
+const scriptDir = path.dirname(process.argv[1]);
 const bashrc = path.join(HOME, ".bashrc");
+const bashSourceLine = `source "${scriptDir.replace(/\\/g, "/")}/proxy-detect.sh"`;
 try {
   let content = "";
   try { content = fs.readFileSync(bashrc, "utf-8"); } catch {}
-  // 删除旧的 proxy 行和注释，重新添加
-  const lines = content.split("\n").filter(l => {
-    const t = l.trim();
-    return !/^export (HTTP_PROXY|HTTPS_PROXY)=/.test(t) && t !== "# Proxy" && t !== "# Proxy (auto-configured)";
-  });
-  // 移除末尾空行
-  while (lines.length && lines[lines.length - 1].trim() === "") lines.pop();
-  lines.push("", "# Proxy", `export HTTP_PROXY="${proxyUrl}"`, `export HTTPS_PROXY="${proxyUrl}"`);
-  fs.writeFileSync(bashrc, lines.join("\n"), "utf-8");
-  console.log(`  ✅ .bashrc: ${bashrc}`);
+  if (content.includes(bashSourceLine)) {
+    console.log(`  ⏭️ .bashrc: already configured`);
+  } else {
+    // 删除旧的硬编码 proxy 行
+    const cleaned = content.split("\n").filter(l => {
+      const t = l.trim();
+      return !/^export (HTTP_PROXY|HTTPS_PROXY)=/.test(t)
+        && t !== "# Proxy" && t !== "# Proxy (auto-configured)"
+        && t !== "# Proxy — 自动从 Windows 系统代理设置读取"
+        && t !== "# Proxy — 自动跟随 Windows 系统代理"
+        && !t.includes("proxy-detect.sh");
+    });
+    while (cleaned.length && cleaned[cleaned.length - 1].trim() === "") cleaned.pop();
+    cleaned.push("", "# Proxy — 自动跟随 Windows 系统代理", bashSourceLine);
+    fs.writeFileSync(bashrc, cleaned.join("\n"), "utf-8");
+    console.log(`  ✅ .bashrc: ${bashrc}`);
+  }
 } catch (e) {
   console.error(`  ❌ Failed to write ${bashrc}: ${e.message}`);
 }
 
-// ── 3. 写入 VS Code settings.json ──
-// VS Code 使用 flat 键名（如 "http.proxy"、"claudeCode.environmentVariables"），不是嵌套对象
+// ── 3. 清理 VS Code 设置中的显式代理（改为走系统代理） ──
 const vscodeSettings = path.join(process.env.APPDATA || path.join(HOME, "AppData", "Roaming"), "Code", "User", "settings.json");
 try {
   let cfg = {};
   try { cfg = JSON.parse(fs.readFileSync(vscodeSettings, "utf-8")); } catch {}
-  cfg["http.proxy"] = proxyUrl;
+  // 删除显式代理配置，让 VS Code 走 Windows 系统代理
+  delete cfg["http.proxy"];
+  delete cfg["http.proxyStrictSSL"];
   cfg["http.proxySupport"] = "on";
-  cfg["http.proxyStrictSSL"] = false;
-  // 清除旧的嵌套格式（如果有），VS Code 使用 flat 键名
+  // 清除旧的嵌套格式
   delete cfg.claudeCode;
-  // 确保 claudeCode.environmentVariables 里有代理（flat key）
+  // Claude Code 环境变量中的代理也删除（终端走 .bashrc 动态检测）
   const envKey = "claudeCode.environmentVariables";
-  if (!cfg[envKey]) cfg[envKey] = [];
-  for (const name of ["HTTP_PROXY", "HTTPS_PROXY"]) {
-    const existing = cfg[envKey].findIndex(e => e.name === name);
-    if (existing >= 0) cfg[envKey][existing].value = proxyUrl;
-    else cfg[envKey].push({ name, value: proxyUrl });
+  if (cfg[envKey]) {
+    cfg[envKey] = cfg[envKey].filter(e => e.name !== "HTTP_PROXY" && e.name !== "HTTPS_PROXY");
   }
   fs.writeFileSync(vscodeSettings, JSON.stringify(cfg, null, 4), "utf-8");
-  console.log(`  ✅ VS Code settings: ${vscodeSettings}`);
+  console.log(`  ✅ VS Code settings: ${vscodeSettings} (uses system proxy)`);
 } catch (e) {
   console.error(`  ❌ Failed to write ${vscodeSettings}: ${e.message}`);
 }
