@@ -70,7 +70,7 @@ class StatusBarManager {
       workspace ? "工作区     " + workspace : "",
       lastTrigger ? "最近触发: " + lastTrigger : "",
       "──────────────────────────────",
-      "左键 → 菜单   右键 → 设置阈值",
+      "左键 → 打开菜单",
     ].filter(Boolean).join("\n");
     this.item.show();
   }
