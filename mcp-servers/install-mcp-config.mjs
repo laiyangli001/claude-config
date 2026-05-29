@@ -29,6 +29,10 @@ const mcpServers = {
     args: ["mineru-open-mcp"],
     env: { MINERU_API_TOKEN: "${MINERU_API_TOKEN}" },
   },
+  "pdf-toolkit": {
+    command: "npx",
+    args: ["-y", "@aryanbv/pdf-toolkit-mcp"],
+  },
 };
 
 let config = {};
