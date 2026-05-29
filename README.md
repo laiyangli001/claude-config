@@ -401,6 +401,28 @@ claude mcp add --transport stdio mineru-open-mcp -- npx -y mineru-open-mcp
 | Flash | 无需 token | ≤ 20 页/文件，≤ 10MB | Markdown（表格/公式/OCR） |
 | Precision | 需 `MINERU_API_TOKEN` | ≤ 600 页/文件 | MD/HTML/LaTeX/DOCX + VLM 布局 |
 
+#### API Key 配置（Precision 模式）
+
+在 [mineru.net](https://mineru.net) 注册并获取 API Token 后，设置环境变量：
+
+```bash
+# 临时设置（当前终端有效）
+export MINERU_API_TOKEN="你的token"
+
+# 永久设置（写入 .bashrc）
+echo 'export MINERU_API_TOKEN="你的token"' >> ~/.bashrc
+```
+
+或在 `settings.json` 的 `env` 字段添加：
+
+```json
+"env": {
+  "MINERU_API_TOKEN": "你的token"
+}
+```
+
+配置后，MCP 服务会自动加载 token，无需重启。
+
 #### 使用方式
 
 在 Claude Code 中直接提交文件即可自动触发：

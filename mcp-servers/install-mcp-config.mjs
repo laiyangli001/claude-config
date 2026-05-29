@@ -27,6 +27,7 @@ const mcpServers = {
   "mineru-open-mcp": {
     command: "uvx",
     args: ["mineru-open-mcp"],
+    env: { MINERU_API_TOKEN: "${MINERU_API_TOKEN}" },
   },
 };
 
