@@ -355,26 +355,22 @@ Claude Code 通过两个配置文件加载 MCP 服务：
 ├── workspace-watcher/         # VS Code 扩展（负责状态栏 + 配置界面）
 │   ├── extension.js
 │   └── package.json
-└── install-extension.mjs      # 扩展安装脚本
+├── install-extension.mjs      # 装扩展（给 install-deadloop.mjs 调用）
+└── install-deadloop.mjs       # 一键安装：装扩展 + 注册 Hook
 ```
 
 #### 一键安装（批处理）
 
-创建 `install-deadloop.bat`：
+运行 `install-deadloop.bat` 或直接在终端执行：
 
-```batch
-@echo off
-echo [1/2] Installing VS Code extension...
-cd /d "%~dp0mcp-servers\deadloop-monitor"
-node install-extension.mjs
-echo [2/2] 请手动将以下 hooks 配置添加到 settings.json 的 hooks 字段：
-echo.
-echo   "Stop": [{"hooks":[{"type":"command","command":"node",
-echo     "args":["c:/Users/你的用户名/.claude/mcp-servers/deadloop-monitor/stop-hook.mjs"]}]}]
-echo.
-echo Done! Please reload VS Code window (Ctrl+Shift+P -^> Reload Window).
-pause
+```bash
+cd ~/.claude/mcp-servers/deadloop-monitor
+node install-deadloop.mjs
 ```
+
+脚本自动完成：
+1. 安装 VS Code 扩展
+2. 注册 Stop Hook 到 `~/.claude/settings.json`
 
 > 💡 也可以直接对我说"**帮我安装死循环监控**"，AI 会自动完成以上安装步骤。
 
@@ -383,28 +379,11 @@ pause
 
 **安装步骤：**
 
-1. **安装扩展** — 运行 `install-deadloop.bat`，或在终端手动执行：
+运行 `install-deadloop.mjs`，一步完成扩展安装和 Hook 注册：
 
 ```bash
 cd ~/.claude/mcp-servers/deadloop-monitor
-node install-extension.mjs
-```
-
-2. **注册 Stop Hook** — 在 `settings.json` 的 `hooks` 字段添加：
-
-```json
-{
-  "hooks": {
-    "Stop": [{
-      "hooks": [{
-        "type": "command",
-        "command": "node",
-        "args": ["c:/Users/你的用户名/.claude/mcp-servers/deadloop-monitor/stop-hook.mjs"],
-        "timeout": 15
-      }]
-    }]
-  }
-}
+node install-deadloop.mjs
 ```
 
 2. **安装成功后会提示：**
