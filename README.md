@@ -425,15 +425,44 @@ echo 'export MINERU_API_TOKEN="你的token"' >> ~/.bashrc
 
 #### 使用方式
 
-在 Claude Code 中直接提交文件即可自动触发：
+MinerU 在 Claude Code 中有两种调用路径：
+
+**方式一：自然语言触发（推荐）**
+
+直接描述需求，Claude 会自动判断调用 `mineru-open-mcp` 的 `parse_documents` 工具：
 
 ```text
 把这份 PDF 转成 Markdown
 提取这个扫描件中的表格和公式
 解析这个 Word 文档
+ocr 识别这张图片中的文字
 ```
 
-或通过 `/mcp-baipiao` skill 自动匹配。
+只要对话中附带了文件，Claude 会**自动选择** MinerU 处理，无需指定工具名。
+
+**方式二：通过 Skill 调用**
+
+```text
+/mineru-doc-extractor flash-extract 报告.pdf
+```
+
+或使用 `/mcp-baipiao` 自动匹配场景。
+
+#### 调用逻辑
+
+```
+用户提供文件或URL
+    ↓
+Claude 识别文件类型（PDF/Word/图片等）
+    ↓
+自动调用 mineru-open-mcp.parse_documents
+    ↓
+MinerU 解析 → 返回 Markdown 结果
+    ↓
+Claude 将结果呈现给用户
+```
+
+不需要用户手动指定参数（语言、页数、OCR 等），Claude 会根据文件类型和需求自动推断。
 
 #### 注意事项
 
