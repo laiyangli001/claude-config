@@ -5,6 +5,7 @@ const fs = require("fs");
 
 const MONITOR_DIR = path.join(process.env.USERPROFILE || "C:/Users/default", ".claude", "deadloop-monitor");
 const LOG_FILE = path.join(MONITOR_DIR, "deadloop-monitor.jsonl");
+const CLAUDE_SETTINGS = path.join(process.env.USERPROFILE || "C:/Users/default", ".claude", "settings.json");
 
 // ── 预设方案定义 ──
 const PRESETS = {
@@ -55,20 +56,24 @@ class StatusBarManager {
     if (status === "alert") {
       icon = "$(error)"; tooltipStatus = "🔴 检测到死循环！";
       this.item.backgroundColor = new vscode.ThemeColor("statusBarItem.errorBackground");
+    } else if (status === "hook_disabled") {
+      icon = "$(circle-slash)"; tooltipStatus = "⚪ 已禁用";
     }
     const settings = readSettings();
     const preset = PRESETS[settings.preset] || PRESETS.default;
+    const hookOn = isHookActive();
+    const hookLabel = hookOn ? "✅ 已启用" : "❌ 已停用";
     this.item.text = icon + " 循环守护";
     this.item.tooltip = [
       "循环守护    " + tooltipStatus,
       "──────────────────────────────",
-      "检测方式   Stop Hook（事件驱动）",
-      "预设方案   " + preset.label,
-      "相似阈值   " + preset.jaccardThreshold.toFixed(2),
-      "反转词     ≥" + preset.reversalMinCount + " 词/200字",
-      "信息增量   <" + preset.lowInfoThreshold.toFixed(2) + " 触发停滞",
-      workspace ? "工作区     " + workspace : "",
-      lastTrigger ? "最近触发: " + lastTrigger : "",
+      "Stop Hook   " + hookLabel,
+      "预设方案    " + preset.label,
+      "相似阈值    " + preset.jaccardThreshold.toFixed(2),
+      "反转词      ≥" + preset.reversalMinCount + " 词/200字",
+      "信息增量    <" + preset.lowInfoThreshold.toFixed(2) + " 触发停滞",
+      workspace ? "工作区      " + workspace : "",
+      lastTrigger ? "最近触发:   " + lastTrigger : "",
       "──────────────────────────────",
       "左键 → 打开菜单",
     ].filter(Boolean).join("\n");
@@ -78,14 +83,19 @@ class StatusBarManager {
   registerCommands(context) {
     const cmdId = "loopGuardian.showQuickPick";
     context.subscriptions.push(vscode.commands.registerCommand(cmdId, async () => {
+      const hookOn = isHookActive();
+      const toggleLabel = hookOn ? "⏹ 停用 Stop Hook（需 Reload）" : "▶ 启用 Stop Hook（需 Reload）";
       const options = [
+        { label: toggleLabel, action: "toggleHook" },
         { label: "📋 查看日志", action: "viewLog" },
         { label: "⚙ 检测阈值设置 →", action: "thresholdConfig" },
         { label: "🏥 完整会话健康度分析", action: "healthAnalysis" },
       ];
       const choice = await vscode.window.showQuickPick(options, { placeHolder: "循环守护 – 选择操作" });
       if (!choice) return;
-      if (choice.action === "viewLog") {
+      if (choice.action === "toggleHook") {
+        toggleHook(this);
+      } else if (choice.action === "viewLog") {
         try {
           const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(LOG_FILE));
           await vscode.window.showTextDocument(doc);
@@ -100,6 +110,45 @@ class StatusBarManager {
   }
 
   dispose() { this.item.dispose(); }
+}
+
+// ════════════════════════════════════════
+// Stop Hook 开关
+// ════════════════════════════════════════
+
+function isHookActive() {
+  try {
+    const cfg = JSON.parse(fs.readFileSync(CLAUDE_SETTINGS, "utf-8"));
+    return !!(cfg.hooks?.Stop);
+  } catch { return false; }
+}
+
+function toggleHook(statusBar) {
+  try {
+    const cfg = JSON.parse(fs.readFileSync(CLAUDE_SETTINGS, "utf-8"));
+    if (cfg.hooks?.Stop) {
+      delete cfg.hooks.Stop;
+      if (Object.keys(cfg.hooks).length === 0) delete cfg.hooks;
+      fs.writeFileSync(CLAUDE_SETTINGS, JSON.stringify(cfg, null, 2), "utf-8");
+      statusBar.updateState({ status: "hook_disabled" });
+      vscode.window.showInformationMessage("⏹ Stop Hook 已关闭，Reload Window 后生效");
+    } else {
+      if (!cfg.hooks) cfg.hooks = {};
+      cfg.hooks.Stop = [{
+        hooks: [{
+          type: "command",
+          command: "node",
+          args: [path.join(MONITOR_DIR, "stop-hook.mjs").replace(/\\/g, "/")],
+          timeout: 15,
+        }],
+      }];
+      fs.writeFileSync(CLAUDE_SETTINGS, JSON.stringify(cfg, null, 2), "utf-8");
+      statusBar.updateState({ status: "hook_mode" });
+      vscode.window.showInformationMessage("▶ Stop Hook 已开启，Reload Window 后生效");
+    }
+  } catch (e) {
+    vscode.window.showErrorMessage("操作失败: " + e.message);
+  }
 }
 
 // ════════════════════════════════════════
@@ -168,7 +217,8 @@ function activate(context) {
   const statusBar = new StatusBarManager();
   const wsFolder = vscode.workspace.workspaceFolders?.[0];
   const wsPath = wsFolder?.uri.fsPath || "";
-  statusBar.updateState({ workspace: wsPath });
+  const initialState = isHookActive() ? "hook_mode" : "hook_disabled";
+  statusBar.updateState({ status: initialState, workspace: wsPath });
   statusBar.registerCommands(context);
   context.subscriptions.push(statusBar);
 }
