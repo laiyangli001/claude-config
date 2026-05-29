@@ -23,9 +23,9 @@ try {
 }
 
 // ── 2. 确保 .bashrc 有 source proxy-detect.sh ──
-const mcpDir = path.dirname(process.argv[1]).replace(/\\/g, "/");
+const scriptDir = path.dirname(process.argv[1]).replace(/\\/g, "/");
 const bashrc = path.join(HOME, ".bashrc");
-const bashSourceLine = `source "${mcpDir}/proxy-detect.sh"`;
+const bashSourceLine = `source "${scriptDir}/proxy-detect.sh"`;
 try {
   let content = "";
   try { content = fs.readFileSync(bashrc, "utf-8"); } catch {}
