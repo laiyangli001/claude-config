@@ -707,3 +707,7 @@ body {
     padding: 30px;
   }
 }
+
+/* auto-fix */
+em { color: #333; font-style: italic; }
+del { color: #999; text-decoration: line-through; }

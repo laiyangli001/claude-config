@@ -99,3 +99,11 @@ body {
 
 .markdown-body ul, .markdown-body ol { padding-left: 24px; }
 .markdown-body li { margin: 6px 0; }
+
+/* auto-fix */
+h4, h5, h6 { color: #80d0c7; }
+h4 { font-size: 1.1em; }
+h5 { font-size: 1em; color: #64ffda; }
+h6 { font-size: 0.9em; color: #48c6ef; }
+del { color: #5a7a8a; }
+img { max-width: 100%; border-radius: 8px; }

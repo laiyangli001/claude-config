@@ -112,3 +112,10 @@ body {
 
 .markdown-body ul, .markdown-body ol { padding-left: 24px; }
 .markdown-body li { margin: 4px 0; }
+
+/* auto-fix */
+h4, h5, h6 { color: #333; }
+h4 { font-size: 1.1em; }
+h5 { font-size: 1em; color: #555; }
+h6 { font-size: 0.9em; color: #777; }
+del { color: #999; }
