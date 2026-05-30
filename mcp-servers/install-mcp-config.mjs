@@ -33,11 +33,6 @@ const mcpServers = {
     command: "npx",
     args: ["-y", "@aryanbv/pdf-toolkit-mcp"],
   },
-  "mdmagic": {
-    command: "npx",
-    args: ["-y", "@mdmagic/mcp-server@latest"],
-    env: { MDMAGIC_API_KEY: "${MDMAGIC_API_KEY}" },
-  },
 };
 
 let config = {};
