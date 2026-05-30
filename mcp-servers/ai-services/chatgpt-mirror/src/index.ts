@@ -5,20 +5,20 @@ import { chromium, BrowserContext, Page } from "playwright";
 import * as path from "path";
 import { fileURLToPath } from "url";
 // @ts-ignore
-import { launchBrowser, navigateWithToast, withRetry, isTransientError, checkSite, closeBrowser } from "../shared/browser.mjs";
+import { launchBrowser, navigateWithToast, withRetry, isTransientError, checkSite, closeBrowser } from "../../shared/browser.mjs";
 // @ts-ignore
-import { waitForAnswer, extractNewAnswers, waitForNewMessage, setupPageErrorMonitor, showToast } from "../shared/answer.mjs";
+import { waitForAnswer, extractNewAnswers, waitForNewMessage, setupPageErrorMonitor, showToast } from "../../shared/answer.mjs";
 // @ts-ignore
-import { uploadFiles } from "../shared/upload.mjs";
+import { uploadFiles } from "../../shared/upload.mjs";
 // @ts-ignore
-import { loadTemplate } from "../shared/role.mjs";
+import { loadTemplate } from "../../shared/role.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(__dirname, "..");
 const PROFILE_DIR = path.join(PROJECT_ROOT, ".chatgpt-mirror-profile");
 const SITE_URL = "https://chatgpt.2233.ai/";
 const HEADLESS = process.env.CHATGPT_HEADLESS === "true";
-const TEMPLATES_DIR = path.resolve(__dirname, "../shared/templates");
+const TEMPLATES_DIR = path.resolve(__dirname, "../../shared/templates");
 
 const SEL = {
   CHAT_INPUT: "#prompt-textarea",
