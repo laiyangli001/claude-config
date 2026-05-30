@@ -1,0 +1,80 @@
+---
+name: mcp-office-tool
+description: |
+  办公文档处理工具。当用户需要将 Markdown 导出为 PDF、预览主题效果、
+  操作 PDF 文件（合并/拆分/加密/水印/压缩）时使用。
+---
+
+## 执行步骤
+
+### 第 1 步：收集需求
+
+与用户对话收集以下信息：
+- **操作类型**：导出 PDF / 预览主题 / 操作 PDF / 读取文档
+- **文件**：涉及哪些文件？引导用户附加到对话中
+- **主题偏好**：是否指定 PDF 风格？（neon-dark / aurora / cyberpunk / glassmorphism / minimal-web / github / book）
+- **具体需求**：合并哪些 PDF？加什么水印？密码保护？
+
+### 第 2 步：场景分类
+
+根据以下规则自动匹配场景：
+
+| # | 场景 | 触发条件 | 执行方式 |
+|---|------|---------|---------|
+| 1 | 导出 PDF | 要求 Markdown→PDF、导出文档、生成报告等 | `md-to-pdf.mjs` + 指定主题 |
+| 2 | 橱窗预览 | 要求预览/比较全部主题风格 | `md-preview.mjs` |
+| 3 | 合并 PDF | 要求合并多个 PDF 文件 | `pdf-toolkit` MCP `pdf_merge` |
+| 4 | 拆分 PDF | 要求提取/拆分 PDF 页面 | `pdf-toolkit` MCP `pdf_split` |
+| 5 | 加密 PDF | 要求加密/密码保护 PDF | `pdf-toolkit` MCP `pdf_encrypt` |
+| 6 | 加水印 | 要求给 PDF 添加文字水印 | `pdf-toolkit` MCP `pdf_add_watermark` |
+| 7 | 压缩 PDF | 要求压缩/减小 PDF 大小 | `pdf-toolkit` MCP `pdf_compress` |
+
+**复合任务检测**：若用户输入包含多个操作（如"转换这个 Markdown 并加密"），按顺序依次执行子步骤。
+
+### 第 3 步：二次确认
+
+向用户展示识别结果：
+
+```text
+已识别场景：[导出 PDF]，将使用 [neon-dark] 主题。
+是否继续？（回复"是"继续，或指定：主题名/取消）
+```
+
+复合任务时：
+```text
+检测到多个操作：
+  [1] 导出 PDF（neon-dark 主题）
+  [2] 加密 PDF（密码保护）
+是否按以上顺序执行？（是/指定顺序/取消）
+```
+
+### 第 4 步：执行
+
+根据场景执行对应操作：
+
+**导出 PDF：**
+```bash
+node mcp-servers/office-tools/md-to-pdf.mjs 输入.md -t 主题名
+```
+
+**橱窗预览：**
+```bash
+node mcp-servers/office-tools/md-preview.mjs
+```
+
+**PDF 操作：** 直接调用 `pdf-toolkit` MCP 对应工具，无需本地脚本。
+
+### 第 5 步：返回结果
+
+输出格式：
+
+```text
+[场景: 导出 PDF] [主题: neon-dark] [文件: output.pdf]
+---
+```
+
+然后追加反馈循环：
+
+```text
+是否需要调整？可以更换主题、修改参数，或输入"完成"结束。
+```
