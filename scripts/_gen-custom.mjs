@@ -11,7 +11,7 @@ const { PDFDocument } = _r("c:/Users/LaiYangLi/.claude/mcp-servers/node_modules/
 const katex = _r2("c:/Users/LaiYangLi/.claude/mcp-servers/node_modules/katex");
 
 const THEMES_DIR = "c:/Users/LaiYangLi/.claude/scripts/themes";
-const OUTPUT = "c:/Users/LaiYangLi/Desktop/themes-custom-v3.pdf";
+const OUTPUT = "c:/Users/LaiYangLi/Desktop/themes-custom-v4.pdf";
 const custom = ["neon-dark", "aurora", "cyberpunk", "glassmorphism", "minimal-web", "github", "book"];
 const SAMPLE = fs.readFileSync("c:/Users/LaiYangLi/.claude/scripts/css-extract-sample.md", "utf-8");
 
