@@ -13,6 +13,7 @@
 | 命令 | 说明 |
 |------|------|
 | `/mcp-baipiao` | MCP 白嫖助手——分析代码/文档/图片等，自动选服务和模板。直接描述需求即可 |
+| `/mcp-office-tool` | 办公文档处理——Markdown 转 PDF、PDF 合并/拆分/加密/水印。直接描述需求即可 |
 
 ## 概述
 
@@ -188,3 +189,34 @@ cmd //c "@Aut2Exe/Aut2exe_x64.exe /in C:\Users\LaiYangLi\.claude\mcp-servers\dea
 4. 按照建议修改 bug
 
 **例外：** 用户明确要求我帮忙时，不受上述自动流程限制，按用户指令执行。
+
+### 办公文档处理（MCP + 本地脚本）
+
+已安装 `mcp-office-tool` skill，支持以下办公操作：
+
+Markdown → PDF（本地离线，7 套主题，命令方式）：
+  node mcp-servers/office-tools/md-to-pdf.mjs 文档.md -t 主题名
+  -t 可选：neon-dark aurora cyberpunk glassmorphism minimal-web github book
+
+PDF 操作（pdf-toolkit MCP）：
+  合并、拆分、加密、水印、压缩、加页码、Markdown→PDF
+
+文档读取（MinerU MCP parse_documents）：
+  自动将 PDF/Word/PPT/Excel/图片 → 结构化 Markdown
+  如果用户提供了 PDF 等文档文件，直接调用 parse_documents 解析
+  Flash 模式（免费）：≤ 20 页/文件、≤ 10MB
+  Precision 模式（需 MINERU_API_TOKEN）：≤ 600 页/文件
+  注意：MinerU 处理图片是 OCR 识别文字，不具备图像理解能力
+  "理解画面内容"用 ask_doubao，"提取文字"用 MinerU
+
+PDF 操作（pdf-toolkit MCP）：
+  合并、拆分、加密、水印、压缩、加页码、Markdown→PDF
+
+触发场景（自动触发 /mcp-office-tool）：
+- "把这个 Markdown 导出成 PDF"
+- "用 neon-dark 风格生成 PDF"
+- "合并这两个 PDF / 加密这个 PDF / 加水印"
+- "预览所有主题风格"
+- "读取这个 PDF / 把这个 Word 转成 Markdown"
+- "提取这个文档中的表格和公式"
+- "把这份报告导出，用书本质感的主题"

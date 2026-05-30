@@ -1,8 +1,8 @@
 ---
 name: mcp-office-tool
 description: |
-  办公文档处理工具。当用户需要将 Markdown 导出为 PDF、预览主题效果、
-  操作 PDF 文件（合并/拆分/加密/水印/压缩）时使用。
+  办公文档处理工具。当用户需要读取文档（PDF/Word/PPT/Excel/图片→Markdown）、
+  将 Markdown 导出为 PDF、预览主题效果、操作 PDF 文件（合并/拆分/加密/水印/压缩）时使用。
 ---
 
 ## 执行步骤
@@ -10,7 +10,7 @@ description: |
 ### 第 1 步：收集需求
 
 与用户对话收集以下信息：
-- **操作类型**：导出 PDF / 预览主题 / 操作 PDF / 读取文档
+- **操作类型**：读取文档 / 导出 PDF / 预览主题 / 操作 PDF
 - **文件**：涉及哪些文件？引导用户附加到对话中
 - **主题偏好**：是否指定 PDF 风格？（neon-dark / aurora / cyberpunk / glassmorphism / minimal-web / github / book）
 - **具体需求**：合并哪些 PDF？加什么水印？密码保护？
@@ -21,13 +21,14 @@ description: |
 
 | # | 场景 | 触发条件 | 执行方式 |
 |---|------|---------|---------|
-| 1 | 导出 PDF | 要求 Markdown→PDF、导出文档、生成报告等 | `md-to-pdf.mjs` + 指定主题 |
-| 2 | 橱窗预览 | 要求预览/比较全部主题风格 | `md-preview.mjs` |
-| 3 | 合并 PDF | 要求合并多个 PDF 文件 | `pdf-toolkit` MCP `pdf_merge` |
-| 4 | 拆分 PDF | 要求提取/拆分 PDF 页面 | `pdf-toolkit` MCP `pdf_split` |
-| 5 | 加密 PDF | 要求加密/密码保护 PDF | `pdf-toolkit` MCP `pdf_encrypt` |
-| 6 | 加水印 | 要求给 PDF 添加文字水印 | `pdf-toolkit` MCP `pdf_add_watermark` |
-| 7 | 压缩 PDF | 要求压缩/减小 PDF 大小 | `pdf-toolkit` MCP `pdf_compress` |
+| 1 | 读取文档 | 提供 PDF/Word/PPT/Excel/图片文件，要求解析/读取/提取文字 | `mineru-open-mcp` MCP `parse_documents` |
+| 2 | 导出 PDF | 要求 Markdown→PDF、导出文档、生成报告等 | `md-to-pdf.mjs` + 指定主题 |
+| 3 | 橱窗预览 | 要求预览/比较全部主题风格 | `md-preview.mjs` |
+| 4 | 合并 PDF | 要求合并多个 PDF 文件 | `pdf-toolkit` MCP `pdf_merge` |
+| 5 | 拆分 PDF | 要求提取/拆分 PDF 页面 | `pdf-toolkit` MCP `pdf_split` |
+| 6 | 加密 PDF | 要求加密/密码保护 PDF | `pdf-toolkit` MCP `pdf_encrypt` |
+| 7 | 加水印 | 要求给 PDF 添加文字水印 | `pdf-toolkit` MCP `pdf_add_watermark` |
+| 8 | 压缩 PDF | 要求压缩/减小 PDF 大小 | `pdf-toolkit` MCP `pdf_compress` |
 
 **复合任务检测**：若用户输入包含多个操作（如"转换这个 Markdown 并加密"），按顺序依次执行子步骤。
 
@@ -51,6 +52,8 @@ description: |
 ### 第 4 步：执行
 
 根据场景执行对应操作：
+
+**读取文档：** 直接调用 `mineru-open-mcp` 的 `parse_documents` 工具，传入文件路径即可。不需要手动拼参数，Claude 会自动选择。
 
 **导出 PDF：**
 ```bash
