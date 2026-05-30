@@ -102,7 +102,8 @@
 
 ### 免费的 MCP 服务调用流程：
 
-1. 静默调用 `ask_chatgpt_mirror` / `ask_chatgpt_official` / `ask_deepseek` / `ask_doubao`（question + attachments）
+1. 在调用任何外部 MCP 服务前，先向用户说明将使用的服务（例如："我将使用 ChatGPT 镜像审查代码，是否继续？"），除非用户已通过 `/mcp-baipiao` 明确授权或任务简单风险低。
+   （question + attachments）
 
 2. 发送角色模板：支持 `role` 参数（如 `role: “python_tutor”`），首次调用时以角色模板设定 AI 身份。你应根据**文件类型和问题内容**自行判断角色并显式传递。
 
@@ -126,69 +127,7 @@
 - “翻译这个” / “解释一下这段代码”
 
 
-## 模拟鼠标键盘操作规范（AutoIt + 无窗口编译）
-
-当需要实现模拟鼠标键盘动作、发送按键消息、自动化控制外部程序等操作时，建议优先使用 AutoIt3脚本语言。
-
-### 1. 脚本语言
-- 使用 AutoIt3，文件扩展名为 `.au3`
-
-### 2. 编译方式（强制：无窗口静默编译）
-- 必须使用 `Aut2exe_x64.exe`（路径：`.claude` 根目录下的 `@Aut2Exe/Aut2exe_x64.exe`）
-- 通过 `cmd //c` 调用
-- 必须加 `/console` 参数
-
-**正确命令格式**：
-```cmd
-cmd //c "@Aut2Exe/Aut2exe_x64.exe /in <脚本绝对路径> /out <输出exe绝对路径> /console"
-```
-
-实际示例：
-```cmd
-cmd //c "@Aut2Exe/Aut2exe_x64.exe /in C:\Users\LaiYangLi\.claude\mcp-servers\deadloop-monitor\deadloop_control.au3 /out C:\Users\LaiYangLi\.claude\mcp-servers\deadloop-monitor\deadloop_control.exe /console"
-```
-
-❌ 错误示例（会弹出窗口，禁止使用）：
-- 直接双击 Aut2exe_x64.exe
-- 使用 start 命令调用
-- 不加 /console 参数
-- 不通过 cmd //c 调用
-
-### 3. 安全软件处理
-
-必须要告诉用户：编译或运行生成的 .exe ，有100%可能被安全软件拦截或删除，手动将文件添加至信任区（白名单）
-
-可临时关闭实时防护，编译完成并确认安全后立即恢复，不添加信任可能导致程序被静默删除。
-
-### 4. 执行原则
-
-使用绝对路径调用生成的 .exe，脚本内部避免无限循环无退出条件，必要时增加超时或热键退出机制
-
-### 死循环监控工作流
-
-死循环监控（Dead Loop Monitor）是完全自动化的系统，检测到死循环后的流程：
-
-1. **ESC 中断** — AutoIt 长按 ESC 5 秒，最多 3 次
-
-2. **确认停止** — 全量扫描 .jsonl 末尾检查 `stop_reason: “end_turn”` 或 `interrupted: true`
-
-3. **确认到停止** → `inject_file` 粘贴注入消息 + 自动提交（Enter + Ctrl+Enter）
-
-4. **未确认到停止** → `paste_file` 只粘贴不发送，等人眼确认后手动提交
-
-5. 进入冷却 → 恢复监控 → **流程结束**
-
-**收到注入消息后的角色：** 我就是 Claude Code。收到注入消息后：
-
-1. 按注入消息的 4 点要求生成总结摘要
-
-2. 按”ChatGPT/DeepSeek 代码建议处理”规则，调用浏览器发送问题
-
-3. 收到回答后，如果对方能提供参考代码，要求对方提供完整代码
-
-4. 按照建议修改 bug
-
-**例外：** 用户明确要求我帮忙时，不受上述自动流程限制，按用户指令执行。
+AutoIt 编译和死循环监控的详细规则见 `rules/` 目录下对应文件。
 
 ### 办公文档处理（MCP + 本地脚本）
 

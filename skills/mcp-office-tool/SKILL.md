@@ -55,6 +55,8 @@ description: |
 
 **读取文档：** 直接调用 `mineru-open-mcp` 的 `parse_documents` 工具，传入文件路径即可。不需要手动拼参数，Claude 会自动选择。
 
+**读取后分析：** 若用户要求"总结、分析、理解文档内容"，在读取文档后，将提取的 Markdown 文本作为附件，转交给 `/mcp-baipiao` 的长文本分析流程处理。
+
 **导出 PDF：**
 ```bash
 node mcp-servers/office-tools/md-to-pdf.mjs 输入.md -t 主题名
@@ -64,6 +66,7 @@ node mcp-servers/office-tools/md-to-pdf.mjs 输入.md -t 主题名
 ```bash
 node mcp-servers/office-tools/md-preview.mjs
 ```
+生成 `themes-preview.html`，在浏览器中打开可看到全部 7 套主题的并排预览效果。
 
 **PDF 操作：** 直接调用 `pdf-toolkit` MCP 对应工具，无需本地脚本。
 
