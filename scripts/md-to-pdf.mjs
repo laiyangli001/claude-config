@@ -40,9 +40,6 @@ if (!fs.existsSync(inputFile)) {
 
 if (!outputFile) outputFile = inputFile.replace(/\.md$/i, "") + ".pdf";
 
-// ── 确保主题已安装 ──
-ensureThemes();
-
 const availableThemes = fs.readdirSync(THEMES_DIR).filter(f => fs.statSync(path.join(THEMES_DIR, f)).isDirectory());
 if (!availableThemes.includes(themeName)) {
   console.error(`Theme "${themeName}" not found. Available themes:`);
@@ -102,27 +99,13 @@ try {
 
 function listThemes() {
   if (fs.existsSync(THEMES_DIR)) {
-    const all = fs.readdirSync(THEMES_DIR).filter(f => fs.statSync(path.join(THEMES_DIR, f)).isDirectory());
-    const standard = all.filter(t => !["neon-dark","aurora","cyberpunk","glassmorphism","minimal-web"].includes(t));
-    const custom = all.filter(t => ["neon-dark","aurora","cyberpunk","glassmorphism","minimal-web"].includes(t));
-    console.log("Standard themes (markdown-styles):");
-    for (const d of standard) console.log(`  ${d}`);
-    console.log("\nCustom themes (web-style):");
-    for (const d of custom) console.log(`  ${d}`);
+    const dirs = fs.readdirSync(THEMES_DIR).filter(f => fs.statSync(path.join(THEMES_DIR, f)).isDirectory());
+    console.log("Available themes (" + dirs.length + "):");
+    for (const d of dirs) console.log(`  ${d}`);
     console.log(`\nUsage: node md-to-pdf.mjs input.md -t theme-name`);
   } else {
     console.log("No themes installed. Run script to auto-install.");
   }
-}
-
-function ensureThemes() {
-  if (fs.existsSync(THEMES_DIR)) return;
-  console.log("📦 Installing themes...");
-  // markdown-styles 是全局安装的，从 npm 全局路径找
-  const npmRoot = execSync("npm root -g", { encoding: "utf-8" }).trim();
-  const src = path.join(npmRoot, "markdown-styles", "layouts");
-  copyDir(src, THEMES_DIR);
-  console.log(`   ${fs.readdirSync(THEMES_DIR).length} themes installed`);
 }
 
 function readThemeCss(dir) {
@@ -143,15 +126,3 @@ function readThemeCss(dir) {
   return css;
 }
 
-function copyDir(src, dest) {
-  fs.mkdirSync(dest, { recursive: true });
-  for (const item of fs.readdirSync(src)) {
-    const s = path.join(src, item);
-    const d = path.join(dest, item);
-    if (fs.statSync(s).isDirectory()) {
-      copyDir(s, d);
-    } else if (item.endsWith(".css") || item.endsWith(".html")) {
-      fs.copyFileSync(s, d);
-    }
-  }
-}
