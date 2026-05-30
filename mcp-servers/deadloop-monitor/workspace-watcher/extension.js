@@ -3,7 +3,7 @@ const { spawn } = require("child_process");
 const path = require("path");
 const fs = require("fs");
 
-const MONITOR_DIR = path.join(process.env.USERPROFILE || "C:/Users/default", ".claude", "deadloop-monitor");
+const MONITOR_DIR = path.join(process.env.USERPROFILE || "C:/Users/default", ".claude", "mcp-servers", "deadloop-monitor");
 const LOG_FILE = path.join(MONITOR_DIR, "deadloop-monitor.jsonl");
 const CLAUDE_SETTINGS = path.join(process.env.USERPROFILE || "C:/Users/default", ".claude", "settings.json");
 

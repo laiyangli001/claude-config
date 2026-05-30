@@ -8,12 +8,12 @@ import { execSync } from "child_process";
 import { createRequire } from "module";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const _r = createRequire(import.meta.url);
-const { chromium } = _r(path.resolve(__dirname, "..", "mcp-servers", "node_modules", "playwright"));
-const katex = _r(path.resolve(__dirname, "..", "mcp-servers", "node_modules", "katex"));
+const { chromium } = _r(path.resolve(__dirname, "..", "node_modules", "playwright"));
+const katex = _r(path.resolve(__dirname, "..", "node_modules", "katex"));
 const THEMES_DIR = path.join(__dirname, "themes");
-const MARKED_BIN = path.resolve(__dirname, "..", "mcp-servers", "node_modules", "marked", "bin", "marked.js");
-const KATEX_CSS = path.resolve(__dirname, "..", "mcp-servers", "node_modules", "katex", "dist", "katex.min.css");
-const KATEX_FONTS = path.resolve(__dirname, "..", "mcp-servers", "node_modules", "katex", "dist", "fonts").replace(/\\/g, "/");
+const MARKED_BIN = path.resolve(__dirname, "..", "node_modules", "marked", "bin", "marked.js");
+const KATEX_CSS = path.resolve(__dirname, "..", "node_modules", "katex", "dist", "katex.min.css");
+const KATEX_FONTS = path.resolve(__dirname, "..", "node_modules", "katex", "dist", "fonts").replace(/\\/g, "/");
 
 // ── 解析参数 ──
 let inputFile = "";

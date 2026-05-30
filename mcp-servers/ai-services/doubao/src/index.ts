@@ -5,17 +5,17 @@ import { chromium, BrowserContext, Page } from "playwright";
 import * as path from "path";
 import { fileURLToPath } from "url";
 // @ts-ignore
-import { launchBrowser, navigateWithToast, withRetry, isTransientError, closeBrowser } from "../../shared/browser.mjs";
+import { launchBrowser, navigateWithToast, withRetry, isTransientError, closeBrowser } from "../shared/browser.mjs";
 // @ts-ignore
-import { setupPageErrorMonitor, showToast } from "../../shared/answer.mjs";
+import { setupPageErrorMonitor, showToast } from "../shared/answer.mjs";
 // @ts-ignore
-import { loadTemplate } from "../../shared/role.mjs";
+import { loadTemplate } from "../shared/role.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(__dirname, "..");
 const PROFILE_DIR = path.join(PROJECT_ROOT, ".doubao-profile");
 const HEADLESS = process.env.DOUBDAO_HEADLESS === "true";
-const TEMPLATES_DIR = path.resolve(__dirname, "../../shared/templates");
+const TEMPLATES_DIR = path.resolve(__dirname, "../shared/templates");
 
 const SEL = {
   CHAT_INPUT: 'textarea[placeholder*="发消息"]',

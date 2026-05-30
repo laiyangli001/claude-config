@@ -8,8 +8,8 @@ import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const _r = createRequire(import.meta.url);
-const katex = _r(path.resolve(__dirname, "..", "mcp-servers", "node_modules", "katex"));
-const KATEX_CSS = path.resolve(__dirname, "..", "mcp-servers", "node_modules", "katex", "dist", "katex.min.css");
+const katex = _r(path.resolve(__dirname, "..", "node_modules", "katex"));
+const KATEX_CSS = path.resolve(__dirname, "..", "node_modules", "katex", "dist", "katex.min.css");
 
 const THEMES_DIR = path.join(__dirname, "themes");
 const SAMPLE = process.argv[2] || path.join(__dirname, "css-extract-sample.md");
@@ -24,7 +24,7 @@ const mdPh = md.replace(/\$\$([\s\S]*?)\$\$/g, (_, expr) => {
   katexBlocks.push(katex.renderToString(expr.trim(), { displayMode: true, throwOnError: false }));
   return `<!--KB${katexBlocks.length - 1}-->`;
 });
-const markedHtml = execSync("node " + path.join(__dirname, "..", "mcp-servers", "node_modules", "marked", "bin", "marked.js"), {
+const markedHtml = execSync("node " + path.join(__dirname, "..", "node_modules", "marked", "bin", "marked.js"), {
   input: mdPh, encoding: "utf-8", timeout: 5000
 }).trim();
 const htmlBody = markedHtml.replace(/<!--KB(\d+)-->/g, (_, i) => katexBlocks[parseInt(i)] || "");

@@ -5,7 +5,7 @@
       "args": [
         "/c",
         "node",
-        "c:/Users/LaiYangLi/.claude/mcp-servers/mcp-deepseek/dist/index.js"
+        "c:/Users/LaiYangLi/.claude/mcp-servers/ai-services/deepseek/dist/index.js"
       ]
     },
     "chatgpt-mirror": {
@@ -13,7 +13,7 @@
       "args": [
         "/c",
         "node",
-        "c:/Users/LaiYangLi/.claude/mcp-servers/mcp-chatgpt-mirror/dist/index.js"
+        "c:/Users/LaiYangLi/.claude/mcp-servers/ai-services/chatgpt-mirror/dist/index.js"
       ]
     },
     "chatgpt-official": {
@@ -21,7 +21,7 @@
       "args": [
         "/c",
         "node",
-        "c:/Users/LaiYangLi/.claude/mcp-servers/mcp-chatgpt-official/dist/index.js"
+        "c:/Users/LaiYangLi/.claude/mcp-servers/ai-services/chatgpt-official/dist/index.js"
       ]
     },
     "doubao": {
@@ -29,7 +29,7 @@
       "args": [
         "/c",
         "node",
-        "c:/Users/LaiYangLi/.claude/mcp-servers/mcp-doubao/dist/index.js"
+        "c:/Users/LaiYangLi/.claude/mcp-servers/ai-services/doubao/dist/index.js"
       ]
     },
     "mineru-open-mcp": {

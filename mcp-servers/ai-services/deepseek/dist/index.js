@@ -5,19 +5,19 @@ import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprot
 import * as path from "path";
 import { fileURLToPath } from "url";
 // @ts-ignore
-import { launchBrowser, navigateWithToast, withRetry, closeBrowser } from "../../shared/browser.mjs";
+import { launchBrowser, navigateWithToast, withRetry, closeBrowser } from "../shared/browser.mjs";
 // @ts-ignore
-import { waitForAnswer, extractNewAnswers, waitForNewMessage, showToast } from "../../shared/answer.mjs";
+import { waitForAnswer, extractNewAnswers, waitForNewMessage, showToast } from "../shared/answer.mjs";
 // @ts-ignore
-import { uploadFiles } from "../../shared/upload.mjs";
+import { uploadFiles } from "../shared/upload.mjs";
 // @ts-ignore
-import { loadTemplate } from "../../shared/role.mjs";
+import { loadTemplate } from "../shared/role.mjs";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(__dirname, "..");
 const PROFILE_DIR = path.join(PROJECT_ROOT, ".deepseek-browser-profile");
 const SITE_URL = "https://chat.deepseek.com/";
 const HEADLESS = process.env.DEEPSEEK_HEADLESS === "true";
-const TEMPLATES_DIR = path.resolve(__dirname, "../../shared/templates");
+const TEMPLATES_DIR = path.resolve(__dirname, "../shared/templates");
 const INPUT_SEL = 'textarea, [contenteditable="true"]';
 const STOP_BTN_SEL = 'button:has-text("Stop"), button:has-text("停止"), [aria-label*="stop" i], [aria-label*="Stop"], [aria-label*="停止"]';
 const ANSWER_SEL = '.ds-assistant-message-main-content, .ds-markdown.ds-assistant-message-main-content, [data-testid="assistant-message"], .chat-message-assistant';

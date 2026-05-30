@@ -1,5 +1,5 @@
 @echo off
-cd /d "%~dp0..\deadloop-monitor"
+cd /d "%~dp0deadloop-monitor"
 node install-deadloop.mjs
 if %errorlevel% neq 0 (
     echo.

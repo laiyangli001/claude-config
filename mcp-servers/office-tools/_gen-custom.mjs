@@ -6,9 +6,9 @@ import os from "os";
 
 const _r = createRequire(import.meta.url);
 const _r2 = createRequire(import.meta.url);
-const { chromium } = _r("c:/Users/LaiYangLi/.claude/mcp-servers/node_modules/playwright");
-const { PDFDocument } = _r("c:/Users/LaiYangLi/.claude/mcp-servers/node_modules/pdf-lib");
-const katex = _r2("c:/Users/LaiYangLi/.claude/mcp-servers/node_modules/katex");
+const { chromium } = _r("../node_modules/playwright");
+const { PDFDocument } = _r("../node_modules/pdf-lib");
+const katex = _r2("../node_modules/katex");
 
 const THEMES_DIR = "c:/Users/LaiYangLi/.claude/scripts/themes";
 const OUTPUT = "c:/Users/LaiYangLi/Desktop/themes-custom-v4.pdf";
@@ -26,7 +26,7 @@ const mdWithPlaceholders = SAMPLE.replace(/\$\$([\s\S]*?)\$\$/g, (_, expr) => {
     return `<div>公式错误: ${expr.trim().substring(0, 50)}</div>`;
   }
 });
-const markedHtml = execSync("node c:/Users/LaiYangLi/.claude/mcp-servers/node_modules/marked/bin/marked.js", {
+const markedHtml = execSync("node ../node_modules/marked/bin/marked.js", {
   input: mdWithPlaceholders, encoding: "utf-8", timeout: 5000
 }).trim();
 const htmlBody = markedHtml.replace(/<!--KATEXBLOCK_(\d+)-->/g, (_, id) => katexBlocks[parseInt(id)] || "");
@@ -58,8 +58,8 @@ try {
     html = html.replace(/{{asset '[^']+'}}/g, "");
 
     // 添加 KaTeX CSS + 修复字体路径
-    const katexCss = fs.readFileSync("c:/Users/LaiYangLi/.claude/mcp-servers/node_modules/katex/dist/katex.min.css", "utf-8");
-    const katexFontDir = "c:/Users/LaiYangLi/.claude/mcp-servers/node_modules/katex/dist/fonts/".replace(/\\/g, "/");
+    const katexCss = fs.readFileSync("../node_modules/katex/dist/katex.min.css", "utf-8");
+    const katexFontDir = "../node_modules/katex/dist/fonts/".replace(/\\/g, "/");
     const katexCssFixed = katexCss.replace(/url\(fonts\//g, `url(file:///${katexFontDir}`);
     html = html.replace("</head>", `<style>${katexCssFixed}</style></head>`);
 

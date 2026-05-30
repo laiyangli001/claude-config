@@ -5,20 +5,20 @@ import { chromium, BrowserContext, Page } from "playwright";
 import * as path from "path";
 import { fileURLToPath } from "url";
 // @ts-ignore
-import { launchBrowser, navigateWithToast, withRetry, isTransientError, closeBrowser } from "../../shared/browser.mjs";
+import { launchBrowser, navigateWithToast, withRetry, isTransientError, checkSite, closeBrowser } from "../shared/browser.mjs";
 // @ts-ignore
-import { waitForAnswer, extractNewAnswers, waitForNewMessage, setupPageErrorMonitor, showToast } from "../../shared/answer.mjs";
+import { waitForAnswer, extractNewAnswers, waitForNewMessage, setupPageErrorMonitor, showToast } from "../shared/answer.mjs";
 // @ts-ignore
-import { uploadFiles } from "../../shared/upload.mjs";
+import { uploadFiles } from "../shared/upload.mjs";
 // @ts-ignore
-import { loadTemplate } from "../../shared/role.mjs";
+import { loadTemplate } from "../shared/role.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(__dirname, "..");
-const PROFILE_DIR = path.join(PROJECT_ROOT, ".chatgpt-official-profile");
-const SITE_URL = "https://chatgpt.com/";
+const PROFILE_DIR = path.join(PROJECT_ROOT, ".chatgpt-mirror-profile");
+const SITE_URL = "https://chatgpt.2233.ai/";
 const HEADLESS = process.env.CHATGPT_HEADLESS === "true";
-const TEMPLATES_DIR = path.resolve(__dirname, "../../shared/templates");
+const TEMPLATES_DIR = path.resolve(__dirname, "../shared/templates");
 
 const SEL = {
   CHAT_INPUT: "#prompt-textarea",
@@ -27,8 +27,9 @@ const SEL = {
   FILE_INPUT: "#upload-files",
   PLUS_BTN: '[data-testid="composer-plus-btn"]',
   DUPLICATE_BTN: 'button:has-text("确定"), button:has-text("OK")',
-  OFFICIAL_URL: "https://chatgpt.com/",
-  LOGIN_BTN: 'a[href*="login"], [data-testid="login-button"]',
+  START_BTN: 'button:has-text("立即开始"), a:has-text("立即开始")',
+  INVITE_URL: "https://2233.ai/?code=FC8XHSCH",
+  CHAT_URL: "https://chatgpt.2233.ai/",
 };
 
 let browserContext: BrowserContext | null = null;
@@ -77,16 +78,22 @@ async function askChatGPT(question: string, attachments?: string[]): Promise<str
   const { page: pg } = await ensureBrowser();
 
   if (!isPageReady) {
-    await withRetry(() => navigateWithToast(pg, SEL.OFFICIAL_URL, "ChatGPT 官方站"));
+    await withRetry(() => navigateWithToast(pg, SEL.INVITE_URL, "ChatGPT 镜像站"));
+    const btn = pg.locator(SEL.START_BTN);
+    if ((await btn.count()) > 0 && (await btn.isVisible())) {
+      await btn.first().evaluate((el: HTMLButtonElement) => (el.disabled = false));
+      await sleep(200); await btn.first().click();
+    }
+    // Cookie 检测登录态
     const cookies = await browserContext!.cookies();
     const hasSession = cookies.some(c => c.name.includes("session") && c.value.length > 10);
-    if (!hasSession && await pg.locator(SEL.LOGIN_BTN).first().isVisible().catch(() => false)) {
+    if (!hasSession) {
       if (!HEADLESS) await pg.bringToFront();
-      await showToast(pg, "🔑 请登录 ChatGPT（登录后自动继续）");
-      await pg.locator(SEL.LOGIN_BTN).first().waitFor({ state: "hidden", timeout: 180000 });
+      await showToast(pg, "🔑 请登录镜像站（登录后自动继续）");
+      await pg.locator(SEL.CHAT_INPUT).waitFor({ state: "visible", timeout: 180000 });
     }
     if (!(await pg.locator(SEL.CHAT_INPUT).waitFor({ state: "visible", timeout: 30000 }).then(() => true).catch(() => false))) {
-      throw new Error("Cannot access ChatGPT.");
+      throw new Error("Cannot access ChatGPT mirror.");
     }
     isPageReady = true;
   }
@@ -103,6 +110,7 @@ async function askChatGPT(question: string, attachments?: string[]): Promise<str
   await showToast(pg, "⏳ 等待回答...");
   await waitForNewMessage(pg, answerSel, prev);
   await waitForAnswer(pg, answerSel, SEL.STOP_BTN);
+  // 等 stop 消失 + 内容稳定 3 秒
   let stable = 0, lastLen = await pg.evaluate(() => document.body.innerText.length);
   for (let i = 0; i < 30; i++) {
     await sleep(1000);
@@ -116,12 +124,12 @@ async function askChatGPT(question: string, attachments?: string[]): Promise<str
   return answer;
 }
 
-const server = new Server({ name: "chatgpt-official-mcp", version: "1.0.0" }, { capabilities: { tools: {} } });
+const server = new Server({ name: "chatgpt-mirror-mcp", version: "1.0.0" }, { capabilities: { tools: {} } });
 server.setRequestHandler(ListToolsRequestSchema, async () => ({
-  tools: [{ name: "ask_chatgpt_official", description: "Use official ChatGPT (chatgpt.com) free version.", inputSchema: { type: "object", properties: { template: { type: "string" }, question: { type: "string" }, attachments: { type: "array", items: { type: "string" } } } } }],
+  tools: [{ name: "ask_chatgpt_mirror", description: "Use ChatGPT mirror (chatgpt.2233.ai) free version.", inputSchema: { type: "object", properties: { template: { type: "string" }, question: { type: "string" }, attachments: { type: "array", items: { type: "string" } } } } }],
 }));
 server.setRequestHandler(CallToolRequestSchema, async (req) => {
-  if (req.params.name !== "ask_chatgpt_official") throw new Error("Unknown tool");
+  if (req.params.name !== "ask_chatgpt_mirror") throw new Error("Unknown tool");
   const raw = req.params.arguments || {};
   const tpl = typeof raw.template === "string" ? raw.template : "";
   const q = typeof raw.question === "string" ? raw.question : "";
@@ -133,11 +141,11 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
   }
   try {
     const answer = await askChatGPT(finalQuestion, files);
-    return { content: [{ type: "text", text: `【ChatGPT Official answer】\n\n${answer}` }] };
+    return { content: [{ type: "text", text: `【ChatGPT Mirror answer】\n\n${answer}` }] };
   } catch (e: unknown) {
-    return { content: [{ type: "text", text: `ChatGPT Official call failed: ${e instanceof Error ? e.message : String(e)}` }], isError: true };
+    return { content: [{ type: "text", text: `ChatGPT Mirror call failed: ${e instanceof Error ? e.message : String(e)}` }], isError: true };
   }
 });
 
-async function main() { const t = new StdioServerTransport(); await server.connect(t); console.error("ChatGPT Official MCP running"); }
+async function main() { const t = new StdioServerTransport(); await server.connect(t); console.error("ChatGPT Mirror MCP running"); }
 main().catch(e => { console.error("Fatal:", e); process.exit(1); });

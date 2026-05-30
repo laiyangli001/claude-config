@@ -10,19 +10,19 @@ const serversDir = path.resolve(import.meta.dirname);
 const mcpServers = {
   "deepseek": {
     command: "cmd",
-    args: ["/c", "node", path.join(serversDir, "mcp-deepseek", "dist", "index.js")],
+    args: ["/c", "node", path.join(serversDir, "ai-services", "deepseek", "dist", "index.js")],
   },
   "chatgpt-mirror": {
     command: "cmd",
-    args: ["/c", "node", path.join(serversDir, "mcp-chatgpt-mirror", "dist", "index.js")],
+    args: ["/c", "node", path.join(serversDir, "ai-services", "chatgpt-mirror", "dist", "index.js")],
   },
   "chatgpt-official": {
     command: "cmd",
-    args: ["/c", "node", path.join(serversDir, "mcp-chatgpt-official", "dist", "index.js")],
+    args: ["/c", "node", path.join(serversDir, "ai-services", "chatgpt-official", "dist", "index.js")],
   },
   "doubao": {
     command: "cmd",
-    args: ["/c", "node", path.join(serversDir, "mcp-doubao", "dist", "index.js")],
+    args: ["/c", "node", path.join(serversDir, "ai-services", "doubao", "dist", "index.js")],
   },
   "mineru-open-mcp": {
     command: "uvx",

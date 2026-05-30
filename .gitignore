@@ -26,20 +26,20 @@ backups/
 # node_modules
 mcp-servers/*/node_modules/
 mcp-servers/*/package-lock.json
-deadloop-monitor/node_modules/
-deadloop-monitor/package-lock.json
+mcp-servers/deadloop-monitor/node_modules/
+mcp-servers/deadloop-monitor/package-lock.json
 
 # MCP 浏览器配置文件和数据
-mcp-servers/*/.chatgpt-chrome-profile*/
-mcp-servers/*/.deepseek-browser-profile*/
-mcp-servers/*/.chatgpt-mirror-profile*/
-mcp-servers/*/.chatgpt-official-profile*/
-mcp-servers/.chatgpt-mirror-profile/
+mcp-servers/ai-services/*/.chatgpt-chrome-profile*/
+mcp-servers/ai-services/*/.deepseek-browser-profile*/
+mcp-servers/ai-services/*/.chatgpt-mirror-profile*/
+mcp-servers/ai-services/*/.chatgpt-official-profile*/
+mcp-servers/ai-services/.chatgpt-mirror-profile/
 
 # 死循环监控运行时标记
-deadloop-monitor/.deadloop-*
+mcp-servers/deadloop-monitor/.deadloop-*
 .deadloop-report.md
-deadloop-monitor/deadloop-monitor.jsonl
+mcp-servers/deadloop-monitor/deadloop-monitor.jsonl
 
 # 临时工具
 gh.exe
