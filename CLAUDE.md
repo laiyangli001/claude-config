@@ -58,13 +58,8 @@
 
 ## 自动省 token 工具调用策略
 
-你已安装免费的 MCP 服务，均不消耗 API token：
-1. **`ask_chatgpt_mirror`（优先）** — ChatGPT 镜像站（chatgpt.2233.ai）
-2. **`ask_chatgpt_official`（回退）** — ChatGPT 官方站（chatgpt.com）
-3. **`ask_deepseek`（回退）** — DeepSeek 网页版
-4. **`ask_doubao`（视觉任务专用）** — 豆包，支持图片/文件识别
 
-### 免费的 MCP 服务适用场景：
+###  MCP 服务适用场景：
 
 当遇到以下任一情况时，必须使用 ask_xxx MCP 服务，避免消耗当前会话的高成本 Token。
 
@@ -97,13 +92,22 @@
 
    错误处理：任何依赖豆包识别结果的关键决策，必须经过用户确认描述是否准确。若豆包返回内容明显荒谬，应提示用户可能识别错误。
 
+**办公文档处理场景：**
+
+| # | 场景 | 触发条件 | 执行方式 |
+|---|------|---------|---------|
+| 1 | 文档读取 | 用户提供 PDF/Word/PPT/Excel/图片，要求提取文字或转 Markdown | `mcp-office-tool` → MinerU `parse_documents` |
+| 2 | 导出 PDF | 要求 Markdown→PDF、生成报告、导出文档 | `mcp-office-tool` → `md-to-pdf.mjs` |
+| 3 | PDF 操作 | 要求合并/拆分/加密/加水印/压缩 PDF | `mcp-office-tool` → `pdf-toolkit` MCP |
+| 4 | 主题预览 | 要求预览或比较 PDF 主题风格 | `mcp-office-tool` → `md-preview.mjs` |
+
 例外情况：当任务需要当前会话的实时记忆、复杂推理链或多步工具调用时，不强制使用外部 MCP。
 
 
 ### MCP 任务技能
 
-使用 `/mcp-baipiao` 快速调用 MCP 服务，不需要手动拼参数。
-输入 `/mcp-baipiao` 并描述需求即可，AI 会自动判断场景、选模板、选服务。
+使用 `/mcp-baipiao` 或 `/mcp-office-tool` 快速调用，不需要手动拼参数。
+直接描述需求即可，AI 会自动判断场景、选模板、选服务。
 
 **触发模式示例**（当用户说以下内容时，应建议使用对应的 skill）：
 - `/mcp-baipiao` — “审查这个文件” / “帮我看下这段代码”
