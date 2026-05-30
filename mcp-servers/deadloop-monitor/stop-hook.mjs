@@ -1,8 +1,9 @@
 #!/usr/bin/env node
-// Stop hook：收到 Stop 事件时检测死循环，检测到则触发 AutoIt 打断+注入
+// Stop hook：收到 Stop 事件时检测死循环 + MCP 安全守卫
 // 检测阈值从 config.mjs 读取，支持 preset 切换和 settings.json 覆盖
 
 import fs from "fs";
+import { scanResponse, formatAlert, logAlert } from "./mcp-guard.mjs";
 import path from "path";
 import { fileURLToPath } from "url";
 
@@ -84,6 +85,26 @@ function jaccardSim(textA, textB) {
 const last = assistantTexts[assistantTexts.length - 1];
 const prev = assistantTexts[assistantTexts.length - 2];
 const sim = jaccardSim(last, prev);
+
+// ── MCP 安全守卫：检测外部 AI 回复中的恶意注入 ──
+const alerts = scanResponse(last);
+if (alerts.length > 0) {
+  logAlert(alerts);
+  const report = formatAlert(alerts, transcriptPath);
+  console.error("[mcp-guard]", JSON.stringify({ alerts: alerts.length, categories: [...new Set(alerts.map(a => a.category))] }));
+  // 注入安全告警
+  const AUTOIT_EXE = path.join(__dirname, "deadloop_control.exe");
+  if (fs.existsSync(AUTOIT_EXE)) {
+    const tmpFile = path.join(__dirname, ".mcp_guard_alert.txt");
+    fs.writeFileSync(tmpFile, report, "utf-8");
+    try {
+      const { execSync } = await import("child_process");
+      execSync(`"${AUTOIT_EXE}" inject_file "${tmpFile}"`, { timeout: 10000 });
+    } catch {}
+    try { fs.unlinkSync(tmpFile); } catch {}
+  }
+  process.exit(0);
+}
 
 // 使用可配置阈值
 if (sim < threshold) process.exit(0);
