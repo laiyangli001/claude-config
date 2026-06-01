@@ -39,12 +39,12 @@ dir              # Windows 查看文件列表
 |------|------|------|
 | **全局 CLAUDE.md** | `CLAUDE.md` | 身份定义、行为边界、工具规则、自动调用策略 |
 | **设置** | `settings.json` | API 端点、模型、权限、环境变量 |
-| **MCP 免费工具** | `mcp-servers/mcp-chatgpt-mirror/` | ChatGPT 镜像站，不消耗 API token |
-| | `mcp-servers/mcp-chatgpt-official/` | ChatGPT 官方站，不消耗 API token |
-| | `mcp-servers/mcp-deepseek/` | DeepSeek 网页版，不消耗 API token |
-| | `mcp-servers/mcp-doubao/` | 豆包 AI，支持图片/文档识别、PPT 生成 |
+| **AI 服务（MCP）** | `mcp-servers/ai-services/` | ChatGPT/DeepSeek/豆包等 AI 网页版 MCP |
+| **MinerU 文档解析** | `mineru-open-mcp`（MCP 工具） | PDF/图片/Office → Markdown，支持 OCR |
+| **PDF 工具** | `pdf-toolkit`（MCP 工具） | 合并/拆分/加密/水印/压缩 PDF |
 | **死循环监控** | `deadloop-monitor/` | 检测输出死循环 → AutoIt 打断 → 摘要求助 |
-| **内嵌 Python** | `mcp-servers/python3.13.3/` | 嵌入式 Python，无需系统安装，供 GUI 配置界面使用 |
+| **办公工具** | `mcp-servers/office-tools/` | Markdown → PDF（7 套主题） |
+| **内嵌 Python** | `mcp-servers/python3.13.3/` | 嵌入式 Python，无需系统安装 |
 | **会话数据** | `projects/**/*.jsonl` | 对话记录（git 排除，不上传） |
 | **跨对话记忆** | `projects/<slug>/memory/` | 持久化的用户偏好和项目上下文 |
 
@@ -223,17 +223,19 @@ Ctrl+Shift+P   →   输入 "Reload Window"   →   回车
 本节适合需要深度定制自动化工作流、MCP 工具链和死循环监控的用户。
 如果只是基础使用，请参见上文的【基础设置】。
 
-### MCP 免费工具：三合一
+### MCP 免费工具
 
-三个独立 MCP 服务，分别调用 ChatGPT 镜像站、ChatGPT 官方站和 DeepSeek 网页版，不消耗 API token，适合复杂代码审查、长文本分析、联网查资料等场景。
+四个独立 MCP 服务，分别调用 ChatGPT 镜像站、ChatGPT 官方站、DeepSeek 网页版和豆包 AI，不消耗 API token，适合复杂代码审查、长文本分析、视觉识别等场景。
 
-| 工具 | 服务端 | 说明 |
-|------|--------|------|
-| `ask_chatgpt_mirror` | `mcp-chatgpt-mirror` | ChatGPT 镜像站 2233.ai，优先使用 |
-| `ask_chatgpt_official` | `mcp-chatgpt-official` | ChatGPT 官方站 chatgpt.com，需 VPN |
-| `ask_deepseek` | `mcp-deepseek` | DeepSeek 网页版，国内直连 |
-| `ask_doubao` | `mcp-doubao` | 豆包 AI，图片/文档识别、PPT 生成、Excel 表格 |
-| `download_doubao_file` | `mcp-doubao` | 下载豆包生成的 PPT/Excel 文件 |
+| 工具 | 位置 | 说明 |
+|------|------|------|
+| `ask_chatgpt_mirror` | `ai-services/chatgpt-mirror/` | ChatGPT 镜像站 2233.ai，支持图片输入，优先使用 |
+| `ask_chatgpt_official` | `ai-services/chatgpt-official/` | ChatGPT 官方站 chatgpt.com，需 VPN |
+| `ask_deepseek` | `ai-services/deepseek/` | DeepSeek 网页版，国内直连 |
+| `ask_doubao` | `ai-services/doubao/` | 豆包 AI，图片/文档识别、PPT 生成、Excel 表格 |
+| `download_doubao_file` | `ai-services/doubao/` | 下载豆包生成的 PPT/Excel 文件 |
+| `parse_documents` | `mineru-open-mcp`（工具名） | 文档/图片 OCR 提取文字到 Markdown |
+| `pdf_*` 系列 | `pdf-toolkit`（工具名） | 合并/拆分/加密/水印/加页码等 |
 
 
 
@@ -241,23 +243,19 @@ Ctrl+Shift+P   →   输入 "Reload Window"   →   回车
 
 ```
 ~/.claude/
-├── mcp-servers/              # MCP 服务（聊天机器人网页版）
-│   ├── mcp-chatgpt-mirror/   # ChatGPT 镜像站
-│   ├── mcp-chatgpt-official/ # ChatGPT 官方站
-│   ├── mcp-deepseek/         # DeepSeek 网页版
-│   └── mcp-doubao/           # 豆包 AI（图片识别/PPT 生成）
-├── shared/                   # MCP 共享模块
-│   ├── browser.mjs
-│   ├── answer.mjs
-│   ├── upload.mjs
-│   └── role.mjs
-├── node_modules/             # MCP 依赖
-├── python3.13.3/             # 内嵌 Python
-├── deadloop-monitor/         # 死循环监控（可选装）
-├── scripts/                  # 工具脚本
-│   ├── setup-proxy.mjs       # 一键配置代理
-│   └── proxy-detect.sh       # 终端动态检测
-├── skills/                   # Skills
+├── mcp-servers/
+│   ├── ai-services/           # AI 网页版 MCP 服务
+│   │   ├── chatgpt-mirror/    # ChatGPT 镜像站
+│   │   ├── chatgpt-official/  # ChatGPT 官方站
+│   │   ├── deepseek/          # DeepSeek 网页版
+│   │   ├── doubao/            # 豆包 AI
+│   │   └── shared/            # 共享模块（browser/answer/upload/role）
+│   ├── office-tools/          # 办公工具（md-to-pdf 等）
+│   ├── deadloop-monitor/      # 死循环监控
+│   ├── python3.13.3/          # 内嵌 Python
+│   └── node_modules/          # 依赖
+├── skills/                    # /mcp-baipiao、/mcp-office-tool 等
+├── scripts/                   # 工具脚本
 ├── install-mcp-deps.bat
 └── install-mcp-config.mjs
 ```
@@ -403,25 +401,23 @@ claude mcp add --transport stdio mineru-open-mcp -- npx -y mineru-open-mcp
 
 #### API Key 配置（Precision 模式）
 
-在 [mineru.net](https://mineru.net) 注册并获取 API Token 后，设置环境变量：
-
-```bash
-# 临时设置（当前终端有效）
-export MINERU_API_TOKEN="你的token"
-
-# 永久设置（写入 .bashrc）
-echo 'export MINERU_API_TOKEN="你的token"' >> ~/.bashrc
-```
-
-或在 `settings.json` 的 `env` 字段添加：
+在 [mineru.net](https://mineru.net) 注册并获取 API Token 后，配置到 `~/.claude.json`（用户家目录，不会被 git 跟踪）：
 
 ```json
-"env": {
-  "MINERU_API_TOKEN": "你的token"
+{
+  "mcpServers": {
+    "mineru-open-mcp": {
+      "command": "uvx",
+      "args": ["mineru-open-mcp"],
+      "env": {
+        "MINERU_API_TOKEN": "你的token"
+      }
+    }
+  }
 }
 ```
 
-配置后，MCP 服务会自动加载 token，无需重启。
+⚠️ 每次修改 `~/.claude.json` 后需要 **Reload Window** 让 MCP 进程重新加载。
 
 #### 使用方式
 
@@ -443,11 +439,7 @@ ocr 识别这张图片中的文字
 
 **方式二：通过 Skill 调用**
 
-```text
-/mineru-doc-extractor flash-extract 报告.pdf
-```
-
-或使用 `/mcp-baipiao` 自动匹配场景。
+使用 `/mcp-office-tool` 或 `/mcp-baipiao` 自动匹配场景。
 
 #### 调用逻辑
 
@@ -485,7 +477,7 @@ Claude 将结果呈现给用户
 - 文件发送到 mineru.net 处理后不留存
 - 参数 `language` 默认 `ch`，英文文档建议设为 `en`
 
-> **⚠️ 能力边界：** MinerU 的图片处理是 **OCR + 版面分析**，能识别图片中的文字、表格、公式，但**不具备图像理解能力**。如果需要"这张截图有什么问题"、"这张照片里是什么"等视觉分析，应使用 `ask_doubao`（豆包支持多模态识别）。简单区分：**要提取文字 → MinerU，要理解画面 → 豆包**。
+> **⚠️ 能力边界：** MinerU 的图片处理是 **OCR + 版面分析**，能识别图片中的文字、表格、公式，但**不具备图像理解能力**。如果需要"这张截图有什么问题"、"这张照片里是什么"等视觉分析，应使用 `ask_chatgpt_mirror`（支持图片输入）。简单区分：**要提取文字 → MinerU，要理解画面 → mirror**。
 ---
 
 ### 死循环监控（Dead Loop Monitor）
