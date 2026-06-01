@@ -1,204 +1,204 @@
-# 死循环监控系统（Dead Loop Monitor）v3
+# MCP 场景选择系统 · 实施计划
 
 ## Context
 
-Claude Code 在生成代码时可能陷入"死循环"——反复输出相似内容、自我否定、无新信息增量。此系统通过外部监控进程 + VS Code 扩展 + AutoIt 键盘模拟，自动检测、中断、注入上下文提示，让 AI 跳出循环。
+**已完成的基础设施**：
+- 4 个 MCP 服务已全部支持 `template` 参数
+- `shared/templates/` 目录已有模板加载机制
+- `shared/role.mjs` 有 `loadTemplate()` 函数
 
-本次更新从 vsc-mcp 方案全面迁移到 AutoIt 编译 exe 方案（更可靠），新增粘贴模式、检查报告、MCP 优先级链等特性。
+**剩余问题**：每次调用 MCP 服务时，仍要手动想模板名、构造 question、选服务。用户希望简化成"选场景"即可，不用每次写一堆字。
 
-## 架构总览
+**目标**：
+1. 创建 Claude Code 技能 `/mcp-task`，用户描述需求即可自动执行
+2. 更新 CLAUDE.md，让 AI 也能自动检测场景并调用
+3. 具备完善的降级、确认、反馈、日志机制
 
-```
-[VS Code Extension]          [monitor.mjs]               [deadloop_control.exe]
-     |                            |                             |
-  activate()                  main()
-     |-- spawn(monitor.mjs) ->|
-     |                        autoDiscoverSessionFile()
-     |                        state = MONITORING
-     |                            |
-     |                        while(true):
-     |                          sleep(2000)
-     |                          write heartbeat
-     | <--- status:monitoring --|
-     |                          processAndCheck():
-     |                            read .jsonl new lines
-     |                            feed 3 detectors
-     |                            if >= 2 signals:
-     |                              detected = true
-     | <--- DEADLOOP_DETECTED  --|
-     |   writeReport()
-     |   updateDisplay(alert)
-     |                        waitForStop():
-     |                          sendEscViaAutoIt():
-     |                            |---> esc (hold ESC 5s)
-     |                          sleep(5000)
-     |                          checkFileForStop():
-     |                            scan last 64KB of .jsonl
-     |                          (retry up to 3x)
-     |                            |
-     |                        if stopped:
-     |                          injectSummary():
-     |                            injectViaAutoIt():
-     |                            |---> inject_file (paste + Enter + Ctrl+Enter)
-     |                        else:
-     |                          pasteViaAutoIt():
-     |                            |---> paste_file (paste only, no send)
-     |                          NEEDS_MANUAL
-     |                        state = COOLDOWN (10s)
-     |                        reset detectors
-     |                            |
-     | <--- status:cooling ------|
-     |                        (10s 后回到 MONITORING)
-```
-
-## 项目结构
+## 方案总览
 
 ```
-mcp-servers/deadloop-monitor/
-├── monitor.mjs               # 主监控脚本（入口）
-├── detectors.mjs             # 3 个信号检测器
-├── helpers.mjs               # 工具函数（文件读取、AutoIt 调用、停止检测）
-├── summarizer.mjs            # 摘要构建（注入消息模板）
-├── config.mjs                # 配置项
-├── logger.mjs                # 日志
-├── deadloop_control.au3      # AutoIt 源码
-├── deadloop_control.exe      # 编译后的 AutoIt exe
-├── package.json
-└── workspace-watcher/
-    ├── extension.js          # VS Code 扩展
-    └── package.json
+┌─ 用户输入 ────────────────────────────────┐
+│  "/mcp-task" → 技能启动 → 用户描述需求    │
+└──────────┬────────────────────────────────┘
+           ▼
+┌─────────────────────────────────────────────┐
+│ 1. 收集需求 + 文件 + 关注点 + 安全提示       │
+│ 2. 自动分类场景（+ 复合任务拆分检查）         │
+│ 3. 展示分类结果 → 用户确认/纠正              │
+│ 4. 加载模板（变量插值）→ 调用 MCP            │
+│ 5. 失败时按降级矩阵重试                      │
+│ 6. 返回结果 + 元信息 + 反馈闭环              │
+└─────────────────────────────────────────────┘
 ```
 
-## 完整流程
+## 技能 SKILL.md 完整内容
 
-### 1. 启动（VS Code 扩展）
-- 扩展激活 → 创建状态栏"循环守护"
-- 生成 `.deadloop-activated` 标记文件
-- 获取当前工作区路径
-- Spawn `monitor.mjs` 子进程
-- 写入 PID 到 `.deadloop-pid`
-- 建立 heartbeat 检测（每 3 秒检查 mtime，超 10 秒判定死亡）
+### 前置元数据
 
-### 2. 监控循环（monitor.mjs）
-- 自动发现当前会话的 `.jsonl` 文件
-- 每 2 秒增量读取新行
-- 写入 heartbeat（每轮）
-- 状态转移：IDLE → MONITORING → HELPING → COOLDOWN → MONITORING
-- 支持 PAUSED 状态（通过 stdin 命令切换）
+```yaml
+---
+name: mcp-task
+description: |
+  MCP 任务助手。当用户需要分析代码、审查文件、处理文档、识别图片等需要 MCP 服务时使用。
+  自动匹配场景、选模板、调服务，省去手动拼参数的麻烦。
+---
+```
 
-### 3. 死循环检测（3 个信号，≥2 触发）
+### 正文：执行步骤
 
-| 检测器 | 原理 | 阈值 |
-|--------|------|------|
-| **RepeatDetector** | 代码行标准化后计数，≥3 次重复计为 1 hit | maxHits: 1 |
-| **ReversalDetector** | 200 字窗口内统计反转词（但是/不过/actually/wait 等） | minCount: 5 |
-| **InfoStallDetector** | 连续 N 次 feed 无新代码行/断言 | maxStallCount: 2 |
+#### 第 1 步：收集需求
 
-任何单检测器触发只输出警告，**同一 chunk 内 ≥2 个信号才判定为死循环**。
+与用户对话收集以下信息：
+- **任务描述**：用户想做什么？（审查代码 / 总结文档 / 分析图片 / 批量任务...）
+- **文件**：涉及哪些文件？引导用户附加到对话中
+- **关注点**：有没有特别想聚焦的方面？（安全性 / 性能 / 可读性...）
+- **安全提示**：文件将发送到云端 MCP 服务，勿包含密码、令牌等敏感信息
 
-### 4. 中断（HELPING 阶段）
-- **waitForStop()**: 最多 3 轮
-  1. 先 `checkFileForStop()` 检查是否已自然结束
-  2. `sendEscViaAutoIt()` → `deadloop_control.exe esc` 长按 ESC 5 秒
-  3. 等 5 秒，再 `checkFileForStop()`
-  4. 仍需继续则重试（最多 3 次）
+#### 第 2 步：场景分类
 
-### 5. 停止确认
-- **checkFileForStop()**: 全量扫描 .jsonl 末尾 64KB
-- 倒序解析每行 JSON，检查:
-  - `stop_reason: "end_turn"` → stopped ✅
-  - `interrupted: true` → interrupted ✅
-  - `stop_reason: "tool_use"` → running ❌（继续输出）
-- 两次确认之间等待 5 秒确保文件已写入
+根据以下规则自动匹配场景：
 
-### 6. 注入/粘贴
-- **确认到停止**: `injectViaAutoIt()` → 写临时文件 → `deadloop_control.exe inject_file <path>` → ESC 聚焦 → Ctrl+V → Enter → Ctrl+Enter（自动提交）
-- **未确认停止**: `pasteViaAutoIt()` → `deadloop_control.exe paste_file <path>` → ESC 聚焦 → Ctrl+V（只粘贴，等人眼确认后手动按 Enter）
+| # | 场景 | 触发条件 | 首选服务 | 模板 |
+|---|------|---------|---------|------|
+| 1 | 代码审查 | 代码文件 >500行 或 明确要求审查 | mirror | `code_review` |
+| 2 | 长文本分析 | 纯文档且估计 >10k token | deepseek | 无 |
+| 3 | 重复性任务 | 批量生成/格式化/转换 | deepseek | 无 |
+| 4 | 非推理任务 | 文本整理/代码高亮/格式转换 | deepseek | 无 |
+| 5 | 多模态视觉 | 图片/界面截图/PPT | doubao | 无 |
+| 6 | 复合任务 | 包含多个明显动作（审查+翻译等） | 见下方 | 拆分子任务 |
 
-### 7. 注入消息内容
-固定模板（4 点）要求 Claude Code:
-1. 用第三人称总结用户的原始需求
-2. 已经尝试过的方案
-3. 循环的表现
-4. 核心问题是什么
+**复合任务拆分**：若用户输入包含两个及以上明显动作（如"审查这段代码并把注释翻译成中文"），自动识别为复合任务。将任务拆分为子任务列表，展示给用户确认后顺序执行。
 
-### 8. 冷却期
-- COOLDOWN 状态持续 10 秒（config.cooldownMs）
-- 跳过期间的所有 .jsonl 内容
-- 恢复 MONITORING
+#### 第 3 步：二次确认
 
-### 9. 收到注入消息后的 AI 流程（Claude Code）
-1. 按注入消息的 4 点要求生成总结摘要
-2. 优先级链调用：`ask_chatgpt` (target="mirror") → `ask_deepseek`
-3. 收到回答后，如果对方能提供参考代码，要求完整代码
-4. 按照建议修改 bug
+展示识别结果并请求确认：
 
-## AutoIt 控制（deadloop_control.exe）
+```
+已识别场景：[代码审查]，将使用 [mirror] 服务 + [code_review] 模板。
+是否继续？（回复"是"继续，或指定：代码审查/长文本分析/多模态/重复任务/直接回答/取消）
+```
 
-编译自 `deadloop_control.au3`，通过 `cmd //c "@Aut2Exe/Aut2exe_x64.exe /in <au3路径> /out <exe路径> /console"` 无窗口静默编译。
+如果检测到复合任务：
+```
+检测到多个任务：
+  [1] 代码审查（mirror）
+  [2] 注释翻译（deepseek）
+是否按以上顺序依次执行？（是/指定顺序/取消）
+```
 
-**命令列表：**
+用户纠正后按指定场景走。
 
-| 命令 | 行为 |
+#### 第 4 步：加载模板 + 变量插值
+
+调用 `loadTemplate(TEMPLATES_DIR, templateName)` 加载模板文件。
+
+模板中预定义占位符（双花括号避免冲突）：
+- `{{user_concern}}` — 用户指定的关注点
+- `{{file_name}}` — 当前分析的文件名
+- `{{file_language}}` — 文件语言类型
+
+加载后执行字符串替换：
+```javascript
+let prompt = template.replace('{{user_concern}}', concern);
+prompt = prompt.replace('{{file_name}}', fileName);
+```
+
+#### 第 5 步：调用 MCP（含降级矩阵）
+
+按场景区分的降级链：
+
+| 场景 | 首选 | 第二选择 | 第三选择 | 最终兜底 |
+|------|------|---------|---------|---------|
+| 代码审查 | mirror | deepseek | official | 直接回答，提示手动检查 |
+| 长文本分析 | deepseek | official | mirror | 分段处理或提示长度限制 |
+| 重复格式化 | deepseek | official | — | 提示手动完成 |
+| 多模态 | doubao | 文本描述→deepseek | — | 提示无法处理 |
+
+每次失败后尝试下一级，最多重试 2 次。
+
+#### 第 6 步：返回结果 + 反馈闭环
+
+输出格式：
+```
+[场景: 代码审查] [服务: mirror] [模板: code_review] [耗时: 4.2s]
+
+<MCP 返回内容>
+```
+
+追加反馈循环：
+```
+是否需要调整分析重点？可以输入新的关注点，或输入"完成"结束。
+```
+
+用户可以复用同一场景和附件，只改变关注点重新执行。
+
+#### 第 7 步：日志记录
+
+每次调用记录到内存（可选持久化到 `~/.claude/mcp-task-log.jsonl`）：
+```jsonl
+{"time":"2026-05-26T12:00:00Z","scenario":"code_review","service":"mirror","success":true,"duration":4.2,"result":"摘要..."}
+```
+
+支持 `/mcp-task --history` 查看最近 5 条记录。
+
+#### 第 8 步：帮助系统
+
+用户输入 `/mcp-task --help` 或 `帮助` 时显示：
+
+```
+MCP 任务助手 — 自动选择最优 AI 服务和模板处理你的任务。
+
+用法：
+  /mcp-task 审查 app.js 中的安全性
+  /mcp-task 总结这份产品需求文档
+  /mcp-task 分析这张界面截图的问题
+
+典型示例：
+  /mcp-task 审查 src/app.js，重点关注安全性
+  /mcp-task 总结这个日志文件中的错误模式
+  /mcp-task 帮我分析这张截图中的布局问题
+  /mcp-task 把这个 JSON 数据转成表格格式
+  /mcp-task --history  查看最近调用记录
+```
+
+## 更新 CLAUDE.md
+
+在 CLAUDE.md 顶部添加可用技能列表 + 在调用流程章节补充技能说明：
+
+```markdown
+## 可用技能
+
+| 命令 | 说明 |
 |------|------|
-| `esc` | 长按 ESC 5 秒（每 100ms 一次 `ControlSend`） |
-| `inject_file <path>` | `FileRead(path)` → `ClipPut` → ESC → Ctrl+V → Enter → Ctrl+Enter |
-| `paste_file <path>` | `FileRead(path)` → `ClipPut` → ESC → Ctrl+V（不发送） |
-| `inject <text>` | 同上但直接传文本（**已废弃**，多行文本截断） |
-| `paste <text>` | 同上但只粘贴（**已废弃**，多行文本截断） |
+| `/mcp-task` | MCP 任务助手——分析代码/文档/图片等，自动选服务和模板 |
 
-所有命令通过 `ControlSend` 发送按键（不要求窗口焦点），窗口匹配 `[REGEXPTITLE:.*Visual Studio Code.*]`（回退 `.*VS Code.*`）。
+### MCP 任务技能
 
-## VS Code 扩展功能
+使用 `/mcp-task` 快速调用 MCP 服务，不需要手动拼参数：
+1. 输入 `/mcp-task` 并描述需求
+2. 自动判断场景、选模板、选服务
+3. 二次确认后执行
+4. 支持按关注点调整重跑
 
-| 功能 | 说明 |
-|------|------|
-| 状态栏显示 | monitoring/paused/cooling/alert/intervention_needed 5 种状态，颜色变化 |
-| 未读告警 | unreadAlert 标记 → 警告图标 + 黄色背景 |
-| 通知 | `DEADLOOP_DETECTED` → toast 通知 + 写入 `.deadloop-report.md` |
-| 报告文件 | 每次检测追加 Markdown 表格到 `<workspace>/.deadloop-report.md`，保留最近 5 条 |
-| 自动中断失败 | 显示 `NEEDS_MANUAL` 错误提示，推荐手动 Ctrl+C |
-| QuickPick 菜单 | 左键点击状态栏弹出：暂停/恢复/停止/查看报告/查看日志 |
-| Heartbeat 监控 | 每 3 秒检查 heartbeat 文件 mtime，超 10 秒判定进程死亡 |
-| 终端命令下发 | 通过 `sendToTerminal()` 向 Claude Code 终端发 ESC/文本（AutoIt 的后备方案） |
-| 进程管理 | spawn 前先用 WMI 清理同工作区的旧进程，防止 VS Code reload 残留 |
+### 触发模式示例
 
-## 键盘模拟后备方案
+当用户说以下内容时，应建议使用 `/mcp-task`：
+- "审查这个文件" / "帮我看下这段代码"
+- "帮我总结这个文档" / "分析这个日志"
+- "处理这个文件" / "把这个表格整理一下"
+- "翻译这个" / "解释一下这段代码"
+```
 
-| 方案 | 优先级 | 说明 |
-|------|--------|------|
-| AutoIt exe | **首选** | 编译后的 exe，最可靠 |
-| PowerShell SendKeys | 次选 | Win32 Window + SendKeys，依赖窗口焦点 |
-| VS Code API | 回退 | monitor stdout 发 JSON action → extension `sendText()` 到终端 |
+## 实施步骤
 
-## 通信协议（monitor ↔ extension）
+### 第 1 步：创建技能文件
+- `~/.claude/skills/mcp-task/SKILL.md` — 完整技能定义（上述全部流程）
 
-通过 stdin/stdout 通信：
+### 第 2 步：更新 CLAUDE.md
+- 添加可用技能列表 + 技能说明 + 触发模式示例
 
-- **monitor stdout → extension**: JSON 状态行 + 特殊标记
-  - `{"status":"monitoring","tokenCount":123,"detectors":...}` → 更新状态栏
-  - `{"action":"sendEsc"}` → 发 ESC 到终端（回退方案，已改用 AutoIt）
-  - `{"action":"injectText","text":"..."}` → 发文本到终端（回退方案）
-  - `DEADLOOP_DETECTED` → 触发通知 + 写报告
-  - `NEEDS_MANUAL` → 显示错误提示
-- **monitor stdin ← extension**: JSON 命令
-  - `{"command":"pause"}` → 暂停监控
-  - `{"command":"resume"}` → 恢复监控
-  - `{"command":"stop"}` → 停止监控进程
-  - `{"command":"status"}` → 返回当前状态
-
-## 日志轮转
-- 文件: `deadloop-monitor.jsonl`
-- 超 5MB 自动轮转，保留最多 3 个归档
-
-## 关键文件说明
-
-| 文件 | 核心逻辑 |
-|------|---------|
-| `monitor.mjs` | `main()` 入口循环、`processAndCheck()` 增量读取+检测、`waitForStop()` ESC中断+停止确认、`injectSummary()` 构建注入消息 |
-| `detectors.mjs` | `RepeatDetector.feed()` 代码行重复检测、`ReversalDetector.feed()` 反转词密度、`InfoStallDetector.feed()` 信息增量 |
-| `helpers.mjs` | `checkFileForStop()` 64KB tail scan、`injectViaAutoIt()` temp file → inject_file、`pasteViaAutoIt()` temp file → paste_file、`sendEscViaAutoIt()` ESC 中断、`JsonlReader` 增量文件读取、`DialogWindow` 对话窗口 |
-| `deadloop_control.au3` | esc/inject_file/paste_file 三个 AutoIt 命令窗口 |
-| `summarizer.mjs` | `buildSummary()` 生成摘要报告文本 |
-| `extension.js` | `StatusBarManager` 状态栏、`writeReport()` 报告生成、`startMonitor()` 子进程管理、`sendToTerminal()` 终端交互 |
-| `config.mjs` | 所有可调参数 |
+### 第 3 步：验证
+- 执行 `/mcp-task 审查这个文件`，确认正确分类 + 选模板 + 调服务
+- 执行 `/mcp-task 帮我总结这个文档`，确认自动选 deepseek
+- 测试复合任务、二次确认、降级、反馈闭环
+- 测试 `/mcp-task --history` 和 `/mcp-task --help`

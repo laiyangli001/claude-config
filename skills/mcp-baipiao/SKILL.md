@@ -24,11 +24,11 @@ description: |
 | 1 | 代码分析 | 代码文件 >500行 或 明确要求审查/Bug/重构等 | mirror | `code_review` |
 | 2 | 长文本分析 | 纯文档且估计 >10k token | deepseek | `long_text` |
 | 3 | 简单任务 | 批量处理/格式转换/文本整理/代码高亮等 | deepseek | `format_task` |
-| 4 | 多模态视觉 | 图片/界面截图/PPT 生成 | doubao | `vision_analysis` |
+| 4 | 多模态视觉 | 图片/界面截图/PPT 生成 | mirror | `vision_analysis` |
 
 **复合任务检测**：若用户输入包含两个及以上明显动作（如"审查这段代码并把注释翻译成中文"），进入复合任务流程。
 
-**典型复合模式：视觉 + 代码审查**。调试界面 Bug 时：截图 → doubao（`vision_analysis`，模式 C：图文混合分析，输出带归一化坐标的元素描述）→ 将描述文本作为输入 → mirror（`code_review`，分析对应代码）。视觉分析结果中的归一化坐标可直接映射到像素位置，辅助定位代码中对应的渲染区域。
+**典型复合模式：视觉 + 代码审查**。调试界面 Bug 时：截图 → mirror（`vision_analysis`，输出带归一化坐标的元素描述）→ 同一服务复用会话继续 `code_review` 分析代码。mirror（ChatGPT）支持视觉与文本混合输入，可在同一对话中完成"看图→分析代码"的完整流程。视觉分析结果中的归一化坐标可直接映射到像素位置，辅助定位代码中对应的渲染区域。
 
 ### 第 3 步：二次确认
 
@@ -92,7 +92,7 @@ description: |
 | 代码审查 | mirror | deepseek | official | 提示手动检查 |
 | 长文本分析 | deepseek | official | mirror | 提示分段处理 |
 | 简单任务 | deepseek | official | — | 提示手动完成 |
-| 多模态 | doubao | 提示用户描述图片 | deepseek（文字描述） | 提示无法处理 |
+| 多模态 | mirror | official | doubao | 提示无法处理 |
 
 - 调用失败时自动按降级链重试（最多重试 2 次）
 - 每次失败等待 1-2 秒再试

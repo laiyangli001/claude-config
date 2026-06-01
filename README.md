@@ -350,7 +350,7 @@ Claude Code 通过两个配置文件加载 MCP 服务：
 |------|---------|---------|---------|
 | 代码审查 | 代码文件 >500行 或 明确要求审查 | mirror | `code_review` |
 | 长文本分析 | 纯文档且估计 >10k token | deepseek | `long_text` |
-| 多模态视觉 | 图片/界面截图 | doubao | `vision_analysis` |
+| 多模态视觉 | 图片/界面截图 | mirror | `vision_analysis` |
 | 重复性任务 | 批量生成/格式化/转换 | deepseek | `batch_task` |
 | 非推理任务 | 文本整理/代码高亮 | deepseek | `format_task` |
 
@@ -360,7 +360,7 @@ Claude Code 通过两个配置文件加载 MCP 服务：
 |------|------|---------|---------|------|
 | 代码审查 | mirror | deepseek | official | 提示手动检查 |
 | 长文本分析 | deepseek | official | mirror | 分段处理 |
-| 多模态 | doubao | deepseek | — | 提示无法处理 |
+| 多模态 | mirror | official | doubao | 提示无法处理 |
 | 重复/格式化 | deepseek | official | — | 提示手动完成 |
 
 **复合任务：** 检测到多个动作时（如"审查代码并翻译注释"），拆分子任务按顺序依次执行。

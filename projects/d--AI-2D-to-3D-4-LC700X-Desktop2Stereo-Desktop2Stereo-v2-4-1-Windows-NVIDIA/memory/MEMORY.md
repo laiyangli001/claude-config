@@ -1,0 +1,2 @@
+- [边缘吸附滑动方案](feedback_edge_snap.md) — 出屏贴边滑动+超角脱离，已验证为正确方案
+- [控制台清屏时机](feedback_console_cls.md) — 父进程中、Popen 之前执行 os.system('cls')

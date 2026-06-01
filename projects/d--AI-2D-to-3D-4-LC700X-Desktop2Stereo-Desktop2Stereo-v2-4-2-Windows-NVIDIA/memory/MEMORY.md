@@ -1,0 +1,3 @@
+- [verify-api-before-use](feedback_verify_api.md) — 使用第三方库 API 前必须先命令行验证其存在，不能凭记忆猜测
+- [mcp-browser-cleanup](feedback_mcp_browser_cleanup.md) — Reload/切工作区后 MCP 浏览器进程残留清理方案
+- [code-review-env](code-review-env.md) — 代码审查必须附带运行环境信息，否则环境独占性 bug 无法发现

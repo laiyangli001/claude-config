@@ -1,3 +1,2 @@
-2026/05/25-03:56:54.998 378 Reusing MANIFEST c:\Users\LaiYangLi\.claude\mcp-servers\mcp-doubao\.doubao-profile\Default\GCM Store/MANIFEST-000001
-2026/05/25-03:56:54.999 378 Recovering log #3
-2026/05/25-03:56:55.000 378 Reusing old log c:\Users\LaiYangLi\.claude\mcp-servers\mcp-doubao\.doubao-profile\Default\GCM Store/000003.log 
+2026/06/01-14:28:13.886 78e4 Creating DB c:\Users\LaiYangLi\.claude\mcp-servers\ai-services\doubao\.doubao-profile\Default\GCM Store since it was missing.
+2026/06/01-14:28:13.905 78e4 Reusing MANIFEST c:\Users\LaiYangLi\.claude\mcp-servers\ai-services\doubao\.doubao-profile\Default\GCM Store/MANIFEST-000001
