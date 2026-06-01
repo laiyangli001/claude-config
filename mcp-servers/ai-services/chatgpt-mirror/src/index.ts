@@ -27,7 +27,7 @@ const SEL = {
   FILE_INPUT: "#upload-files",
   PLUS_BTN: '[data-testid="composer-plus-btn"]',
   DUPLICATE_BTN: 'button:has-text("确定"), button:has-text("OK")',
-  START_BTN: 'button:has-text("立即开始"), a:has-text("立即开始")',
+  START_BTN: 'button:has-text("立即开始"), a:has-text("立即开始"), button:has-text("Start now"), a:has-text("Start now")',
   INVITE_URL: "https://2233.ai/?code=FC8XHSCH",
   CHAT_URL: "https://chatgpt.2233.ai/",
 };
