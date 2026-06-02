@@ -2,6 +2,7 @@ const vscode = require("vscode");
 const { spawn } = require("child_process");
 const path = require("path");
 const fs = require("fs");
+const os = require("os");
 
 const MONITOR_DIR = path.join(process.env.USERPROFILE || "C:/Users/default", ".claude", "mcp-servers", "deadloop-monitor");
 const LOG_FILE = path.join(MONITOR_DIR, "deadloop-monitor.jsonl");
@@ -240,23 +241,36 @@ function beep() {
       p.unref();
     }
 
-    // 显示提醒动画
+    // PowerShell 透明悬浮窗，置顶显示 GIF 动画（旋转 -90 度）
     const gifPath = path.join(SOUND_DIR, "lookhere.gif");
     if (fs.existsSync(gifPath)) {
-      if (attentionPanel) try { attentionPanel.dispose(); } catch {}
-      attentionPanel = vscode.window.createWebviewPanel(
-        "attentionAlert", "⚠️ 权限确认", vscode.ViewColumn.One,
-        { enableScripts: true, localResourceRoots: [vscode.Uri.file(SOUND_DIR)] }
-      );
-      const gifUri = attentionPanel.webview.asWebviewUri(vscode.Uri.file(gifPath));
-      attentionPanel.webview.html = `<!DOCTYPE html><html><body style="margin:0;display:flex;align-items:center;justify-content:center;background:#1a1a2e">
-        <img src="${gifUri}" style="max-width:100%;max-height:100vh" onclick="this.style.display='none'">
-        <script>setTimeout(()=>{window.close()},5000)</script>
-      </body></html>`;
-      // 点击面板关闭
-      attentionPanel.onDidDispose(() => { attentionPanel = null; });
-      // 5 秒后自动关闭
-      setTimeout(() => { try { if (attentionPanel) attentionPanel.dispose(); } catch {} }, 5000);
+      const gifUrl = "file:///" + gifPath.split("\\").join("/");
+      // 写临时 .ps1 避免引用嵌套问题
+      const psScript = [
+        'Add-Type -AssemblyName System.Windows.Forms',
+        '$f=New-Object System.Windows.Forms.Form',
+        '$f.TopMost=$true',
+        '$f.FormBorderStyle="None"',
+        '$f.BackColor="#202020"',
+        '$f.Width=260;$f.Height=180',
+        '$f.StartPosition="CenterScreen"',
+        '$w=New-Object System.Windows.Forms.WebBrowser',
+        '$w.Dock="Fill"',
+        '$w.ScrollBarsEnabled=$false',
+        '$w.AllowNavigation=$false',
+        '$w.DocumentText="<html><body style=margin:0;height:100%;display:flex;align-items:center;justify-content:center;background:#202020><img src=' + "'" + gifUrl + "'" + ' style=max-width:220px;max-height:140px onclick=closeit() ondblclick=closeit()><script>function closeit(){window.close()}<\\\\/script></body></html>"',
+        '$f.Controls.Add($w)',
+        '$f.Show()',
+        'Start-Sleep 5',
+        '$f.Close()'
+      ].join("; ");
+      const tmpFile = path.join(os.tmpdir(), "_mcp_attention.ps1");
+      fs.writeFileSync(tmpFile, psScript, "utf-8");
+      const p = spawn("powershell", ["-ExecutionPolicy", "Bypass", "-NoProfile", "-File", tmpFile], {
+        windowsHide: false, stdio: "ignore",
+      });
+      p.unref();
+      setTimeout(() => { try { fs.unlinkSync(tmpFile); } catch {} }, 10000);
     }
   } catch {}
 }
