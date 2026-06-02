@@ -223,20 +223,41 @@ let permissionBeeperActive = false;
 
 const SOUND_DIR = path.join(MONITOR_DIR, "sound");
 let lastSound = "";
+let attentionPanel = null;
 
 function beep() {
   try {
+    // 播放随机声音
     const files = fs.readdirSync(SOUND_DIR).filter(f => f.endsWith(".wav"));
-    if (files.length === 0) return;
-    // 随机选一个，不与上次重复
-    let pick;
-    if (files.length === 1) pick = files[0];
-    else { do { pick = files[Math.floor(Math.random() * files.length)]; } while (pick === lastSound); }
-    lastSound = pick;
-    const p = spawn("powershell", ["-c", "(New-Object Media.SoundPlayer '" + path.join(SOUND_DIR, pick).replace(/\\/g, "\\\\") + "').PlaySync()"], {
-      windowsHide: true, stdio: "ignore",
-    });
-    p.unref();
+    if (files.length > 0) {
+      let pick;
+      if (files.length === 1) pick = files[0];
+      else { do { pick = files[Math.floor(Math.random() * files.length)]; } while (pick === lastSound); }
+      lastSound = pick;
+      const p = spawn("powershell", ["-c", "(New-Object Media.SoundPlayer '" + path.join(SOUND_DIR, pick).replace(/\\/g, "\\\\") + "').PlaySync()"], {
+        windowsHide: true, stdio: "ignore",
+      });
+      p.unref();
+    }
+
+    // 显示提醒动画
+    const gifPath = path.join(SOUND_DIR, "lookhere.gif");
+    if (fs.existsSync(gifPath)) {
+      if (attentionPanel) try { attentionPanel.dispose(); } catch {}
+      attentionPanel = vscode.window.createWebviewPanel(
+        "attentionAlert", "⚠️ 权限确认", vscode.ViewColumn.One,
+        { enableScripts: true, localResourceRoots: [vscode.Uri.file(SOUND_DIR)] }
+      );
+      const gifUri = attentionPanel.webview.asWebviewUri(vscode.Uri.file(gifPath));
+      attentionPanel.webview.html = `<!DOCTYPE html><html><body style="margin:0;display:flex;align-items:center;justify-content:center;background:#1a1a2e">
+        <img src="${gifUri}" style="max-width:100%;max-height:100vh" onclick="this.style.display='none'">
+        <script>setTimeout(()=>{window.close()},5000)</script>
+      </body></html>`;
+      // 点击面板关闭
+      attentionPanel.onDidDispose(() => { attentionPanel = null; });
+      // 5 秒后自动关闭
+      setTimeout(() => { try { if (attentionPanel) attentionPanel.dispose(); } catch {} }, 5000);
+    }
   } catch {}
 }
 
