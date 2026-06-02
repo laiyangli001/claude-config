@@ -20,11 +20,26 @@ const stopReason = event.stop_reason || "";
 const transcriptPath = event.transcript_path || "";
 const PENDING_FLAG = path.join(__dirname, ".pending_permission");
 
-if (!transcriptPath || !fs.existsSync(transcriptPath)) process.exit(0);
+// ── 调试日志：记录每次 hook 触发 ──
+const HOOK_LOG = path.join(__dirname, ".hook_debug.log");
+try {
+  const logLine = new Date().toISOString()
+    + " stop=" + stopReason
+    + " reason=" + stopReason
+    + " path=" + (transcriptPath ? "Y" : "N")
+    + " file=" + (transcriptPath ? transcriptPath.split("/").pop() : "")
+    + " keys=" + Object.keys(event).join(",")
+    + "\n";
+  fs.appendFileSync(HOOK_LOG, logLine);
+} catch {}
+
+if (!transcriptPath || !fs.existsSync(transcriptPath)) {
+    process.exit(0);
+}
 
 // ── 权限等待检测：tool_use 但未执行 → 写标记文件 ──
 if (stopReason === "tool_use") {
-  try {
+    try {
     const stat_ = fs.statSync(transcriptPath);
     if (stat_.size > 0) {
       const bufSz_ = Math.min(stat_.size, 4096);
@@ -37,10 +52,12 @@ if (stopReason === "tool_use") {
       if ((last_.message?.role === "assistant" || last_.type === "assistant") &&
           last_.message?.content?.some(c => c.type === "tool_use")) {
         fs.writeFileSync(PENDING_FLAG, "1", "utf-8");
-        process.exit(0);
-      }
+                process.exit(0);
+      } else {
+              }
     }
-  } catch {}
+  } catch (e) {
+      }
 }
 
 // end_turn → 清除权限等待标记
@@ -118,8 +135,7 @@ const alerts = scanResponse(last);
 if (alerts.length > 0) {
   logAlert(alerts);
   const report = formatAlert(alerts, transcriptPath);
-  console.error("[mcp-guard]", JSON.stringify({ alerts: alerts.length, categories: [...new Set(alerts.map(a => a.category))] }));
-  // 注入安全告警
+    // 注入安全告警
   const AUTOIT_EXE = path.join(__dirname, "deadloop_control.exe");
   if (fs.existsSync(AUTOIT_EXE)) {
     const tmpFile = path.join(__dirname, ".mcp_guard_alert.txt");

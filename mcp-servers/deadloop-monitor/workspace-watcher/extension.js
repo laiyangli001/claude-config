@@ -234,9 +234,7 @@ const PENDING_FLAG = path.join(MONITOR_DIR, ".pending_permission");
 
 function checkPermissionDialog() {
   try {
-    if (fs.existsSync(PENDING_FLAG)) {
-      beep();
-    }
+    if (fs.existsSync(PENDING_FLAG)) beep();
   } catch {}
 }
 
