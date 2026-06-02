@@ -201,8 +201,53 @@ Unity 编辑器必须打开且不在后台编译中。
 
 ---
 
-## 9. 版本历史
+## 9. Unity MCP 工具速查
+
+安装完成后，以下工具可通过 Claude Code 直接调用：
+
+| 分类 | 工具 | 作用 | 示例 |
+|------|------|------|------|
+| **场景** | `open_scene` | 打开场景 | "打开 MainScene" |
+| | `save_scene` | 保存当前场景 | "保存场景" |
+| | `add_asset_to_scene` | 添加资源到场景 | "把 Cube 预制体放到原点" |
+| **对象** | `get_gameobject_info` | 查看对象详情 | "选中的对象是什么" |
+| | `update_gameobject` | 修改对象属性 | "把 Main Camera 移到 (0,2,-5)" |
+| | `delete_gameobject` | 删除对象 | "删除这个 Cube" |
+| | `select_gameobject` | 在编辑器选中对象 | "选中 Player 对象" |
+| **组件** | `get_component_properties` | 查看组件属性 | "看下这个 Rigidbody 的参数" |
+| | `update_component` | 修改或添加组件 | "给 Player 加个 BoxCollider" |
+| | `remove_component` | 移除组件 | "去掉这个 MeshRenderer" |
+| **材质** | `create_material` | 创建材质 | "建一个红色金属材质" |
+| | `get_material_properties` | 查看材质属性 | "这个材质用了什么贴图" |
+| | `set_material_property` | 设置材质属性 | "把颜色改成蓝色" |
+| **编译** | `check_compilation_status` | 检查编译中 | "编译完了吗" |
+| | `get_compilation_errors` | 查看编译错误 | "有哪些编译错误" |
+| | `force_compilation` | 强制重新编译 | "重新编译一下" |
+| | `wait_for_compilation_done` | 等待编译完成 | 自动等待 |
+| | `hot_reload` | 热重载脚本 | "热重载" |
+| **运行** | `enter_play_mode` / `exit_play_mode` | 进入/退出播放模式 | "运行游戏" / "停止" |
+| | `get_play_state` | 查看当前状态 | "是在运行中吗" |
+| **测试** | `run_tests` | 运行单元测试 | "跑一下 EditMode 测试" |
+| **日志** | `get_console_logs` | 获取控制台日志 | "有什么报错" |
+| | `clear_console` | 清空控制台 | "清掉日志" |
+| **构建** | `build_player` | 构建玩家包 | "打包 Windows 版" |
+| | `wait_for_build_done` | 等待构建完成 | 自动等待 |
+| **包** | `add_package` / `remove_package` | 管理 UPM 包 | "装上 TextMeshPro" |
+| | `resolve_packages` | 重新解析包 | "重新解析包" |
+| **菜单** | `execute_menu_item` | 执行菜单命令 | "执行 GameObject/Create Empty" |
+
+### 快速体验
+
+在 Claude Code 中输入以下命令验证连接：
+
+```
+检查 Unity 编译状态
+```
+返回 `isCompiling: false` 表示连接正常。
+
+## 10. 版本历史
 
 | 版本 | 日期 | 作者 | 变更 |
 |------|------|------|------|
+| 1.1 | 2026-06-02 | Process Owner | 新增第 9 节工具速查表 |
 | 1.0 | 2026-06-02 | Process Owner | 初始版本 |
