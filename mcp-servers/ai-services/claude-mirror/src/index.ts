@@ -4,6 +4,7 @@ import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprot
 import { chromium, BrowserContext, Page } from "playwright";
 import * as path from "path";
 import { fileURLToPath } from "url";
+import { execSync } from "child_process";
 // @ts-ignore
 import { launchBrowser, navigateWithToast, withRetry, isTransientError, closeBrowser } from "../../shared/browser.mjs";
 // @ts-ignore
@@ -23,6 +24,8 @@ const TEMPLATES_DIR = path.resolve(__dirname, "../../shared/templates");
 const SEL = {
   CHAT_INPUT: "div.ProseMirror",
   STOP_BTN: 'button[aria-label*="stop" i]',
+  SCREENSHOT_BTN: 'button[aria-label="截屏"]',
+  SEND_BTN: 'button[aria-label="Send message"]',
 };
 
 let browserContext: BrowserContext | null = null;
@@ -116,24 +119,75 @@ async function configureSettings(pg: Page) {
   await sleep(200);
 }
 
+async function ensurePageReady(pg: Page): Promise<void> {
+  if (isPageReady) return;
+  await withRetry(() => navigateWithToast(pg, SITE_URL, "Claude 镜像站"));
+  await sleep(4000);
+  await configureSettings(pg).catch(() => {});
+  for (let i = 0; i < 30; i++) {
+    if (await pg.locator(SEL.CHAT_INPUT).count() > 0) break;
+    await sleep(1000);
+  }
+  if ((await pg.locator(SEL.CHAT_INPUT).count()) === 0) throw new Error("Cannot access Claude mirror.");
+  isPageReady = true;
+}
+
+async function takeScreenshot(pg: Page, question?: string, attachments?: string[]): Promise<string> {
+  await ensurePageReady(pg);
+
+  // 1. 先上传附件（如果有）
+  if (attachments?.length) {
+    await uploadFiles(pg, attachments);
+    await sleep(1000);
+  }
+
+  // 2. 设置问题文本（如果有）
+  if (question) {
+    await pg.locator(SEL.CHAT_INPUT).first().evaluate(
+      (el: HTMLElement, t: string) => { el.innerText = t; el.dispatchEvent(new Event("input", { bubbles: true })); },
+      question
+    );
+    await sleep(500);
+  }
+
+  // 3. 点击截图按钮
+  const btn = pg.locator(SEL.SCREENSHOT_BTN).first();
+  if ((await btn.count()) === 0) throw new Error("No screenshot button");
+  await showToast(pg, "📸 请选择窗口 → 点击「分享」→ 截图上传后点击「发送」");
+  await btn.click({ force: true, timeout: 3000 });
+
+  // 5. 等用户手动完成：检测页面内容增长（新回答出现）
+  await showToast(pg, "⏳ 等待回答...");
+  const oldBodyLen = await pg.evaluate(() => document.body.innerText.length).catch(() => 0);
+  for (let i = 0; i < 180; i++) {
+    await sleep(1000);
+    const curLen = await pg.evaluate(() => document.body.innerText.length).catch(() => 0);
+    if (curLen > oldBodyLen + 50) {
+      // 内容增长，可能正在生成回答，等稳定
+      for (let s = 0; s < 10; s++) {
+        await sleep(1000);
+        const after = await pg.evaluate(() => document.body.innerText.length).catch(() => 0);
+        if (after === curLen) break;
+      }
+      break;
+    }
+  }
+
+  // 6. 提取回答
+  const answer = await pg.evaluate(() => {
+    const msgs = [...document.querySelectorAll('[class*="message"], [class*="chat"], article, [role="article"]')];
+    const last = msgs[msgs.length - 1];
+    return last ? last.textContent?.trim() || "" : document.body.innerText.slice(-2000);
+  });
+
+  await showToast(pg, "✅ 回答完成", 2000);
+  return answer || "screenshot_captured";
+}
+
 async function askClaude(question: string, attachments?: string[]): Promise<string> {
   const { page: pg } = await ensureBrowser();
 
-  if (!isPageReady) {
-    await withRetry(() => navigateWithToast(pg, SITE_URL, "Claude 镜像站"));
-    await sleep(4000);
-
-    // 配置设置
-    await configureSettings(pg).catch(() => {});
-
-    // 等聊天输入框
-    for (let i = 0; i < 30; i++) {
-      if (await pg.locator(SEL.CHAT_INPUT).count() > 0) break;
-      await sleep(1000);
-    }
-    if ((await pg.locator(SEL.CHAT_INPUT).count()) === 0) throw new Error("Cannot access Claude mirror.");
-    isPageReady = true;
-  }
+  await ensurePageReady(pg);
 
   if (attachments?.length) await uploadFiles(pg, attachments);
 
@@ -195,25 +249,38 @@ async function askClaude(question: string, attachments?: string[]): Promise<stri
 
 const server = new Server({ name: "claude-mirror-mcp", version: "1.0.0" }, { capabilities: { tools: {} } });
 server.setRequestHandler(ListToolsRequestSchema, async () => ({
-  tools: [{ name: "ask_claude_mirror", description: "Use Claude Mirror (claude.2233.ai) free version.", inputSchema: { type: "object", properties: { template: { type: "string" }, question: { type: "string" }, attachments: { type: "array", items: { type: "string" } } } } }],
+  tools: [
+    { name: "ask_claude_mirror", description: "Use Claude Mirror (claude.2233.ai) free version.", inputSchema: { type: "object", properties: { template: { type: "string" }, question: { type: "string" }, attachments: { type: "array", items: { type: "string" } } } } },
+    { name: "take_screenshot", description: "Click the screenshot button in Claude chat to capture a window/tab/screen.", inputSchema: { type: "object", properties: { windowTitle: { type: "string", description: "Optional: window title to activate before capturing (e.g. 'CC Switch')" }, question: { type: "string", description: "Optional: question to send after screenshot" }, attachments: { type: "array", items: { type: "string" }, description: "Optional: files to upload before screenshot" } } } },
+  ],
 }));
 server.setRequestHandler(CallToolRequestSchema, async (req) => {
-  if (req.params.name !== "ask_claude_mirror") throw new Error("Unknown tool");
-  const raw = req.params.arguments || {};
-  const tpl = typeof raw.template === "string" ? raw.template : "";
-  const q = typeof raw.question === "string" ? raw.question : "";
-  const files = Array.isArray(raw.attachments) ? raw.attachments.filter((v): v is string => typeof v === "string") : undefined;
-  let finalQuestion = q;
-  if (tpl) {
-    const content = loadTemplate(TEMPLATES_DIR, tpl);
-    if (content) finalQuestion = `${content}\n\n---\n\n${q}`;
-  }
-  try {
+  async function handleAskClaude(raw: any) {
+    const tpl = typeof raw.template === "string" ? raw.template : "";
+    const q = typeof raw.question === "string" ? raw.question : "";
+    const files = Array.isArray(raw.attachments) ? raw.attachments.filter((v: any): v is string => typeof v === "string") : undefined;
+    let finalQuestion = q;
+    if (tpl) {
+      const content = loadTemplate(TEMPLATES_DIR, tpl);
+      if (content) finalQuestion = `${content}\n\n---\n\n${q}`;
+    }
     const answer = await askClaude(finalQuestion, files);
     return { content: [{ type: "text", text: `【Claude Mirror answer】\n\n${answer}` }] };
-  } catch (e: unknown) {
-    return { content: [{ type: "text", text: `Claude Mirror call failed: ${e instanceof Error ? e.message : String(e)}` }], isError: true };
   }
+  if (req.params.name === "ask_claude_mirror") return handleAskClaude(req.params.arguments || {});
+  if (req.params.name === "take_screenshot") {
+    try {
+      const raw = req.params.arguments || {};
+      const q = typeof raw.question === "string" ? raw.question : undefined;
+      const files = Array.isArray(raw.attachments) ? raw.attachments.filter((v: any): v is string => typeof v === "string") : undefined;
+      const { page: pg } = await ensureBrowser();
+      const answer = await takeScreenshot(pg, q, files);
+      return { content: [{ type: "text", text: answer && answer.length > 20 ? `【Claude Mirror answer】\n\n${answer}` : "Screenshot captured and shared with Claude." }] };
+    } catch (e: unknown) {
+      return { content: [{ type: "text", text: `Screenshot failed: ${e instanceof Error ? e.message : String(e)}` }], isError: true };
+    }
+  }
+  throw new Error("Unknown tool");
 });
 
 async function main() { const t = new StdioServerTransport(); await server.connect(t); console.error("Claude Mirror MCP running"); }

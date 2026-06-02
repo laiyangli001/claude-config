@@ -24,6 +24,7 @@ backups/
 .last-cleanup
 
 # node_modules
+node_modules/
 mcp-servers/*/node_modules/
 mcp-servers/*/package-lock.json
 mcp-servers/deadloop-monitor/node_modules/
@@ -55,3 +56,12 @@ projects/**/subagents/
 projects/**/tool-results/
 *.pending_permission
 .hook_debug.log
+
+# Playwright test output
+test-results/
+
+# 临时文件
+_tmp_*/
+_chat_state.png
+_page_check.png
+_find_dialog.ps1
