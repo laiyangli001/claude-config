@@ -155,9 +155,45 @@ export async function launchBrowser(chromium, profileDir, headless = false) {
         headless,
         viewport: { width: 1280, height: 800 },
         userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36",
-        args: ["--disable-blink-features=AutomationControlled"],
+        args: [
+          "--disable-blink-features=AutomationControlled",
+          "--no-sandbox",
+          "--disable-infobars",
+          "--disable-dev-shm-usage",
+          "--disable-gpu",
+          "--no-first-run",
+          "--no-default-browser-check",
+          "--disable-notifications",
+          "--disable-popup-blocking",
+          "--window-size=1280,800",
+          "--lang=zh-CN,zh;q=0.9,en;q=0.8",
+          "--disable-features=IsolateOrigins,site-per-process",
+          "--flag-switches-begin",
+          "--flag-switches-end",
+        ],
+        ignoreDefaultArgs: ["--enable-automation"],
+        locale: "zh-CN",
+        timezoneId: "Asia/Shanghai",
+        colorScheme: "dark",
+        extraHTTPHeaders: {
+          "accept-language": "zh-CN,zh;q=0.9,en;q=0.8",
+        },
       });
       log("浏览器已启动");
+      // 注入反检测脚本：覆盖 navigator.webdriver 等指纹
+      await ctx.addInitScript(() => {
+        Object.defineProperty(navigator, "webdriver", { get: () => undefined });
+        Object.defineProperty(navigator, "plugins", { get: () => [1, 2, 3, 4, 5] });
+        Object.defineProperty(navigator, "languages", { get: () => ["zh-CN", "zh", "en"] });
+        window.chrome = { runtime: {}, loadTimes: () => {}, csi: () => {}, app: {} };
+        const origQuery = window.navigator.permissions?.query;
+        if (origQuery) {
+          window.navigator.permissions.query = (params) =>
+            params.name === "notifications"
+              ? Promise.resolve({ state: Notification.permission })
+              : origQuery(params);
+        }
+      });
       return ctx;
     } catch (err) {
       const msg = (err && err.message) || "";

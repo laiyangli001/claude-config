@@ -144,8 +144,23 @@ async function configureSettings(pg) {
 async function ensurePageReady(pg) {
     if (isPageReady)
         return;
-    await withRetry(() => navigateWithToast(pg, SITE_URL, "Claude 镜像站"));
-    await sleep(4000);
+    // 先导航到首页，保留 session；不直接开 /new 避免每次刷新丢状态
+    await withRetry(() => navigateWithToast(pg, "https://claude.2233.ai/", "Claude 镜像站"));
+    await sleep(3000);
+    // 检测是否有 Cloudflare/turnstile 挑战页
+    const isCF = await pg.locator("text=Verify you are human, text=请验证您是人类").count().catch(() => 0) > 0
+        || (await pg.title().catch(() => "")).includes("Just a moment");
+    if (isCF) {
+        await showToast(pg, "🤖 遇到人机验证，请手动完成…");
+        // 等待验证通过（最多 60 秒）
+        for (let i = 0; i < 60; i++) {
+            await sleep(1000);
+            const stillCF = await pg.locator("text=Verify you are human, text=请验证您是人类").count().catch(() => 0) > 0
+                || (await pg.title().catch(() => "")).includes("Just a moment");
+            if (!stillCF)
+                break;
+        }
+    }
     await configureSettings(pg).catch(() => { });
     for (let i = 0; i < 30; i++) {
         if (await pg.locator(SEL.CHAT_INPUT).count() > 0)
