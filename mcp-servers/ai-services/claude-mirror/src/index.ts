@@ -15,21 +15,18 @@ import { loadTemplate } from "../../shared/role.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(__dirname, "..");
-const PROFILE_DIR = path.join(PROJECT_ROOT, ".chatgpt-mirror-profile");
-const SITE_URL = "https://chatgpt.2233.ai/";
-const HEADLESS = process.env.CHATGPT_HEADLESS === "true";
+const PROFILE_DIR = path.join(PROJECT_ROOT, ".claude-mirror-profile");
+const SITE_URL = "https://claude.2233.ai/new";
+const HEADLESS = process.env.CLAUDE_MIRROR_HEADLESS === "true";
 const TEMPLATES_DIR = path.resolve(__dirname, "../../shared/templates");
 
 const SEL = {
   CHAT_INPUT: "#prompt-textarea",
-  SEND_BTN: 'button.composer-submit-button-color, button[aria-label="Send"], [data-testid="send-button"]',
+  SEND_BTN: 'button[aria-label="Send"], [data-testid="send-button"]',
   STOP_BTN: 'button[aria-label*="stop" i], [data-testid="stop-button"]',
   FILE_INPUT: "#upload-files",
   PLUS_BTN: '[data-testid="composer-plus-btn"]',
   DUPLICATE_BTN: 'button:has-text("确定"), button:has-text("OK")',
-  START_BTN: 'button:has-text("立即开始"), a:has-text("立即开始"), button:has-text("Start now"), a:has-text("Start now")',
-  INVITE_URL: "https://2233.ai/?code=FC8XHSCH",
-  CHAT_URL: "https://chatgpt.2233.ai/",
 };
 
 let browserContext: BrowserContext | null = null;
@@ -74,11 +71,11 @@ async function ensureBrowser(): Promise<{ page: Page; context: BrowserContext }>
   return initPromise;
 }
 
-async function askChatGPT(question: string, attachments?: string[]): Promise<string> {
+async function askClaude(question: string, attachments?: string[]): Promise<string> {
   const { page: pg } = await ensureBrowser();
 
   if (!isPageReady) {
-    await withRetry(() => navigateWithToast(pg, SEL.CHAT_URL, "ChatGPT 镜像站"));
+    await withRetry(() => navigateWithToast(pg, SITE_URL, "Claude 镜像站"));
     // 等待聊天输入框出现
     await pg.locator(SEL.CHAT_INPUT).waitFor({ state: "visible", timeout: 60000 }).catch(() => {});
     // Cookie 检测登录态
@@ -86,11 +83,11 @@ async function askChatGPT(question: string, attachments?: string[]): Promise<str
     const hasSession = cookies.some(c => c.name.includes("session") && c.value.length > 10);
     if (!hasSession) {
       if (!HEADLESS) await pg.bringToFront();
-      await showToast(pg, "🔑 请登录镜像站（登录后自动继续）");
+      await showToast(pg, "🔑 请登录 Claude 镜像站（登录后自动继续）");
       await pg.locator(SEL.CHAT_INPUT).waitFor({ state: "visible", timeout: 180000 });
     }
     if (!(await pg.locator(SEL.CHAT_INPUT).waitFor({ state: "visible", timeout: 30000 }).then(() => true).catch(() => false))) {
-      throw new Error("Cannot access ChatGPT mirror.");
+      throw new Error("Cannot access Claude mirror.");
     }
     isPageReady = true;
   }
@@ -107,7 +104,6 @@ async function askChatGPT(question: string, attachments?: string[]): Promise<str
   await showToast(pg, "⏳ 等待回答...");
   await waitForNewMessage(pg, answerSel, prev);
   await waitForAnswer(pg, answerSel, SEL.STOP_BTN);
-  // 等 stop 消失 + 内容稳定 3 秒
   let stable = 0, lastLen = await pg.evaluate(() => document.body.innerText.length);
   for (let i = 0; i < 30; i++) {
     await sleep(1000);
@@ -121,12 +117,12 @@ async function askChatGPT(question: string, attachments?: string[]): Promise<str
   return answer;
 }
 
-const server = new Server({ name: "chatgpt-mirror-mcp", version: "1.0.0" }, { capabilities: { tools: {} } });
+const server = new Server({ name: "claude-mirror-mcp", version: "1.0.0" }, { capabilities: { tools: {} } });
 server.setRequestHandler(ListToolsRequestSchema, async () => ({
-  tools: [{ name: "ask_chatgpt_mirror", description: "Use ChatGPT mirror (chatgpt.2233.ai) free version.", inputSchema: { type: "object", properties: { template: { type: "string" }, question: { type: "string" }, attachments: { type: "array", items: { type: "string" } } } } }],
+  tools: [{ name: "ask_claude_mirror", description: "Use Claude Mirror (claude.2233.ai) free version.", inputSchema: { type: "object", properties: { template: { type: "string" }, question: { type: "string" }, attachments: { type: "array", items: { type: "string" } } } } }],
 }));
 server.setRequestHandler(CallToolRequestSchema, async (req) => {
-  if (req.params.name !== "ask_chatgpt_mirror") throw new Error("Unknown tool");
+  if (req.params.name !== "ask_claude_mirror") throw new Error("Unknown tool");
   const raw = req.params.arguments || {};
   const tpl = typeof raw.template === "string" ? raw.template : "";
   const q = typeof raw.question === "string" ? raw.question : "";
@@ -137,12 +133,12 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
     if (content) finalQuestion = `${content}\n\n---\n\n${q}`;
   }
   try {
-    const answer = await askChatGPT(finalQuestion, files);
-    return { content: [{ type: "text", text: `【ChatGPT Mirror answer】\n\n${answer}` }] };
+    const answer = await askClaude(finalQuestion, files);
+    return { content: [{ type: "text", text: `【Claude Mirror answer】\n\n${answer}` }] };
   } catch (e: unknown) {
-    return { content: [{ type: "text", text: `ChatGPT Mirror call failed: ${e instanceof Error ? e.message : String(e)}` }], isError: true };
+    return { content: [{ type: "text", text: `Claude Mirror call failed: ${e instanceof Error ? e.message : String(e)}` }], isError: true };
   }
 });
 
-async function main() { const t = new StdioServerTransport(); await server.connect(t); console.error("ChatGPT Mirror MCP running"); }
+async function main() { const t = new StdioServerTransport(); await server.connect(t); console.error("Claude Mirror MCP running"); }
 main().catch(e => { console.error("Fatal:", e); process.exit(1); });

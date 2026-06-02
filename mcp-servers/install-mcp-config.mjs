@@ -24,6 +24,10 @@ const mcpServers = {
     command: "cmd",
     args: ["/c", "node", path.join(serversDir, "ai-services", "doubao", "dist", "index.js")],
   },
+  "claude-mirror": {
+    command: "cmd",
+    args: ["/c", "node", path.join(serversDir, "ai-services", "claude-mirror", "dist", "index.js")],
+  },
   "mineru-open-mcp": {
     command: "uvx",
     args: ["mineru-open-mcp"],

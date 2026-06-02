@@ -21,28 +21,28 @@ description: |
 
 | # | 场景 | 触发条件 | 首选服务 | 模板 |
 |---|------|---------|---------|------|
-| 1 | 代码分析 | 代码文件 >500行 或 明确要求审查/Bug/重构等 | mirror | `code_review` |
+| 1 | 代码分析 | 代码文件 >500行 或 明确要求审查/Bug/重构等 | chatgpt-mirror | `code_review` |
 | 2 | 长文本分析 | 纯文档且估计 >10k token | deepseek | `long_text` |
 | 3 | 简单任务 | 批量处理/格式转换/文本整理/代码高亮等 | deepseek | `format_task` |
-| 4 | 多模态视觉 | 图片/界面截图/PPT 生成 | mirror | `vision_analysis` |
+| 4 | 多模态视觉 | 图片/界面截图/PPT 生成 | chatgpt-mirror | `vision_analysis` |
 
 **复合任务检测**：若用户输入包含两个及以上明显动作（如"审查这段代码并把注释翻译成中文"），进入复合任务流程。
 
-**典型复合模式：视觉 + 代码审查**。调试界面 Bug 时：截图 → mirror（`vision_analysis`，输出带归一化坐标的元素描述）→ 同一服务复用会话继续 `code_review` 分析代码。mirror（ChatGPT）支持视觉与文本混合输入，可在同一对话中完成"看图→分析代码"的完整流程。视觉分析结果中的归一化坐标可直接映射到像素位置，辅助定位代码中对应的渲染区域。
+**典型复合模式：视觉 + 代码审查**。调试界面 Bug 时：截图 → chatgpt-mirror（`vision_analysis`，输出带归一化坐标的元素描述）→ 同一服务复用会话继续 `code_review` 分析代码。chatgpt-mirror（ChatGPT）支持视觉与文本混合输入，可在同一对话中完成"看图→分析代码"的完整流程。视觉分析结果中的归一化坐标可直接映射到像素位置，辅助定位代码中对应的渲染区域。
 
 ### 第 3 步：二次确认
 
 向用户展示识别结果：
 
 ```text
-已识别场景：[代码审查]，将使用 [mirror] 服务 + [code_review] 模板。
+已识别场景：[代码审查]，将使用 [chatgpt-mirror] 服务 + [code_review] 模板。
 是否继续？（回复"是"继续，或指定：代码审查/长文本分析/多模态/简单任务/直接回答/取消）
 ```
 
 复合任务时：
 ```text
 检测到多个任务：
-  [1] 代码审查（mirror）
+  [1] 代码审查（chatgpt-mirror）
   [2] 注释翻译（deepseek）
 是否按以上顺序依次执行？（是/指定顺序/取消）
 ```
@@ -89,10 +89,11 @@ description: |
 
 | 场景 | 首选 | 第二选择 | 第三选择 | 最终兜底 |
 |------|------|---------|---------|---------|
-| 代码审查 | mirror | deepseek | official | 提示手动检查 |
-| 长文本分析 | deepseek | official | mirror | 提示分段处理 |
+| 代码审查（复杂/深层） | claude-mirror | chatgpt-mirror | deepseek | 提示手动检查 |
+| 代码审查（一般） | chatgpt-mirror | deepseek | official | 提示手动检查 |
+| 长文本分析 | deepseek | official | chatgpt-mirror | 提示分段处理 |
 | 简单任务 | deepseek | official | — | 提示手动完成 |
-| 多模态 | mirror | official | doubao | 提示无法处理 |
+| 多模态 | chatgpt-mirror | official | doubao | 提示无法处理 |
 
 - 调用失败时自动按降级链重试（最多重试 2 次）
 - 每次失败等待 1-2 秒再试
@@ -104,7 +105,7 @@ description: |
 输出格式（先展示决策元信息，然后用自己的话逐条总结，每条都要列出不省略）：
 
 ```text
-[场景: 代码审查] [服务: mirror] [模板: code_review] [耗时: 4.2s]
+[场景: 代码审查] [服务: chatgpt-mirror] [模板: code_review] [耗时: 4.2s]
 ---
 ```
 

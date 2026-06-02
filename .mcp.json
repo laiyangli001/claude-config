@@ -32,6 +32,14 @@
         "c:/Users/LaiYangLi/.claude/mcp-servers/ai-services/doubao/dist/index.js"
       ]
     },
+    "claude-mirror": {
+      "command": "cmd",
+      "args": [
+        "/c",
+        "node",
+        "c:/Users/LaiYangLi/.claude/mcp-servers/ai-services/claude-mirror/dist/index.js"
+      ]
+    },
     "mineru-open-mcp": {
       "command": "uvx",
       "args": ["mineru-open-mcp"],
