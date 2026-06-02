@@ -17,12 +17,25 @@ try {
 } catch {}
 
 const eventName = event.hook_event_name || "";
+const permMode = event.permission_mode || "";
+const toolName = event.tool_name || "";
+
+// 只在真正需要用户确认时才写标记（prompt/inquire 等模式）
+const needsUser = permMode === "prompt" || permMode === "inquire" || permMode === "confirm";
 
 if (eventName === "PermissionRequest") {
-  fs.writeFileSync(FLAG, "1", "utf-8");
-  try { fs.appendFileSync(HOOK_LOG, new Date().toISOString() + " PERM: WROTE flag\n"); } catch {}
+  if (needsUser) {
+    fs.writeFileSync(FLAG, "1", "utf-8");
+  }
 } else if (eventName === "PermissionDenied" || eventName === "PermissionGranted") {
   try { fs.unlinkSync(FLAG); } catch {}
 }
+
+// 调试：记录所有 Request 但不写标记
+try {
+  if (eventName === "PermissionRequest") {
+    fs.appendFileSync(HOOK_LOG, new Date().toISOString() + " PERM name=" + eventName + " tool=" + toolName + " mode=" + permMode + " needsUser=" + needsUser + "\n");
+  }
+} catch {}
 
 process.exit(0);
