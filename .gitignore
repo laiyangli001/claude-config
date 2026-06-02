@@ -52,3 +52,5 @@ projects/**/*.jsonl
 projects/**/*.jsonl.pos
 projects/**/subagents/
 projects/**/tool-results/
+*.pending_permission
+.hook_debug.log
