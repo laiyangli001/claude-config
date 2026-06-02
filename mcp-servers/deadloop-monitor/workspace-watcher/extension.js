@@ -241,15 +241,16 @@ function beep() {
       p.unref();
     }
 
-    // 无边框窗口显示动画（PowerShell FormBorderStyle=None，完全无边框）
+    // HTA 悬浮窗：自适应 GIF 尺寸，右上角显示
     const gifPath = path.join(SOUND_DIR, "lookhere.gif");
     if (fs.existsSync(gifPath)) {
-      const tmpHtml = path.join(os.tmpdir(), "_mcp_alert.htm");
-      fs.writeFileSync(tmpHtml, '<html><body style="margin:0;overflow:hidden;background:#202020"><img src="data:image/gif;base64,' + fs.readFileSync(gifPath).toString("base64") + '" style="width:260px;height:180px;object-fit:contain;cursor:pointer" onclick="window.close()" ondblclick="window.close()"><script>setTimeout(function(){window.close()},5000)<\/script></body></html>');
-      const ps = 'Add-Type -AssemblyName System.Windows.Forms; $f=New-Object System.Windows.Forms.Form; $f.FormBorderStyle="None"; $f.TopMost=$true; $f.BackColor="#202020"; $f.Width=260; $f.Height=180; $f.Left=[System.Windows.Forms.Screen]::PrimaryScreen.Bounds.Width/2-130; $f.Top=[System.Windows.Forms.Screen]::PrimaryScreen.Bounds.Height*2/3-90; $w=New-Object System.Windows.Forms.WebBrowser; $w.Dock="Fill"; $w.ScrollBarsEnabled=$false; $w.AllowNavigation=$false; $w.Navigate("file:///' + tmpHtml.replace(/\\/g, "/") + '"); $f.Controls.Add($w); $f.Show(); Start-Sleep 5; $f.Close()';
-      const p = spawn("powershell", ["-NoProfile", ps], { windowsHide: false, stdio: "ignore" });
+      const b64 = fs.readFileSync(gifPath).toString("base64");
+      const hta = '<!DOCTYPE html><hta:application id=o showintaskbar=no caption=no border=none contextmenu=no scroll=no maximizebutton=no minimizebutton=no><html><head><script>function init(){window.resizeTo(260,180);var x=(screen.availWidth-260)/2;var y=screen.availHeight*2/3;window.moveTo(x,y);setTimeout(function(){window.close()},5000)}<\/script><style>body{margin:0;overflow:hidden;background:#202020;display:flex;width:260px;height:180px;-ms-overflow-style:none}img{width:100%;height:100%;object-fit:contain;cursor:pointer}</style></head><body onload=init()><img id=g src="data:image/gif;base64,' + b64 + '" onclick=close() ondblclick=close()></body></html>';
+      const tmpFile = path.join(os.tmpdir(), "_mcp_alert.hta");
+      fs.writeFileSync(tmpFile, '﻿' + hta, "utf-16le");
+      const p = spawn("mshta.exe", [tmpFile], { windowsHide: false, stdio: "ignore" });
       p.unref();
-      setTimeout(() => { try { p.kill(); fs.unlinkSync(tmpHtml); } catch {} }, 8000);
+      setTimeout(() => { try { fs.unlinkSync(tmpFile); p.kill(); } catch {} }, 8000);
     }
   } catch {}
 }
