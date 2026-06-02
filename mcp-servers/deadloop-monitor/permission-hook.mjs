@@ -20,21 +20,22 @@ const eventName = event.hook_event_name || "";
 const permMode = event.permission_mode || "";
 const toolName = event.tool_name || "";
 
-// 只在真正需要用户确认时才写标记（prompt/inquire 等模式）
-const needsUser = permMode === "prompt" || permMode === "inquire" || permMode === "confirm";
+// "default" = 需要用户弹窗确认，auto-allowed 的工具有其他 mode 值
+const needsUser = permMode === "default";
 
 if (eventName === "PermissionRequest") {
   if (needsUser) {
     fs.writeFileSync(FLAG, "1", "utf-8");
   }
-} else if (eventName === "PermissionDenied" || eventName === "PermissionGranted") {
+} else if (eventName === "PermissionDenied") {
   try { fs.unlinkSync(FLAG); } catch {}
 }
 
-// 调试：记录所有 Request 但不写标记
+// 调试日志
 try {
   if (eventName === "PermissionRequest") {
-    fs.appendFileSync(HOOK_LOG, new Date().toISOString() + " PERM name=" + eventName + " tool=" + toolName + " mode=" + permMode + " needsUser=" + needsUser + "\n");
+    const sug = event.permission_suggestions ? JSON.stringify(event.permission_suggestions).slice(0, 100) : "none";
+    fs.appendFileSync(HOOK_LOG, new Date().toISOString() + " PERM name=" + eventName + " tool=" + toolName + " mode=" + permMode + " sug=" + sug + "\n");
   }
 } catch {}
 
