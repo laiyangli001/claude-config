@@ -19,14 +19,17 @@ description: |
 
 根据以下规则自动匹配场景：
 
-| # | 场景 | 触发条件 | 首选服务 | 模板 |
-|---|------|---------|---------|------|
-| 1 | 代码分析 | 代码文件 >500行 或 明确要求审查/Bug/重构等 | chatgpt-mirror | `code_review` |
-| 2 | 长文本分析 | 纯文档且估计 >10k token | deepseek | `long_text` |
-| 3 | 简单任务 | 批量处理/格式转换/文本整理/代码高亮等 | deepseek | `format_task` |
-| 4 | 多模态视觉 | 图片/界面截图/PPT 生成 | chatgpt-mirror | `vision_analysis` |
+| # | 场景 | 触发条件 | 服务降级链 | 模板 |
+|---|------|---------|-----------|------|
+| 1 | 代码审查（复杂/深层） | 多文件、跨模块、异步、>500行 | claude-mirror → chatgpt-mirror → deepseek | `code_review` |
+| 2 | 代码审查（一般） | 单文件、<500行、常规逻辑 | chatgpt-mirror → claude-mirror → chatgpt-official → deepseek | `code_review` |
+| 3 | 长文本分析 | 纯文档、>10k token、日志/纪要 | deepseek → chatgpt-official → chatgpt-mirror | `long_text` |
+| 4 | 简单任务 | 批量处理/格式转换/文本整理/代码高亮 | deepseek → chatgpt-official | `format_task` |
+| 5 | 多模态视觉 | 截图/图片/PPT生成 | chatgpt-mirror → chatgpt-official → doubao | `vision_analysis` |
 
-**复合任务检测**：若用户输入包含两个及以上明显动作（如"审查这段代码并把注释翻译成中文"），进入复合任务流程。
+**调用说明：** 按降级链依次调用，失败时自动尝试下一级（最多重试 2 次，间隔 1-2 秒）。附件通过 `attachments` 参数上传。全部服务失败时给出明确提示。
+
+**复合任务检测**：若用户输入包含两个及以上明显动作（如"审查这段代码并把注释翻译成中文"），进入复合任务流程。每个子任务独立走降级链。
 
 **典型复合模式：视觉 + 代码审查**。调试界面 Bug 时：截图 → chatgpt-mirror（`vision_analysis`，输出带归一化坐标的元素描述）→ 同一服务复用会话继续 `code_review` 分析代码。chatgpt-mirror（ChatGPT）支持视觉与文本混合输入，可在同一对话中完成"看图→分析代码"的完整流程。视觉分析结果中的归一化坐标可直接映射到像素位置，辅助定位代码中对应的渲染区域。
 
@@ -83,24 +86,7 @@ description: |
 
 加载后执行字符串替换，再将模板内容拼接到 question 前（用 `\n\n---\n\n` 分隔）。
 
-### 第 6 步：调用 MCP（含降级矩阵）
-
-根据不同场景的降级链：
-
-| 场景 | 首选 | 第二选择 | 第三选择 | 最终兜底 |
-|------|------|---------|---------|---------|
-| 代码审查（复杂/深层） | claude-mirror | chatgpt-mirror | deepseek | 提示手动检查 |
-| 代码审查（一般） | chatgpt-mirror | claude-mirror | chatgpt-official | deepseek |
-| 长文本分析 | deepseek | chatgpt-official | chatgpt-mirror | 提示分段处理 |
-| 简单任务 | deepseek | chatgpt-official | — | 提示手动完成 |
-| 多模态 | chatgpt-mirror | chatgpt-official | doubao | 提示无法处理 |
-
-- 调用失败时自动按降级链重试（最多重试 2 次）
-- 每次失败等待 1-2 秒再试
-- 如果全部服务失败，给出明确错误提示和建议
-- 附件通过 MCP 的 `attachments` 参数上传
-
-### 第 7 步：返回结果 + 反馈闭环
+### 第 6 步：返回结果 + 反馈闭环
 
 输出格式（先展示决策元信息，然后用自己的话逐条总结，每条都要列出不省略）：
 
@@ -129,7 +115,7 @@ description: |
 
 用户可以复用同一场景和附件，只改变关注点重新执行。
 
-### 第 8 步：日志记录
+### 第 7 步：日志记录
 
 每次调用追加到 `~/.claude/mcp-baipiao-history.jsonl`：
 
@@ -139,7 +125,7 @@ description: |
 
 支持 `/mcp-baipiao --history` 查看最近记录的摘要。
 
-### 第 9 步：帮助系统
+### 第 8 步：帮助系统
 
 用户输入 `/mcp-baipiao` 不带参数、或带 `--help` 时显示：
 
