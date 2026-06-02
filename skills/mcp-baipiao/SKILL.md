@@ -90,10 +90,10 @@ description: |
 | 场景 | 首选 | 第二选择 | 第三选择 | 最终兜底 |
 |------|------|---------|---------|---------|
 | 代码审查（复杂/深层） | claude-mirror | chatgpt-mirror | deepseek | 提示手动检查 |
-| 代码审查（一般） | chatgpt-mirror | claude-mirror | official | deepseek |
-| 长文本分析 | deepseek | official | chatgpt-mirror | 提示分段处理 |
-| 简单任务 | deepseek | official | — | 提示手动完成 |
-| 多模态 | chatgpt-mirror | official | doubao | 提示无法处理 |
+| 代码审查（一般） | chatgpt-mirror | claude-mirror | chatgpt-official | deepseek |
+| 长文本分析 | deepseek | chatgpt-official | chatgpt-mirror | 提示分段处理 |
+| 简单任务 | deepseek | chatgpt-official | — | 提示手动完成 |
+| 多模态 | chatgpt-mirror | chatgpt-official | doubao | 提示无法处理 |
 
 - 调用失败时自动按降级链重试（最多重试 2 次）
 - 每次失败等待 1-2 秒再试
