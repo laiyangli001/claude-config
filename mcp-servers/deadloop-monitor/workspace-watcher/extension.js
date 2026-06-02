@@ -245,7 +245,7 @@ function beep() {
     const gifPath = path.join(SOUND_DIR, "lookhere.gif");
     if (fs.existsSync(gifPath)) {
       const b64 = fs.readFileSync(gifPath).toString("base64");
-      const hta = '<!DOCTYPE html><hta:application id=o showintaskbar=no caption=no border=none contextmenu=no maximizebutton=no minimizebutton=no><html><head><script>function init(){var i=document.getElementById("g");i.onload=function(){window.resizeTo(i.naturalWidth,i.naturalHeight);window.moveTo(screen.availWidth-i.naturalWidth-30,30)};setTimeout(function(){window.close()},5000)}<\/script><style>body{margin:0;overflow:hidden;background:#202020;display:flex}img{max-width:260px;max-height:180px;cursor:pointer}</style></head><body onload=init()><img id=g src="data:image/gif;base64,' + b64 + '" onclick=close() ondblclick=close()></body></html>';
+      const hta = '<!DOCTYPE html><hta:application id=o showintaskbar=no caption=no border=none contextmenu=no maximizebutton=no minimizebutton=no><html><head><script>function init(){var i=document.getElementById("g");i.onload=function(){var w=Math.min(i.naturalWidth,260);var h=Math.min(i.naturalHeight,180);window.resizeTo(w,h);window.moveTo(screen.availWidth-w-30,30)};setTimeout(function(){window.close()},5000)}<\/script><style>body{margin:0;overflow:hidden;background:#202020;display:flex}img{max-width:260px;max-height:180px;cursor:pointer}</style></head><body onload=init()><img id=g src="data:image/gif;base64,' + b64 + '" onclick=close() ondblclick=close()></body></html>';
       const tmpFile = path.join(os.tmpdir(), "_mcp_alert.hta");
       fs.writeFileSync(tmpFile, "﻿" + hta, "utf-16le"); // BOM + UTF-16LE
       const p = spawn("mshta.exe", [tmpFile], { windowsHide: false, stdio: "ignore" });
