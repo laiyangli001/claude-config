@@ -154,21 +154,8 @@ export async function launchBrowser(chromium, profileDir, headless = false) {
       const ctx = await chromium.launchPersistentContext(profileDir, {
         headless,
         viewport: { width: 1280, height: 800 },
-        userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
-        args: ["--disable-blink-features=AutomationControlled", "--disable-features=ChromeWhatsNewUI"],
-      });
-      // 注入反检测脚本（绕过 Playwright 指纹识别）
-      await ctx.addInitScript(() => {
-        Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
-        Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
-        Object.defineProperty(navigator, 'languages', { get: () => ['zh-CN', 'zh', 'en'] });
-        window.chrome = { runtime: {} };
-        // 覆盖 Permissions API 防止 headless 检测
-        if (navigator.permissions) {
-          const origQuery = navigator.permissions.query;
-          navigator.permissions.query = (p) => p.name === 'notifications'
-            ? Promise.resolve({ state: 'denied' }) : origQuery(p);
-        }
+        userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36",
+        args: ["--disable-blink-features=AutomationControlled"],
       });
       log("浏览器已启动");
       return ctx;
