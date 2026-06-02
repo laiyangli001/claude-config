@@ -1,7 +1,8 @@
 #!/usr/bin/env node
-// Permission hook：权限弹窗时写标记 → 扩展每15秒检测并蜂鸣
+// Permission hook：只对不在 allow 列表的工具写标记 → 扩展检测蜂鸣
 import fs from "fs";
 import path from "path";
+import os from "os";
 import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -11,32 +12,26 @@ const input = fs.readFileSync(0, "utf-8").trim();
 let event;
 try { event = JSON.parse(input); } catch { process.exit(0); }
 
-const HOOK_LOG = path.join(__dirname, ".hook_debug.log");
-try {
-  fs.appendFileSync(HOOK_LOG, new Date().toISOString() + " PERM_EVENT name=" + (event.hook_event_name || "?") + " tool=" + (event.tool_name || "?") + " keys=" + Object.keys(event).join(",") + "\n");
-} catch {}
-
 const eventName = event.hook_event_name || "";
-const permMode = event.permission_mode || "";
 const toolName = event.tool_name || "";
 
-// "default" = 需要用户弹窗确认，auto-allowed 的工具有其他 mode 值
-const needsUser = permMode === "default";
+function isToolAllowed(tool) {
+  try {
+    const cfg = JSON.parse(fs.readFileSync(path.join(os.homedir(), ".claude", "settings.json"), "utf-8"));
+    const allow = cfg.permissions?.allow || [];
+    if (allow.includes(tool)) return true;
+    // Bash、Edit、Read、Write 等内置工具默认允许
+    if (["Bash","Edit","Read","Write","Glob","Grep","Skill","Agent","AskUserQuestion","NotebookEdit","TodoWrite"].includes(tool)) return true;
+    return false;
+  } catch { return false; }
+}
 
 if (eventName === "PermissionRequest") {
-  if (needsUser) {
+  if (!isToolAllowed(toolName)) {
     fs.writeFileSync(FLAG, "1", "utf-8");
   }
 } else if (eventName === "PermissionDenied") {
   try { fs.unlinkSync(FLAG); } catch {}
 }
-
-// 调试日志
-try {
-  if (eventName === "PermissionRequest") {
-    const sug = event.permission_suggestions ? JSON.stringify(event.permission_suggestions).slice(0, 100) : "none";
-    fs.appendFileSync(HOOK_LOG, new Date().toISOString() + " PERM name=" + eventName + " tool=" + toolName + " mode=" + permMode + " sug=" + sug + "\n");
-  }
-} catch {}
 
 process.exit(0);
