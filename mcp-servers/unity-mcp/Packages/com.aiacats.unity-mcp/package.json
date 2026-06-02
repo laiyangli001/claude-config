@@ -1,0 +1,42 @@
+{
+    "name": "com.aiacats.unity-mcp",
+    "version": "1.2.0",
+    "displayName": "Unity MCP Bridge for Claude Code",
+    "description": "Model Context Protocol (MCP) server integration for Unity Editor, enabling Claude Code to directly control Unity through HTTP API and Node.js bridge.",
+    "unity": "2021.3",
+    "unityRelease": "0f1",
+    "dependencies": {
+        "com.unity.nuget.newtonsoft-json": "3.2.1",
+        "com.unity.test-framework": "1.4.5"
+    },
+    "keywords": [
+        "mcp",
+        "model-context-protocol",
+        "claude",
+        "claude-code",
+        "ai",
+        "automation",
+        "editor",
+        "tool"
+    ],
+    "author": {
+        "name": "aiacats"
+    },
+    "type": "tool",
+    "hideInEditor": false,
+    "samples": [
+        {
+            "displayName": "Basic MCP Test",
+            "description": "Basic test components for MCP functionality",
+            "path": "Samples~/BasicTest"
+        }
+    ],
+    "repository": {
+        "url": "https://github.com/aiacats/unity-mcp.git",
+        "type": "git",
+        "revision": "main"
+    },
+    "license": "MIT",
+    "changelogUrl": "https://github.com/aiacats/unity-mcp/blob/main/Packages/com.aiacats.unity-mcp/CHANGELOG.md",
+    "licensesUrl": "https://github.com/aiacats/unity-mcp/blob/main/Packages/com.aiacats.unity-mcp/LICENSE.md"
+}
