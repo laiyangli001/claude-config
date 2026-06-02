@@ -63,11 +63,13 @@ class StatusBarManager {
     const preset = PRESETS[settings.preset] || PRESETS.default;
     const hookOn = isHookActive();
     const hookLabel = hookOn ? "✅ 已启用" : "❌ 已停用";
+    const bLabel = permissionBeeperActive ? "🔊 开启" : "🔇 关闭";
     this.item.text = icon + " 循环守护";
     this.item.tooltip = [
       "循环守护    " + tooltipStatus,
       "──────────────────────────────",
       "Stop Hook   " + hookLabel,
+      "权限提示音  " + bLabel,
       "预设方案    " + preset.label,
       "相似阈值    " + preset.jaccardThreshold.toFixed(2),
       "反转词      ≥" + preset.reversalMinCount + " 词/200字",
@@ -85,8 +87,10 @@ class StatusBarManager {
     context.subscriptions.push(vscode.commands.registerCommand(cmdId, async () => {
       const hookOn = isHookActive();
       const toggleLabel = hookOn ? "⏹ 停用 Stop Hook（需 Reload）" : "▶ 启用 Stop Hook（需 Reload）";
+      const beeperLabel = permissionBeeperActive ? "🔊 权限提示音：开启" : "🔇 权限提示音：关闭";
       const options = [
         { label: toggleLabel, action: "toggleHook" },
+        { label: beeperLabel, action: "toggleBeeper" },
         { label: "📋 查看日志", action: "viewLog" },
         { label: "⚙ 检测阈值设置 →", action: "thresholdConfig" },
         { label: "🏥 完整会话健康度分析", action: "healthAnalysis" },
@@ -95,6 +99,8 @@ class StatusBarManager {
       if (!choice) return;
       if (choice.action === "toggleHook") {
         toggleHook(this);
+      } else if (choice.action === "toggleBeeper") {
+        togglePermissionBeeper(this);
       } else if (choice.action === "viewLog") {
         try {
           const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(LOG_FILE));
@@ -206,6 +212,51 @@ function runHealthAnalysis() {
       proc.on("error", () => { vscode.window.showErrorMessage("无法启动分析进程"); resolve(); });
     });
   });
+}
+
+// ════════════════════════════════════════
+// 权限提示音
+// ════════════════════════════════════════
+
+let permissionBeeperInterval = null;
+let permissionBeeperActive = false;
+
+function beep() {
+  try {
+    const p = spawn("powershell", ["-c", "[System.Console]::Beep(880,300); Start-Sleep 0.1; [System.Console]::Beep(660,300)"], {
+      windowsHide: true, stdio: "ignore",
+    });
+    p.unref();
+  } catch {}
+}
+
+function checkPermissionDialog() {
+  try {
+    const tabs = vscode.window.tabGroups.all.flatMap(g => g.tabs);
+    for (const tab of tabs) {
+      const input = tab.input;
+      if (!input) continue;
+      if (input.viewType === "claude-code.chat" || input.viewType?.includes("claude")) {
+        beep();
+        return;
+      }
+    }
+  } catch {}
+}
+
+function togglePermissionBeeper(statusBar) {
+  if (permissionBeeperActive) {
+    clearInterval(permissionBeeperInterval);
+    permissionBeeperInterval = null;
+    permissionBeeperActive = false;
+    vscode.window.showInformationMessage("🔇 权限提示音已关闭");
+  } else {
+    checkPermissionDialog();
+    permissionBeeperInterval = setInterval(checkPermissionDialog, 15000);
+    permissionBeeperActive = true;
+    vscode.window.showInformationMessage("🔔 权限提示音已开启（每 15 秒检测）");
+  }
+  statusBar.updateDisplay();
 }
 
 // ════════════════════════════════════════
