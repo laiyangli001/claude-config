@@ -26,12 +26,20 @@ function isToolAllowed(tool) {
   } catch { return false; }
 }
 
+const HOOK_LOG = path.join(__dirname, ".hook_debug.log");
+
 if (eventName === "PermissionRequest") {
   if (!isToolAllowed(toolName)) {
     fs.writeFileSync(FLAG, "1", "utf-8");
   }
-} else if (eventName === "PermissionDenied") {
+} else {
+  // PermissionDenied 或其他事件 → 清标记
   try { fs.unlinkSync(FLAG); } catch {}
+}
+
+// 调试：记录非 Request 事件
+if (eventName !== "PermissionRequest") {
+  try { fs.appendFileSync(HOOK_LOG, new Date().toISOString() + " OTHER name=" + eventName + " tool=" + (toolName||"?") + " raw=" + input.slice(0,300) + "\n"); } catch {}
 }
 
 process.exit(0);

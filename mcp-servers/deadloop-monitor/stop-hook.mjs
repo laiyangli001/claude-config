@@ -37,10 +37,11 @@ if (!transcriptPath || !fs.existsSync(transcriptPath)) {
     process.exit(0);
 }
 
-// end_turn → 清除权限等待标记（已通过 PermissionRequest hook 独立处理）
-if (stopReason === "end_turn") {
-  try { fs.unlinkSync(PENDING_FLAG); } catch {}
-} else {
+// 任何 Stop 事件都清标记（包括拒绝后 stop_reason 为空的情况）
+try { fs.unlinkSync(PENDING_FLAG); } catch {}
+
+// end_turn 继续死循环检测
+if (stopReason !== "end_turn") {
   process.exit(0);
 }
 

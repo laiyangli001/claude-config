@@ -232,9 +232,53 @@ function beep() {
 
 const PENDING_FLAG = path.join(MONITOR_DIR, ".pending_permission");
 
+// 找最近的 .jsonl 验证权限是否仍待确认
+function verifyPending() {
+  try {
+    const base = path.join(process.env.USERPROFILE || "C:/Users/default", ".claude", "projects");
+    if (!fs.existsSync(base)) return true;
+    let latest = null, latestMtime = 0;
+    for (const dir of fs.readdirSync(base)) {
+      try {
+        for (const f of fs.readdirSync(path.join(base, dir))) {
+          if (!f.endsWith(".jsonl")) continue;
+          const fp = path.join(base, dir, f);
+          const mtime = fs.statSync(fp).mtimeMs;
+          if (mtime > latestMtime) { latestMtime = mtime; latest = fp; }
+        }
+      } catch {}
+    }
+    if (!latest) return true;
+    const stat = fs.statSync(latest);
+    const fd = fs.openSync(latest, "r");
+    const buf = Buffer.alloc(Math.min(stat.size, 4096));
+    fs.readSync(fd, buf, 0, buf.length, Math.max(0, stat.size - buf.length));
+    fs.closeSync(fd);
+    const lines = buf.toString("utf-8").split("\n").filter(Boolean);
+    for (let i = lines.length - 1; i >= 0; i--) {
+      try {
+        const o = JSON.parse(lines[i]);
+        const role = o.type || o.message?.role || "";
+        if (["last-prompt","ai-title","mode","tool_call","tool_result"].includes(role)) continue;
+        if (role === "assistant") {
+          const hasTU = o.message?.content?.some(c => c.type === "tool_use");
+          const hasTR = o.message?.content?.some(c => c.type === "tool_result");
+          if (hasTU && !hasTR) return true;  // 仍在等权限
+          return false;  // 已执行或无 tool_use
+        }
+        if (role === "user") return false;
+      } catch {}
+    }
+    return false;
+  } catch { return true; }
+}
+
 function checkPermissionDialog() {
   try {
-    if (fs.existsSync(PENDING_FLAG)) beep();
+    if (fs.existsSync(PENDING_FLAG)) {
+      if (verifyPending()) beep();
+      else try { fs.unlinkSync(PENDING_FLAG); } catch {}
+    }
   } catch {}
 }
 
