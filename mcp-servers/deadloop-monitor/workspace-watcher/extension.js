@@ -221,9 +221,19 @@ function runHealthAnalysis() {
 let permissionBeeperInterval = null;
 let permissionBeeperActive = false;
 
+const SOUND_DIR = path.join(MONITOR_DIR, "sound");
+let lastSound = "";
+
 function beep() {
   try {
-    const p = spawn("powershell", ["-c", "[System.Console]::Beep(880,300); Start-Sleep 0.1; [System.Console]::Beep(660,300)"], {
+    const files = fs.readdirSync(SOUND_DIR).filter(f => f.endsWith(".wav"));
+    if (files.length === 0) return;
+    // 随机选一个，不与上次重复
+    let pick;
+    if (files.length === 1) pick = files[0];
+    else { do { pick = files[Math.floor(Math.random() * files.length)]; } while (pick === lastSound); }
+    lastSound = pick;
+    const p = spawn("powershell", ["-c", "(New-Object Media.SoundPlayer '" + path.join(SOUND_DIR, pick).replace(/\\/g, "\\\\") + "').PlaySync()"], {
       windowsHide: true, stdio: "ignore",
     });
     p.unref();
@@ -290,9 +300,9 @@ function togglePermissionBeeper(statusBar) {
     vscode.window.showInformationMessage("🔇 权限提示音已关闭");
   } else {
     checkPermissionDialog();
-    permissionBeeperInterval = setInterval(checkPermissionDialog, 15000);
+    permissionBeeperInterval = setInterval(checkPermissionDialog, 30000);
     permissionBeeperActive = true;
-    vscode.window.showInformationMessage("🔔 权限提示音已开启（每 15 秒检测）");
+    vscode.window.showInformationMessage("🔔 权限提示音已开启（每 30 秒检测，随机播放）");
   }
   statusBar.updateDisplay();
 }
