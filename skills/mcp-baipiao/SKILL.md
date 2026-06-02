@@ -21,17 +21,17 @@ description: |
 
 | # | 场景 | 触发条件 | 服务降级链 | 模板 |
 |---|------|---------|-----------|------|
-| 1 | 代码审查（复杂/深层） | 多文件、跨模块、异步、>500行 | claude-mirror → chatgpt-mirror → deepseek | `code_review` |
+| 1 | 代码审查（复杂/深层） | 多文件、跨模块、异步、>500行 | claude-mirror → chatgpt-mirror → chatgpt-official → deepseek | `code_review` |
 | 2 | 代码审查（一般） | 单文件、<500行、常规逻辑 | chatgpt-mirror → claude-mirror → chatgpt-official → deepseek | `code_review` |
-| 3 | 长文本分析 | 纯文档、>10k token、日志/纪要 | deepseek → chatgpt-official → chatgpt-mirror | `long_text` |
+| 3 | 长文本分析 | 纯文档、>10k token、日志/纪要 | deepseek → claude-mirror → chatgpt-mirror → chatgpt-official  | `long_text` |
 | 4 | 简单任务 | 批量处理/格式转换/文本整理/代码高亮 | deepseek → chatgpt-official | `format_task` |
-| 5 | 多模态视觉 | 截图/图片/PPT生成 | chatgpt-mirror → chatgpt-official → doubao | `vision_analysis` |
+| 5 | 多模态视觉 | 截图/图片/PPT生成 | chatgpt-mirror → claude-mirror → chatgpt-official → doubao | `vision_analysis` |
 
 **调用说明：** 按降级链依次调用，失败时自动尝试下一级（最多重试 2 次，间隔 1-2 秒）。附件通过 `attachments` 参数上传。全部服务失败时给出明确提示。
 
 **复合任务检测**：若用户输入包含两个及以上明显动作（如"审查这段代码并把注释翻译成中文"），进入复合任务流程。每个子任务独立走降级链。
 
-**典型复合模式：视觉 + 代码审查**。调试界面 Bug 时：截图 → chatgpt-mirror（`vision_analysis`，输出带归一化坐标的元素描述）→ 同一服务复用会话继续 `code_review` 分析代码。chatgpt-mirror（ChatGPT）支持视觉与文本混合输入，可在同一对话中完成"看图→分析代码"的完整流程。视觉分析结果中的归一化坐标可直接映射到像素位置，辅助定位代码中对应的渲染区域。
+**典型复合模式：视觉 + 代码审查**。调试界面 Bug 时：截图 → chatgpt-mirror（`vision_analysis`，输出带归一化坐标的元素描述）→ 同一服务复用会话继续 `code_review` 分析代码。chatgpt-mirror（ChatGPT）、claude-mirror（Claude）支持视觉与文本混合输入，可在同一对话中完成"看图→分析代码"的完整流程。视觉分析结果中的归一化坐标可直接映射到像素位置，辅助定位代码中对应的渲染区域。
 
 ### 第 3 步：二次确认
 

@@ -585,14 +585,14 @@ AutoIt3 用于模拟鼠标键盘操作，适合自动化控制外部程序、发
 
 请生成：
 - 完整的 .au3 脚本代码
-- 编译命令（使用 @Aut2Exe/Aut2exe_x64.exe，添加 /console 参数）
+- 编译命令（使用 Aut2Exe/Aut2exe_x64.exe，添加 /console 参数）
 - 如何从 Node.js / Python 调用该 exe 的示例代码
 ```
 
 #### 编译命令模板（必须无窗口静默编译）
 
 ```cmd
-cmd //c "@Aut2Exe/Aut2exe_x64.exe /in "C:\Users\<用户名>\.claude\mcp-servers\deadloop-monitor\script.au3" /out "C:\Users\<用户名>\.claude\mcp-servers\deadloop-monitor\script.exe" /console"
+cmd //c "Aut2Exe/Aut2exe_x64.exe /in "C:\Users\<用户名>\.claude\mcp-servers\deadloop-monitor\script.au3" /out "C:\Users\<用户名>\.claude\mcp-servers\deadloop-monitor\script.exe" /console"
 ```
 
 也可使用绝对路径（避免当前目录问题）：

@@ -34,6 +34,7 @@ mcp-servers/ai-services/*/.chatgpt-chrome-profile*/
 mcp-servers/ai-services/*/.deepseek-browser-profile*/
 mcp-servers/ai-services/*/.chatgpt-mirror-profile*/
 mcp-servers/ai-services/*/.chatgpt-official-profile*/
+mcp-servers/ai-services/*/.claude-mirror-profile*/
 mcp-servers/ai-services/.chatgpt-mirror-profile/
 
 # 死循环监控运行时标记

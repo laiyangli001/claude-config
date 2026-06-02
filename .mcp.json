@@ -38,7 +38,8 @@
         "/c",
         "node",
         "c:/Users/LaiYangLi/.claude/mcp-servers/ai-services/claude-mirror/dist/index.js"
-      ]
+      ],
+      "timeout": 300000
     },
     "mineru-open-mcp": {
       "command": "uvx",

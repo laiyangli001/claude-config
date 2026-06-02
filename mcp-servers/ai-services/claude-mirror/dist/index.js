@@ -7,7 +7,7 @@ import { fileURLToPath } from "url";
 // @ts-ignore
 import { launchBrowser, navigateWithToast, withRetry, closeBrowser } from "../../shared/browser.mjs";
 // @ts-ignore
-import { waitForAnswer, extractNewAnswers, waitForNewMessage, showToast } from "../../shared/answer.mjs";
+import { showToast } from "../../shared/answer.mjs";
 // @ts-ignore
 import { uploadFiles } from "../../shared/upload.mjs";
 // @ts-ignore
@@ -19,12 +19,8 @@ const SITE_URL = "https://claude.2233.ai/new";
 const HEADLESS = process.env.CLAUDE_MIRROR_HEADLESS === "true";
 const TEMPLATES_DIR = path.resolve(__dirname, "../../shared/templates");
 const SEL = {
-    CHAT_INPUT: "#prompt-textarea",
-    SEND_BTN: 'button[aria-label="Send"], [data-testid="send-button"]',
-    STOP_BTN: 'button[aria-label*="stop" i], [data-testid="stop-button"]',
-    FILE_INPUT: "#upload-files",
-    PLUS_BTN: '[data-testid="composer-plus-btn"]',
-    DUPLICATE_BTN: 'button:has-text("确定"), button:has-text("OK")',
+    CHAT_INPUT: "div.ProseMirror",
+    STOP_BTN: 'button[aria-label*="stop" i]',
 };
 let browserContext = null;
 let page = null;
@@ -87,55 +83,129 @@ async function ensureBrowser() {
     })();
     return initPromise;
 }
+async function configureSettings(pg) {
+    // 1. 点"选择风格"→ 选"简洁"
+    try {
+        const styleBtn = pg.locator('button:has-text("选择风格"), button:has-text("Style")').first();
+        if (await styleBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+            await styleBtn.click({ force: true, timeout: 1500 });
+            await sleep(500);
+            const concise = pg.locator('text=简洁').first();
+            if ((await concise.count().catch(() => 0)) > 0)
+                await concise.click({ force: true, timeout: 1500 });
+        }
+    }
+    catch { }
+    await sleep(200);
+    // 2. 模型 → Opus 4.8 + Effort High
+    try {
+        const modelBtn = pg.locator('button:has-text("Sonnet"), button:has-text("Opus")').first();
+        if (!(await modelBtn.isVisible({ timeout: 2000 }).catch(() => false)))
+            return;
+        await modelBtn.click({ force: true, timeout: 1500 });
+        await sleep(800);
+        // 先设 Effort → High（在选 Opus 之前，防止改模型关菜单）
+        const effort = pg.locator('[data-testid="effort-menu-trigger"]').first();
+        if (effort) {
+            try {
+                await effort.waitFor({ state: "visible", timeout: 2000 });
+            }
+            catch { }
+            await effort.click({ force: true, timeout: 1500 });
+            await sleep(500);
+            const high = pg.locator('[role=menuitemradio]:has-text("High")').first();
+            if (high) {
+                try {
+                    await high.waitFor({ state: "visible", timeout: 2000 });
+                }
+                catch { }
+                await high.click({ force: true, timeout: 1500 });
+                await sleep(300); // 等待子菜单关闭
+            }
+        }
+        // 再选 Opus 4.8（菜单应该还在）
+        const opus = pg.locator('[role=menuitemradio]:has-text("Opus")').first();
+        if (opus) {
+            try {
+                await opus.waitFor({ state: "visible", timeout: 2000 });
+            }
+            catch { }
+            await opus.click({ force: true, timeout: 1500 });
+        }
+        await sleep(300);
+        // 关菜单
+        await pg.mouse.click(5, 5).catch(() => { });
+    }
+    catch { }
+    await sleep(200);
+}
 async function askClaude(question, attachments) {
     const { page: pg } = await ensureBrowser();
     if (!isPageReady) {
         await withRetry(() => navigateWithToast(pg, SITE_URL, "Claude 镜像站"));
-        // 等待聊天输入框出现
-        await pg.locator(SEL.CHAT_INPUT).waitFor({ state: "visible", timeout: 60000 }).catch(() => { });
-        // Cookie 检测登录态
-        const cookies = await browserContext.cookies();
-        const hasSession = cookies.some(c => c.name.includes("session") && c.value.length > 10);
-        if (!hasSession) {
-            if (!HEADLESS)
-                await pg.bringToFront();
-            await showToast(pg, "🔑 请登录 Claude 镜像站（登录后自动继续）");
-            await pg.locator(SEL.CHAT_INPUT).waitFor({ state: "visible", timeout: 180000 });
+        await sleep(4000);
+        // 配置设置
+        await configureSettings(pg).catch(() => { });
+        // 等聊天输入框
+        for (let i = 0; i < 30; i++) {
+            if (await pg.locator(SEL.CHAT_INPUT).count() > 0)
+                break;
+            await sleep(1000);
         }
-        if (!(await pg.locator(SEL.CHAT_INPUT).waitFor({ state: "visible", timeout: 30000 }).then(() => true).catch(() => false))) {
+        if ((await pg.locator(SEL.CHAT_INPUT).count()) === 0)
             throw new Error("Cannot access Claude mirror.");
-        }
         isPageReady = true;
     }
     if (attachments?.length)
-        await uploadFiles(pg, attachments, { fileInputSelector: SEL.FILE_INPUT, duplicateBtnSelector: SEL.DUPLICATE_BTN });
+        await uploadFiles(pg, attachments);
+    // 发送消息：设置文本 + 尝试多种发送方式
     await showToast(pg, "📤 发送中...");
-    const answerSel = '[data-message-author-role="assistant"]';
-    let prev = await pg.locator(answerSel).count();
     await pg.locator(SEL.CHAT_INPUT).first().evaluate((el, t) => { el.innerText = t; el.dispatchEvent(new Event("input", { bubbles: true })); }, question);
-    const sb = pg.locator(SEL.SEND_BTN).first();
-    if ((await sb.count()) > 0 && (await sb.isVisible()))
-        await sb.click();
-    else
-        await pg.keyboard.press("Enter");
-    await showToast(pg, "⏳ 等待回答...");
-    await waitForNewMessage(pg, answerSel, prev);
-    await waitForAnswer(pg, answerSel, SEL.STOP_BTN);
-    let stable = 0, lastLen = await pg.evaluate(() => document.body.innerText.length);
-    for (let i = 0; i < 30; i++) {
-        await sleep(1000);
-        const curLen = await pg.evaluate(() => document.body.innerText.length);
-        if (curLen === lastLen) {
-            stable++;
-            if (stable >= 3)
-                break;
-        }
-        else {
-            stable = 0;
-            lastLen = curLen;
+    await sleep(500);
+    // 依次尝试 Enter、Ctrl+Enter、查找发送按钮
+    let sent = false;
+    for (const method of ["Enter", "Control+Enter"]) {
+        await pg.keyboard.press(method);
+        await sleep(800);
+        const txt = await pg.locator(SEL.CHAT_INPUT).first().evaluate((el) => el.innerText).catch(() => "");
+        if (!txt || txt.length < 5) {
+            sent = true;
+            break;
         }
     }
-    const answer = await extractNewAnswers(pg, answerSel, prev);
+    if (!sent) {
+        // 兜底：找页面上所有可能的发送按钮
+        await pg.evaluate(() => {
+            const btns = [...document.querySelectorAll("button")];
+            const sendBtn = btns.find(b => b.textContent?.includes("Send") || b.textContent?.includes("发送") ||
+                b.getAttribute("aria-label")?.toLowerCase().includes("send"));
+            if (sendBtn)
+                sendBtn.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+        }).catch(() => { });
+        await sleep(500);
+    }
+    // 等回复
+    await showToast(pg, "⏳ 等待回答...");
+    const oldLen = await pg.evaluate(() => document.body.innerText.length);
+    for (let i = 0; i < 180; i++) {
+        await sleep(1000);
+        const curLen = await pg.evaluate(() => document.body.innerText.length);
+        if (curLen > oldLen + 20) {
+            // 内容开始增长，等稳定
+            for (let s = 0; s < 5; s++) {
+                await sleep(1000);
+                const after = await pg.evaluate(() => document.body.innerText.length);
+                if (after === curLen)
+                    break;
+            }
+            break;
+        }
+    }
+    const answer = await pg.evaluate(() => {
+        const msgs = [...document.querySelectorAll('[class*="message"], [class*="chat"], article, [role="article"]')];
+        const last = msgs[msgs.length - 1];
+        return last ? last.textContent?.trim() || "" : document.body.innerText.slice(-2000);
+    });
     if (!answer)
         throw new Error("Failed to extract answer");
     await showToast(pg, "✅ 回答完成", 2000);
