@@ -88,7 +88,7 @@ class StatusBarManager {
     context.subscriptions.push(vscode.commands.registerCommand(cmdId, async () => {
       const hookOn = isHookActive();
       const toggleLabel = hookOn ? "⏹ 停用 Stop Hook（需 Reload）" : "▶ 启用 Stop Hook（需 Reload）";
-      const beeperLabel = permissionBeeperActive ? "🔊 权限提示音：开启" : "🔇 权限提示音：关闭";
+      const beeperLabel = permissionBeeperActive ? "🔊 权限提示音：开启（默认）" : "🔇 权限提示音：关闭";
       const options = [
         { label: toggleLabel, action: "toggleHook" },
         { label: beeperLabel, action: "toggleBeeper" },
@@ -221,6 +221,7 @@ function runHealthAnalysis() {
 
 let permissionBeeperInterval = null;
 let permissionBeeperActive = false;
+let beeperTooltipShown = false;
 
 const SOUND_DIR = path.join(MONITOR_DIR, "sound");
 let lastSound = "";
@@ -228,6 +229,10 @@ let attentionPanel = null;
 
 function beep() {
   try {
+    if (!beeperTooltipShown) {
+      beeperTooltipShown = true;
+      vscode.window.showInformationMessage("🔔 权限弹窗提醒声音已开启，可在循环守护里关闭");
+    }
     // 播放随机声音
     const files = fs.readdirSync(SOUND_DIR).filter(f => f.endsWith(".wav"));
     if (files.length > 0) {
@@ -335,6 +340,11 @@ function activate(context) {
   statusBar.updateState({ status: initialState, workspace: wsPath });
   statusBar.registerCommands(context);
   context.subscriptions.push(statusBar);
+
+  // 默认开启权限提示音
+  permissionBeeperActive = true;
+  permissionBeeperInterval = setInterval(checkPermissionDialog, 30000);
+  statusBar.updateDisplay();
 }
 
 function deactivate() {}
