@@ -18,10 +18,37 @@ try { event = JSON.parse(input); } catch {
 
 const stopReason = event.stop_reason || "";
 const transcriptPath = event.transcript_path || "";
+const PENDING_FLAG = path.join(__dirname, ".pending_permission");
 
-// 只对 end_turn 感兴趣（一轮完整结束）
-if (stopReason !== "end_turn") process.exit(0);
 if (!transcriptPath || !fs.existsSync(transcriptPath)) process.exit(0);
+
+// ── 权限等待检测：tool_use 但未执行 → 写标记文件 ──
+if (stopReason === "tool_use") {
+  try {
+    const stat_ = fs.statSync(transcriptPath);
+    if (stat_.size > 0) {
+      const bufSz_ = Math.min(stat_.size, 4096);
+      const fd_ = fs.openSync(transcriptPath, "r");
+      const buf_ = Buffer.alloc(bufSz_);
+      fs.readSync(fd_, buf_, 0, bufSz_, Math.max(0, stat_.size - bufSz_));
+      fs.closeSync(fd_);
+      const lines_ = buf_.toString("utf-8").split("\n").filter(Boolean);
+      const last_ = JSON.parse(lines_[lines_.length - 1]);
+      if ((last_.message?.role === "assistant" || last_.type === "assistant") &&
+          last_.message?.content?.some(c => c.type === "tool_use")) {
+        fs.writeFileSync(PENDING_FLAG, "1", "utf-8");
+        process.exit(0);
+      }
+    }
+  } catch {}
+}
+
+// end_turn → 清除权限等待标记
+if (stopReason === "end_turn") {
+  try { fs.unlinkSync(PENDING_FLAG); } catch {}
+} else {
+  process.exit(0);
+}
 
 // ── 从 config.mjs 加载检测参数 ──
 import config from "./config.mjs";

@@ -230,46 +230,13 @@ function beep() {
   } catch {}
 }
 
-function findSessionFile() {
-  // 从当前工作区找对应的 .jsonl 会话文件
-  const ws = vscode.workspace.workspaceFolders?.[0];
-  if (!ws) return null;
-  const slug = ws.uri.fsPath.replace(/[:\\/._]/g, '-').toLowerCase();
-  const sessionDir = path.join(
-    process.env.USERPROFILE || "C:/Users/default",
-    ".claude", "projects", slug
-  );
-  try {
-    for (const f of fs.readdirSync(sessionDir)) {
-      if (f.endsWith(".jsonl")) return path.join(sessionDir, f);
-    }
-  } catch {}
-  return null;
-}
+const PENDING_FLAG = path.join(MONITOR_DIR, ".pending_permission");
 
 function checkPermissionDialog() {
-  // 读取会话 .jsonl，检测是否有等待确认的 tool_use
   try {
-    const filePath = findSessionFile();
-    if (!filePath) return;
-
-    const lines = fs.readFileSync(filePath, "utf-8").split("\n").filter(Boolean);
-    if (lines.length < 2) return;
-
-    // 取最后两条记录
-    const last = JSON.parse(lines[lines.length - 1]);
-    const prev = JSON.parse(lines[lines.length - 2]);
-
-    // 检测模式：上一条是 assistant 且包含 tool_use，最后一条不是 tool_result
-    if (prev.type !== "assistant") return;
-    const hasToolUse = prev.message?.content?.some(c => c.type === "tool_use");
-    if (!hasToolUse) return;
-
-    // 如果最后一条是 user 且内容是 tool_result → 已执行，无需提示
-    if (last.type === "user" && last.message?.content?.[0]?.type === "tool_result") return;
-
-    // 有未执行的 tool_use → 在等权限确认
-    beep();
+    if (fs.existsSync(PENDING_FLAG)) {
+      beep();
+    }
   } catch {}
 }
 
