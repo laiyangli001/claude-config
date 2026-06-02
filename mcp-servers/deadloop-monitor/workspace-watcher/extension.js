@@ -241,36 +241,16 @@ function beep() {
       p.unref();
     }
 
-    // PowerShell 透明悬浮窗，置顶显示 GIF 动画（旋转 -90 度）
+    // HTA 悬浮窗：自适应 GIF 尺寸，右上角显示
     const gifPath = path.join(SOUND_DIR, "lookhere.gif");
     if (fs.existsSync(gifPath)) {
-      const gifUrl = "file:///" + gifPath.split("\\").join("/");
-      // 写临时 .ps1 避免引用嵌套问题
-      const psScript = [
-        'Add-Type -AssemblyName System.Windows.Forms',
-        '$f=New-Object System.Windows.Forms.Form',
-        '$f.TopMost=$true',
-        '$f.FormBorderStyle="None"',
-        '$f.BackColor="#202020"',
-        '$f.Width=260;$f.Height=180',
-        '$f.StartPosition="CenterScreen"',
-        '$w=New-Object System.Windows.Forms.WebBrowser',
-        '$w.Dock="Fill"',
-        '$w.ScrollBarsEnabled=$false',
-        '$w.AllowNavigation=$false',
-        '$w.DocumentText="<html><body style=margin:0;height:100%;display:flex;align-items:center;justify-content:center;background:#202020><img src=' + "'" + gifUrl + "'" + ' style=max-width:220px;max-height:140px onclick=closeit() ondblclick=closeit()><script>function closeit(){window.close()}<\\\\/script></body></html>"',
-        '$f.Controls.Add($w)',
-        '$f.Show()',
-        'Start-Sleep 5',
-        '$f.Close()'
-      ].join("; ");
-      const tmpFile = path.join(os.tmpdir(), "_mcp_attention.ps1");
-      fs.writeFileSync(tmpFile, psScript, "utf-8");
-      const p = spawn("powershell", ["-ExecutionPolicy", "Bypass", "-NoProfile", "-File", tmpFile], {
-        windowsHide: false, stdio: "ignore",
-      });
+      const b64 = fs.readFileSync(gifPath).toString("base64");
+      const hta = '<!DOCTYPE html><hta:application id=o showintaskbar=no caption=no border=none contextmenu=no maximizebutton=no minimizebutton=no><html><head><script>function init(){var i=document.getElementById("g");i.onload=function(){window.resizeTo(i.naturalWidth,i.naturalHeight);window.moveTo(screen.availWidth-i.naturalWidth-30,30)};setTimeout(function(){window.close()},5000)}<\/script><style>body{margin:0;overflow:hidden;background:#202020;display:flex}img{max-width:260px;max-height:180px;cursor:pointer}</style></head><body onload=init()><img id=g src="data:image/gif;base64,' + b64 + '" onclick=close() ondblclick=close()></body></html>';
+      const tmpFile = path.join(os.tmpdir(), "_mcp_alert.hta");
+      fs.writeFileSync(tmpFile, "﻿" + hta, "utf-16le"); // BOM + UTF-16LE
+      const p = spawn("mshta.exe", [tmpFile], { windowsHide: false, stdio: "ignore" });
       p.unref();
-      setTimeout(() => { try { fs.unlinkSync(tmpFile); } catch {} }, 10000);
+      setTimeout(() => { try { fs.unlinkSync(tmpFile); p.kill(); } catch {} }, 8000);
     }
   } catch {}
 }
