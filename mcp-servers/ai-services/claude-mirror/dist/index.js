@@ -312,47 +312,72 @@ async function askClaude(question, attachments) {
     if (attachments?.length)
         await uploadFiles(chatPg, attachments);
     await showToast(chatPg, "📤 发送中...");
-    await chatPg.locator(SEL.CHAT_INPUT).first().evaluate((el, t) => { el.innerText = t; el.dispatchEvent(new Event("input", { bubbles: true })); }, question);
+    // 设置文本，确保输入框内容正确
+    for (let i = 0; i < 3; i++) {
+        await chatPg.locator(SEL.CHAT_INPUT).first().evaluate((el, t) => {
+            el.innerText = "";
+            el.dispatchEvent(new Event("input", { bubbles: true }));
+            el.innerText = t;
+            el.dispatchEvent(new Event("input", { bubbles: true }));
+        }, question);
+        await sleep(200);
+        const setText = await chatPg.locator(SEL.CHAT_INPUT).first().evaluate((el) => el.innerText).catch(() => "");
+        if (setText?.includes(question.slice(0, 10)))
+            break;
+    }
+    // 鼠标点击发送按钮（最可靠）
     await sleep(500);
-    let sent = false;
-    for (const method of ["Enter", "Control+Enter"]) {
-        await chatPg.keyboard.press(method);
-        await sleep(800);
-        const txt = await chatPg.locator(SEL.CHAT_INPUT).first().evaluate((el) => el.innerText).catch(() => "");
-        if (!txt || txt.length < 5) {
-            sent = true;
-            break;
+    const sent = await chatPg.evaluate(() => {
+        const btns = [...document.querySelectorAll("button")];
+        const send = btns.find(b => {
+            const label = b.getAttribute("aria-label") || "";
+            const html = b.innerHTML || "";
+            return !b.disabled && (label.toLowerCase().includes("send") || html.toLowerCase().includes("send") || html.includes("发送"));
+        });
+        if (send) {
+            send.click();
+            return true;
         }
-    }
+        return false;
+    }).catch(() => false);
+    // 找不到发送按钮，尝试 Enter
     if (!sent) {
-        await chatPg.evaluate(() => {
-            const btns = [...document.querySelectorAll("button")];
-            const sendBtn = btns.find(b => b.textContent?.includes("Send") || b.textContent?.includes("发送") ||
-                b.getAttribute("aria-label")?.toLowerCase().includes("send"));
-            if (sendBtn)
-                sendBtn.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-        }).catch(() => { });
-        await sleep(500);
+        await chatPg.locator(SEL.CHAT_INPUT).first().focus().catch(() => { });
+        await sleep(200);
+        await chatPg.keyboard.press("Enter");
     }
+    await sleep(1500);
     await showToast(chatPg, "⏳ 等待回答...");
-    // 等新消息出现
-    // 等页面内容增长（新回答出现）
-    const oldLen = await chatPg.evaluate(() => document.body.innerText.length);
-    for (let i = 0; i < 180; i++) {
-        await sleep(1000);
-        const curLen = await chatPg.evaluate(() => document.body.innerText.length);
-        if (curLen > oldLen + 80) {
-            // 再等 2 秒确认内容稳定
-            await sleep(2000);
-            break;
+    // 检测停止按钮出现（表示开始生成），再等它消失（表示生成完毕）
+    const stopBtn = chatPg.locator(SEL.STOP_BTN).first();
+    const hadStop = await stopBtn.waitFor({ state: "visible", timeout: 15000 }).then(() => true).catch(() => false);
+    if (hadStop) {
+        await stopBtn.waitFor({ state: "hidden", timeout: 180000 }).catch(() => { });
+    }
+    else {
+        // 没有停止按钮，用文本稳定性兜底
+        let stable = 0, lastLen = await chatPg.evaluate(() => document.body.innerText.length);
+        for (let i = 0; i < 180; i++) {
+            await sleep(1000);
+            const curLen = await chatPg.evaluate(() => document.body.innerText.length);
+            if (curLen > lastLen + 10) {
+                stable = 0;
+                lastLen = curLen;
+                continue;
+            }
+            stable++;
+            if (stable >= 10)
+                break;
         }
     }
+    // 提取回复：取最后一条 font-claude-message 消息的内容
     const answer = await chatPg.evaluate(() => {
-        const msgs = [...document.querySelectorAll('[data-message-author-role="assistant"], [class*="message-content"], article')];
+        const msgs = document.querySelectorAll('.font-claude-message .whitespace-pre-wrap');
         const last = msgs[msgs.length - 1];
-        return last ? last.textContent?.trim() || "" : "";
+        const text = last ? last.textContent?.trim() || "" : "";
+        return text.length > 10 ? text : "";
     });
-    if (!answer)
+    if (!answer || answer.length < 10)
         throw new Error("Failed to extract answer");
     await showToast(chatPg, "✅ 回答完成", 2000);
     return answer;
