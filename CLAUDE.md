@@ -14,6 +14,7 @@
 |------|------|
 | `/mcp-baipiao` | MCP 白嫖助手——分析代码/文档/图片等，自动选服务和模板。直接描述需求即可 |
 | `/mcp-office-tool` | 办公文档处理——Markdown 转 PDF、PDF 合并/拆分/加密/水印。直接描述需求即可 |
+| `/multi-ai-coder` | 多 AI 协作编程——DeepSeek 统筹，ChatGPT 出计划+审查，Claude 写代码+修复 |
 
 ## 概述
 
@@ -152,6 +153,7 @@
 **触发词示例：**
 - `/mcp-baipiao` — “审查这个文件” / “帮我看下这段代码” / “代码分析”
 - `/mcp-office-tool` — “把这个 Markdown 导出成 PDF” / “合并这两个 PDF”
+- `/multi-ai-coder` — “帮我写个贪吃蛇” / “实现一个文件搜索工具” / “多 AI 协作写代码”
 
 
 AutoIt 编译和死循环监控的详细规则见 `rules/` 目录下对应文件。
