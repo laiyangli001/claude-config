@@ -79,6 +79,14 @@ async function askChatGPT(question: string, attachments?: string[]): Promise<str
 
   if (!isPageReady) {
     await withRetry(() => navigateWithToast(pg, SEL.CHAT_URL, "ChatGPT 镜像站"));
+    await sleep(3000);
+
+    // 如果被重定向到 /list（历史列表），导航到聊天页
+    if (pg.url().includes("/list")) {
+      await pg.goto("https://chatgpt.2233.ai/chat", { waitUntil: "domcontentloaded", timeout: 15000 }).catch(() => {});
+      await sleep(2000);
+    }
+
     // 等待聊天输入框出现
     await pg.locator(SEL.CHAT_INPUT).waitFor({ state: "visible", timeout: 60000 }).catch(() => {});
     // Cookie 检测登录态
