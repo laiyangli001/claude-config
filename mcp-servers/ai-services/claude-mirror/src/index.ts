@@ -121,28 +121,43 @@ async function configureSettings(pg: Page) {
 
 async function ensurePageReady(pg: Page): Promise<void> {
   if (isPageReady) return;
-  // 先导航到首页，保留 session；不直接开 /new 避免每次刷新丢状态
   await withRetry(() => navigateWithToast(pg, "https://claude.2233.ai/", "Claude 镜像站"));
   await sleep(3000);
-  // 检测是否有 Cloudflare/turnstile 挑战页
-  const isCF = await pg.locator("text=Verify you are human, text=请验证您是人类").count().catch(() => 0) > 0
-    || (await pg.title().catch(() => "")).includes("Just a moment");
-  if (isCF) {
-    await showToast(pg, "🤖 遇到人机验证，请手动完成…");
-    // 等待验证通过（最多 60 秒）
-    for (let i = 0; i < 60; i++) {
-      await sleep(1000);
-      const stillCF = await pg.locator("text=Verify you are human, text=请验证您是人类").count().catch(() => 0) > 0
-        || (await pg.title().catch(() => "")).includes("Just a moment");
-      if (!stillCF) break;
+
+  // 等待页面稳定（Cloudflare / 重定向处理完）
+  for (let i = 0; i < 30; i++) {
+    const title = await pg.title().catch(() => "");
+    const url = pg.url();
+    if (title.includes("Just a moment") || url.includes("challenge")) {
+      await showToast(pg, "🤖 遇到人机验证，请手动完成验证后等待自动继续…");
+      await sleep(2000);
+    } else {
+      break;
     }
   }
-  await configureSettings(pg).catch(() => {});
-  for (let i = 0; i < 30; i++) {
-    if (await pg.locator(SEL.CHAT_INPUT).count() > 0) break;
-    await sleep(1000);
+
+  // 检测是否需要登录（无聊天输入框 = 未登录或被重定向）
+  const chatVisible = await pg.locator(SEL.CHAT_INPUT).count().catch(() => 0) > 0;
+  if (!chatVisible) {
+    if (!HEADLESS) await pg.bringToFront();
+    // Cookie 检测登录态
+    const cookies = await browserContext!.cookies();
+    const hasSession = cookies.some(c => (c.name.includes("session") || c.name.includes("token") || c.name.includes("auth")) && c.value.length > 10);
+    if (!hasSession) {
+      await showToast(pg, "🔑 请登录 Claude 镜像站，登录完成后将自动继续…");
+    }
+    // 最多等 5 分钟
+    for (let i = 0; i < 300; i++) {
+      await sleep(1000);
+      if (await pg.locator(SEL.CHAT_INPUT).count().catch(() => 0) > 0) break;
+    }
   }
-  if ((await pg.locator(SEL.CHAT_INPUT).count()) === 0) throw new Error("Cannot access Claude mirror.");
+
+  if ((await pg.locator(SEL.CHAT_INPUT).count().catch(() => 0)) === 0) {
+    throw new Error("Cannot access Claude mirror. 请手动打开浏览器登录后重试。");
+  }
+
+  await configureSettings(pg).catch(() => {});
   isPageReady = true;
 }
 
