@@ -83,16 +83,37 @@ async function askChatGPT(question: string, attachments?: string[]): Promise<str
     const startBtn = pg.locator(SEL.START_BTN);
     if ((await startBtn.count()) > 0 && (await startBtn.isVisible())) {
       await startBtn.first().click({ timeout: 3000 }).catch(() => {});
-      await sleep(2000);
+      await sleep(3000);
     }
-    // 如果被重定向到 /list（车队列表），点击第一个"访问"按钮
-    if (pg.url().includes("/list")) {
+
+    // 如果跳到 dashboard，刷新后点 ChatGPT 的 "Use" 或 "使用"
+    if (pg.url().includes("/dashboard") || pg.url().includes("2233.ai/?redirect")) {
+      await showToast(pg, "正在进入 ChatGPT…");
+      await pg.goto("https://2233.ai/dashboard", { waitUntil: "domcontentloaded", timeout: 15000 }).catch(() => {});
+      await sleep(2000);
+      // 找到 ChatGPT 旁边的 "Use" / "使用" 按钮
+      const chaturl = pg.locator('a[href*="chatgpt"], a[href*="chat"]').first();
+      if (await chaturl.isVisible({ timeout: 2000 }).catch(() => false)) {
+        // 点 ChatGPT 链接
+        await chaturl.click({ timeout: 3000 }).catch(() => {});
+      } else {
+        // 兜底：找页面上任意 Use/使用 按钮
+        const useBtn = pg.locator('button:has-text("Use"), button:has-text("使用")').first();
+        if (await useBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+          await useBtn.click({ timeout: 3000 }).catch(() => {});
+        }
+      }
+      await sleep(4000);
+    }
+
+    // 如果跳到 /list（车队列表），点第一个"访问"
+    if (pg.url().includes("/list") || pg.url().includes("/team")) {
       await showToast(pg, "正在进入对话…");
       const visitBtn = pg.locator('button:has-text("访问"), button:has-text("Access")').first();
       if (await visitBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
         await visitBtn.click({ timeout: 3000 }).catch(() => {});
+        await sleep(4000);
       }
-      await sleep(4000);
     }
 
     // 等待聊天输入框出现
