@@ -59,6 +59,23 @@ for (const [key, val] of Object.entries(config.mcpServers)) {
   }
 }
 
+// 写入 hooks.Stop（死循环监控），保留已有 hooks
+config.hooks = {
+  ...config.hooks,
+  Stop: [
+    {
+      hooks: [
+        {
+          type: "command",
+          command: "node",
+          args: [path.join(serversDir, "deadloop-monitor", "stop-hook.mjs")],
+          timeout: 15,
+        },
+      ],
+    },
+  ],
+};
+
 fs.writeFileSync(configPath, JSON.stringify(config, null, 2), "utf-8");
 console.log("[install] MCP servers merged:");
 for (const [name, srv] of Object.entries(mcpServers)) {
