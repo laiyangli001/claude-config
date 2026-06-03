@@ -229,10 +229,6 @@ let attentionPanel = null;
 
 function beep() {
   try {
-    if (!beeperTooltipShown) {
-      beeperTooltipShown = true;
-      vscode.window.showInformationMessage("🔔 权限弹窗提醒声音已开启，可在循环守护里关闭");
-    }
     // 播放随机声音
     const files = fs.readdirSync(SOUND_DIR).filter(f => f.endsWith(".wav"));
     if (files.length > 0) {
@@ -266,7 +262,7 @@ const PENDING_FLAG = path.join(MONITOR_DIR, ".pending_permission");
 function verifyPending() {
   try {
     const base = path.join(process.env.USERPROFILE || "C:/Users/default", ".claude", "projects");
-    if (!fs.existsSync(base)) return true;
+    if (!fs.existsSync(base)) return false;
     let latest = null, latestMtime = 0;
     for (const dir of fs.readdirSync(base)) {
       try {
@@ -278,34 +274,72 @@ function verifyPending() {
         }
       } catch {}
     }
-    if (!latest) return true;
+    if (!latest) return false;
+
+
     const stat = fs.statSync(latest);
     const fd = fs.openSync(latest, "r");
-    const buf = Buffer.alloc(Math.min(stat.size, 4096));
+    const buf = Buffer.alloc(Math.min(stat.size, 8192));
     fs.readSync(fd, buf, 0, buf.length, Math.max(0, stat.size - buf.length));
     fs.closeSync(fd);
     const lines = buf.toString("utf-8").split("\n").filter(Boolean);
-    for (let i = lines.length - 1; i >= 0; i--) {
+
+    // 跳过元数据，只保留 assistant/user 行
+    const skipTypes = new Set(["last-prompt","ai-title","mode","file-history-snapshot","attachment","queue-operation","system"]);
+    const records = [];
+    for (const line of lines) {
       try {
-        const o = JSON.parse(lines[i]);
+        const o = JSON.parse(line);
         const role = o.type || o.message?.role || "";
-        if (["last-prompt","ai-title","mode","tool_call","tool_result"].includes(role)) continue;
-        if (role === "assistant") {
-          const hasTU = o.message?.content?.some(c => c.type === "tool_use");
-          const hasTR = o.message?.content?.some(c => c.type === "tool_result");
-          if (hasTU && !hasTR) return true;  // 仍在等权限
-          return false;  // 已执行或无 tool_use
-        }
-        if (role === "user") return false;
+        if (!skipTypes.has(role)) records.push({ role, content: o.message?.content || [] });
       } catch {}
     }
+
+    // 从末尾扫描：找最后一条 assistant+tool_use，检查其后是否有 user+tool_result
+    for (let i = records.length - 1; i >= 0; i--) {
+      const r = records[i];
+      if (r.role === "assistant") {
+        const toolUses = r.content.filter(c => c.type === "tool_use");
+        if (toolUses.length === 0) continue;
+        // 找到 assistant+tool_use，看后面有没有对应的 tool_result
+        const toolUseIds = new Set(toolUses.map(c => c.id).filter(Boolean));
+        for (let j = i + 1; j < records.length; j++) {
+          if (records[j].role === "user") {
+            const hasResult = records[j].content.some(c => c.type === "tool_result" && toolUseIds.has(c.tool_use_id));
+            if (hasResult) break; // 已有对应 tool_result，这个 tool_use 已处理
+          }
+        }
+        // 没有找到对应的 tool_result → 仍在等待
+        let hasResult = false;
+        for (let j = i + 1; j < records.length; j++) {
+          if (records[j].role === "user") {
+            if (records[j].content.some(c => c.type === "tool_result" && toolUseIds.has(c.tool_use_id))) {
+              hasResult = true; break;
+            }
+          }
+        }
+        return !hasResult;
+      }
+    }
     return false;
-  } catch { return true; }
+  } catch { return false; }
 }
 
 function checkPermissionDialog() {
   try {
-    if (verifyPending()) beep();
+    const flagExists = fs.existsSync(PENDING_FLAG);
+    const pending = verifyPending();
+    if (pending) {
+      if (!flagExists) {
+        fs.writeFileSync(PENDING_FLAG, "1", "utf-8");
+        vscode.window.showInformationMessage("🔔 权限弹窗提醒，可在循环守护里关闭声音");
+      }
+      beep();
+    } else if (flagExists) {
+      // 用户已处理（确认/拒绝），清 flag 并重置通知状态
+      try { fs.unlinkSync(PENDING_FLAG); } catch {}
+      beeperTooltipShown = false;
+    }
   } catch {}
 }
 
@@ -317,7 +351,7 @@ function togglePermissionBeeper(statusBar) {
     vscode.window.showInformationMessage("🔇 权限提示音已关闭");
   } else {
     checkPermissionDialog();
-    permissionBeeperInterval = setInterval(checkPermissionDialog, 5000);
+    permissionBeeperInterval = setInterval(checkPermissionDialog, 30000);
     permissionBeeperActive = true;
     vscode.window.showInformationMessage("🔔 权限提示音已开启（每 30 秒检测，随机播放）");
   }

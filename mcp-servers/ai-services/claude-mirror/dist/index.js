@@ -126,31 +126,31 @@ async function configureSettings(pg) {
             return;
         }
         await modelBtn.click({ force: true, timeout: 2000 });
-        await sleep(800);
+        await sleep(1500);
         // 2a. 先点 Effort → High
         const effortTrigger = pg.locator('[data-testid="effort-menu-trigger"]').first();
         if (await effortTrigger.isVisible({ timeout: 2000 }).catch(() => false)) {
             await effortTrigger.click({ force: true, timeout: 1500 });
-            await sleep(600);
+            await sleep(1000);
             const high = pg.locator('[role="menuitemradio"]:has-text("High"), [role="menuitem"]:has-text("High")').first();
             if (await high.isVisible({ timeout: 2000 }).catch(() => false)) {
                 await high.click({ force: true, timeout: 1500 });
-                await sleep(400);
+                await sleep(800);
             }
         }
         // 2b. 模型菜单可能被 effort 操作关掉，重新打开
-        if (!(await pg.locator('[role="menuitemradio"]:has-text("Opus")').isVisible({ timeout: 1000 }).catch(() => false))) {
+        if (!(await pg.locator('[role="menuitemradio"]:has-text("Opus")').isVisible({ timeout: 1500 }).catch(() => false))) {
             await modelBtn.click({ force: true, timeout: 2000 });
-            await sleep(800);
+            await sleep(1500);
         }
         // 2c. 选 Opus 4.8
         const opus = pg.locator('[role="menuitemradio"]:has-text("Opus")').first();
         if (await opus.isVisible({ timeout: 2000 }).catch(() => false)) {
             await opus.click({ force: true, timeout: 1500 });
-            await sleep(500);
+            await sleep(800);
         }
         await pg.keyboard.press("Escape").catch(() => { });
-        await sleep(500);
+        await sleep(800);
         // 验证：读取模型按钮当前文字
         const finalLabel = await modelBtn.getAttribute("aria-label").catch(() => "");
         const finalText = await modelBtn.textContent().catch(() => "");
