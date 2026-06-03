@@ -81,30 +81,12 @@ async function askChatGPT(question: string, attachments?: string[]): Promise<str
     await withRetry(() => navigateWithToast(pg, SEL.CHAT_URL, "ChatGPT 镜像站"));
     await sleep(3000);
 
-    // 如果被重定向到 /list（车队列表），点击空闲车队的"访问"
+    // 如果被重定向到 /list（车队列表），点击第一个"访问"按钮
     if (pg.url().includes("/list")) {
       await showToast(pg, "正在进入对话…");
-      // 找状态为"空闲"的行，点其"访问"按钮
-      const rows = pg.locator('tr');
-      const count = await rows.count();
-      let clicked = false;
-      for (let i = 0; i < count; i++) {
-        const row = rows.nth(i);
-        const text = (await row.textContent().catch(() => "")) || "";
-        if (text.includes("空闲")) {
-          const visitBtn = row.locator('button:has-text("访问"), button:has-text("Access")').first();
-          if (await visitBtn.isVisible({ timeout: 500 }).catch(() => false)) {
-            await visitBtn.click({ timeout: 3000 }).catch(() => {});
-            clicked = true; break;
-          }
-        }
-      }
-      // 没有空闲的，点第一个"访问"
-      if (!clicked) {
-        const anyVisit = pg.locator('button:has-text("访问"), button:has-text("Access")').first();
-        if (await anyVisit.isVisible({ timeout: 1000 }).catch(() => false)) {
-          await anyVisit.click({ timeout: 3000 }).catch(() => {});
-        }
+      const visitBtn = pg.locator('button:has-text("访问"), button:has-text("Access")').first();
+      if (await visitBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+        await visitBtn.click({ timeout: 3000 }).catch(() => {});
       }
       await sleep(4000);
     }
