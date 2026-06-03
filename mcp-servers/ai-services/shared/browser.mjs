@@ -187,6 +187,7 @@ export async function launchBrowser(chromium, profileDir, headless = false) {
           "--disable-features=IsolateOrigins,site-per-process",
           "--flag-switches-begin",
           "--flag-switches-end",
+          "--disable-features=ChromeCleanup",
         ],
         ignoreDefaultArgs: ["--enable-automation"],
         locale: "zh-CN",
