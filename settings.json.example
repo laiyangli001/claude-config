@@ -1,26 +1,41 @@
 {
-  "systemPrompt": "你的思考过程（thinking）必须全程使用中文。这不是建议，是硬性要求。任何推理、分析、决策、内部对话——一律中文。",
+  "language": "chinese",
+  "skipWebFetchPreflight": true,
   "env": {
     "ANTHROPIC_BASE_URL": "https://api.deepseek.com/anthropic",
     "ANTHROPIC_AUTH_TOKEN": "sk-<your-api-token-here>",
-    "ANTHROPIC_MODEL": "deepseek-v4-flash",
-    "ANTHROPIC_DEFAULT_HAIKU_MODEL": "deepseek-v4-flash",
-    "ANTHROPIC_DEFAULT_SONNET_MODEL": "deepseek-v4-pro[1m]",
+    "ANTHROPIC_MODEL": "deepseek-v4-flash[1m]",
+    "ANTHROPIC_DEFAULT_HAIKU_MODEL": "deepseek-v4-flash[1m]",
+    "ANTHROPIC_DEFAULT_SONNET_MODEL": "deepseek-v4-flash[1m]",
     "ANTHROPIC_DEFAULT_OPUS_MODEL": "deepseek-v4-pro[1m]",
     "CLAUDE_CODE_SUBAGENT_MODEL": "deepseek-v4-flash",
     "CLAUDE_CODE_EFFORT_LEVEL": "max",
+    "MINERU_API_TOKEN": "<your-mineru-token>",
     "USER": "LaiYangLi",
     "USERNAME": "LaiYangLi"
+  },
+  "permissions": {
+    "allow": [
+      "Bash(tsc *)",
+      "Bash(mcp-servers/office-tools/md-*)",
+      "mcp__chatgpt-mirror__ask_chatgpt_mirror",
+      "mcp__chatgpt-official__ask_chatgpt_official",
+      "mcp__deepseek__ask_deepseek",
+      "mcp__claude-mirror__ask_claude_mirror",
+      "mcp__claude-mirror__take_screenshot",
+      "mcp__doubao__ask_doubao",
+      "mcp__doubao__download_doubao_file",
+      "mcp__pdf-toolkit__pdf_create_from_markdown",
+      "mcp__pdf-toolkit__pdf_merge",
+      "mcp__pdf-toolkit__pdf_split",
+      "mcp__pdf-toolkit__pdf_compress",
+      "mcp__pdf-toolkit__pdf_encrypt",
+      "mcp__pdf-toolkit__pdf_add_watermark"
+    ]
   },
   "output_config": {
     "effort": "high/max"
   },
   "includeCoAuthoredBy": false,
-  "effortLevel": "high",
-  "permissions": {
-    "allow": [
-      "mcp__chatgpt__ask_chatgpt",
-      "mcp__deepseek__ask_deepseek"
-    ]
-  }
+  "effortLevel": "max"
 }
