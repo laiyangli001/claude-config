@@ -44,7 +44,6 @@ export async function uploadFiles(page, filePaths, opts = {}) {
     }
   }
 
-  await fileInput.setInputFiles([]);
   await fileInput.setInputFiles(filePaths);
   await fileInput.evaluate((el) => el.dispatchEvent(new Event("change", { bubbles: true })));
 
