@@ -178,15 +178,26 @@ async function configureSettings(pg: Page) {
 async function ensurePageReady(pg: Page): Promise<void> {
   if (isPageReady) return;
 
-  // 监听新标签页（网站可能在新 tab 打开聊天页）
+  // 先扫描所有现有标签页，找已有的聊天页
   let chatPage: Page = pg;
+  if (browserContext) {
+    for (const p of browserContext.pages()) {
+      if (p.url().includes("claude.2233.ai") && (await p.locator(SEL.CHAT_INPUT).count().catch(() => 0)) > 0) {
+        chatPage = p;
+        page = p;
+        isPageReady = true;
+        return; // 已有聊天页，直接复用
+      }
+    }
+  }
+
+  // 监听新标签页
   browserContext!.on("page", (newPg) => {
-    newPg.url(); // 触发 URL 获取
+    newPg.url();
     setTimeout(async () => {
-      const url = newPg.url();
-      if (url.includes("claude.2233.ai")) {
+      if (newPg.url().includes("claude.2233.ai")) {
         chatPage = newPg;
-        page = newPg; // 更新全局 page 引用
+        page = newPg;
       }
     }, 1000);
   });
@@ -352,36 +363,24 @@ async function askClaude(question: string, attachments?: string[]): Promise<stri
   await sleep(1500);
 
   await showToast(chatPg, "⏳ 等待回答...");
-  // 检测停止按钮出现（表示开始生成），再等它消失（表示生成完毕）
-  const stopBtn = chatPg.locator(SEL.STOP_BTN).first();
-  const hadStop = await stopBtn.waitFor({ state: "visible", timeout: 15000 }).then(() => true).catch(() => false);
-  if (hadStop) {
-    await stopBtn.waitFor({ state: "hidden", timeout: 180000 }).catch(() => {});
-  } else {
-    // 没有停止按钮，用文本稳定性兜底
-    let stable = 0, lastLen = await chatPg.evaluate(() => document.body.innerText.length);
-    for (let i = 0; i < 180; i++) {
-      await sleep(1000);
-      const curLen = await chatPg.evaluate(() => document.body.innerText.length);
-      if (curLen > lastLen + 10) { stable = 0; lastLen = curLen; continue; }
-      stable++;
-      if (stable >= 10) break;
-    }
+
+  // 等待回答：检测 "用户消息" 后面的内容开始增长
+  const questionHead = question.slice(0, 10);
+  let lastAfterLen = 0, stableCount = 0;
+  for (let i = 0; i < 120; i++) {
+    await sleep(1000);
+    const body = await chatPg.evaluate(() => document.body.innerText);
+    const idx = body.lastIndexOf(questionHead);
+    if (idx < 0) continue; // 用户消息还没出现在 body 中
+    const after = body.slice(idx + questionHead.length);
+    if (after.length <= 5) continue; // 回复还没来
+    if (after.length === lastAfterLen) stableCount++;
+    else { stableCount = 0; lastAfterLen = after.length; }
+    if (stableCount >= 5) break; // 连续 5 秒无变化，回复完成
   }
 
-  // 取 body 文本，用问题定位回复
-  const answer = await chatPg.evaluate((q) => {
-    const body = document.body.innerText;
-    // 找问题在文本中的位置
-    const idx = body.lastIndexOf(q.slice(0, 15));
-    if (idx > 0) {
-      const after = body.slice(idx + q.slice(0, 15).length).trim();
-      // 取"用量"行之前的内容（即回复本体）
-      const usageIdx = after.indexOf("用量");
-      return (usageIdx > 0 ? after.slice(0, usageIdx) : after).trim();
-    }
-    return body.slice(-1500);
-  }, question);
+  // 返回 body 全部文本
+  const answer = await chatPg.evaluate(() => document.body.innerText.trim());
   if (!answer || answer.length < 5) throw new Error("Failed to extract answer");
   await showToast(chatPg, "✅ 回答完成", 2000);
   return answer;
