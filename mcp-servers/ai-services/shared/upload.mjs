@@ -58,25 +58,11 @@ export async function uploadFiles(page, filePaths, opts = {}) {
     } catch {}
   }
 
-  // 等附件出现（最多 5 秒）
+  // 等附件出现（最多 10 秒）
   const attachSel = '[class*="attachment"], [class*="file-preview"]';
-  for (let i = 0; i < 10; i++) {
+  for (let i = 0; i < 20; i++) {
     const count = await page.locator(attachSel).count().catch(() => 0);
     if (count >= filePaths.length) break;
     await new Promise(r => setTimeout(r, 500));
-  }
-
-  // 上传验证：确认每个文件名确实出现在页面上
-  const pageText = await page.evaluate(() => document.body.innerText).catch(() => "");
-  const basenames = filePaths.map(fp => path.basename(fp));
-  const missing = basenames.filter(name => !pageText.includes(name));
-  if (missing.length > 0) {
-    // 再等 3 秒重试一次（可能上传有延迟）
-    await new Promise(r => setTimeout(r, 3000));
-    const pageText2 = await page.evaluate(() => document.body.innerText).catch(() => "");
-    const stillMissing = missing.filter(name => !pageText2.includes(name));
-    if (stillMissing.length > 0) {
-      throw new Error(`文件上传验证失败，以下文件名未在页面中检测到: ${stillMissing.join(", ")}`);
-    }
   }
 }

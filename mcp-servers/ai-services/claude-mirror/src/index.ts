@@ -365,19 +365,19 @@ async function askClaude(question: string, attachments?: string[]): Promise<stri
 
   await showToast(chatPg, "⏳ 等待回答...");
 
-  // 等待回答：检测 "用户消息" 后面的内容开始增长
-  const questionHead = question.slice(0, 10);
-  let lastAfterLen = 0, stableCount = 0;
+  // 等待回答：等助手回复（body 中问题文本之后的纯回答内容增长）
+  const qShort = question.slice(0, 10);
+  let lastAnswerLen = 0, stableCount = 0;
   for (let i = 0; i < 180; i++) {
     await sleep(1000);
     const body = await chatPg.evaluate(() => document.body.innerText);
-    const idx = body.lastIndexOf(questionHead);
-    if (idx < 0) continue; // 用户消息还没出现在 body 中
-    const after = body.slice(idx + questionHead.length);
-    if (after.length <= 5) continue; // 回复还没来
-    if (after.length === lastAfterLen) stableCount++;
-    else { stableCount = 0; lastAfterLen = after.length; }
-    if (stableCount >= 20) break; // 连续 20 秒无变化，回复完成
+    const idx = body.lastIndexOf(qShort);
+    if (idx < 0) continue;
+    const after = body.slice(idx + question.length); // 跳过整条问题
+    if (after.length <= 3) continue; // 纯回答还没出现
+    if (after.length === lastAnswerLen) stableCount++;
+    else { stableCount = 0; lastAnswerLen = after.length; }
+    if (stableCount >= 20) break;
   }
 
   // 返回 body 全部文本
