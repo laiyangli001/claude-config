@@ -302,7 +302,7 @@ function verifyPending() {
         const toolUses = r.content.filter(c => c.type === "tool_use");
         if (toolUses.length === 0) continue;
         // 跳过已授权工具（内置工具 + settings.json allow 列表）
-        const allowed = ["Bash","Edit","Read","Write","Glob","Grep","Skill","Agent","AskUserQuestion","NotebookEdit","TodoWrite"];
+        const allowed = ["Skill","Agent","AskUserQuestion"];
         try {
           const cfg = JSON.parse(fs.readFileSync(CLAUDE_SETTINGS, "utf-8"));
           (cfg.permissions?.allow || []).forEach(a => allowed.push(a));
