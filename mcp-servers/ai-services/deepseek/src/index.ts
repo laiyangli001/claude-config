@@ -49,7 +49,17 @@ process.on("SIGINT", cleanup);
 process.on("SIGTERM", cleanup);
 
 async function ensureBrowser() {
-  if (browserContext && page && !page.isClosed() && isPageReady) { try { await page!.bringToFront(); } catch {} return { page, context: browserContext }; }
+  if (browserContext && page && isPageReady) {
+    try {
+      if (!page.isClosed() && await page.evaluate(() => 1).catch(() => null) !== null) {
+        try { await page!.bringToFront(); } catch {}
+        return { page, context: browserContext };
+      }
+    } catch {}
+    // page 已关闭或不可用，关掉重建
+    await closeBrowser(browserContext);
+    browserContext = null; page = null; isPageReady = false;
+  }
   if (browserContext) await closeBrowser(browserContext);
   browserContext = await launchBrowser(chromium, PROFILE_DIR, HEADLESS);
   page = await browserContext!.newPage();
