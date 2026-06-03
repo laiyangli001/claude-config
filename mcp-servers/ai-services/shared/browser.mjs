@@ -135,24 +135,11 @@ function removeLockFiles(profileDir) {
 }
 
 /**
- * 激进清理：按 profile 定向杀进程树 + 删锁文件
+ * 激进清理：杀所有 Chrome 进程 + 删锁文件（仅在 profile 已确认被锁时调用）
  */
 async function aggressiveCleanup(profileDir) {
-  // 先用 taskkill /t 杀进程树（确保子进程也被杀）
-  try {
-    const result = execSync(
-      `wmic process where "name='chrome.exe' and commandline like '%${sanitizePath(profileDir).replace(/\\/g, '\\\\')}%'" get processid /format:csv 2>nul`,
-      { encoding: "utf8", timeout: 10000 }
-    );
-    const pids = result.trim().split(/\s*\n\s*/).slice(1)
-      .filter(id => id && id !== "ProcessId")
-      .map(l => (l.split(",").pop() || "").trim())
-      .filter(id => /^\d+$/.test(id));
-    for (const pid of pids) {
-      try { execSync("taskkill /f /t /pid " + pid + " 2>nul", { timeout: 5000 }); log("激进清理杀死进程树:", pid); } catch {}
-    }
-  } catch {}
-  await new Promise(r => setTimeout(r, 2000));
+  try { execSync("taskkill /f /t /im chrome.exe 2>nul", { timeout: 10000 }); } catch {}
+  await new Promise(r => setTimeout(r, 3000));
   removeLockFiles(profileDir);
   await new Promise(r => setTimeout(r, 1000));
 }
@@ -191,7 +178,6 @@ export async function launchBrowser(chromium, profileDir, headless = false) {
           "--no-zygote",
           "--disable-features=ChromeCleanup",
         ],
-        ignoreDefaultArgs: ["--enable-automation"],
         locale: "zh-CN",
         timezoneId: "Asia/Shanghai",
         colorScheme: "dark",
