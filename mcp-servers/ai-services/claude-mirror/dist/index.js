@@ -100,20 +100,38 @@ async function ensureBrowser() {
     return initPromise;
 }
 async function configureSettings(pg) {
-    // 1. 点"选择风格"→ 选"简洁"
+    // 1. 选择风格 → 简洁（用 JS 直接点）
     try {
         const styleBtn = pg.locator('[data-testid="style-selector-dropdown"]').first();
         if (await styleBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
-            await styleBtn.click({ force: true, timeout: 1500 });
-            await sleep(500);
-            const concise = pg.locator('[role="menuitemradio"]:has-text("简洁"), [role="menuitemradio"]:has-text("Concise")').first();
-            if ((await concise.count().catch(() => 0)) > 0)
-                await concise.click({ force: true, timeout: 1500 });
+            const currentText = await styleBtn.textContent().catch(() => "");
+            if (currentText?.includes("简洁")) {
+                console.error("[claude-mirror] 已是简洁风格，跳过");
+            }
+            else {
+                await styleBtn.click({ force: true, timeout: 2000 });
+                await sleep(1000);
+                // 用 visible text 直接点（菜单项无 role=menuitemradio）
+                const clicked = await pg.evaluate(() => {
+                    const allDivs = [...document.querySelectorAll("div")];
+                    const target = allDivs.find(d => d.textContent?.trim() === "简洁" && d.offsetParent !== null);
+                    if (target) {
+                        target.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+                        return true;
+                    }
+                    return false;
+                }).catch(() => false);
+                console.error("[claude-mirror] 风格设置:", clicked ? "✅" : "❌");
+                await sleep(500);
+            }
+            // 关菜单
+            await pg.evaluate(() => document.body.click()).catch(() => { });
             await pg.keyboard.press("Escape").catch(() => { });
+            await sleep(300);
         }
     }
     catch { }
-    await sleep(300);
+    await sleep(500);
     // 2. 打开模型菜单
     try {
         const modelBtn = pg.locator('[data-testid="model-selector-dropdown"]').first();
@@ -151,15 +169,14 @@ async function configureSettings(pg) {
         }
         await pg.keyboard.press("Escape").catch(() => { });
         await sleep(800);
-        // 验证：读取模型按钮当前文字
+        // 验证
         const finalLabel = await modelBtn.getAttribute("aria-label").catch(() => "");
-        const finalText = await modelBtn.textContent().catch(() => "");
-        console.error(`[claude-mirror] 模型设置结果: label="${finalLabel}" text="${finalText?.trim()}"`);
-        if (!finalLabel?.includes("Opus") || !finalLabel?.includes("High")) {
-            console.error("[claude-mirror] ⚠️ 模型/Effort 设置可能未成功，当前:", finalLabel);
+        console.error(`[claude-mirror] 模型设置结果: "${finalLabel}"`);
+        if (finalLabel?.includes("Opus") && finalLabel?.includes("High")) {
+            console.error("[claude-mirror] ✅ 设置成功");
         }
         else {
-            console.error("[claude-mirror] ✅ 模型/Effort 设置成功");
+            console.error("[claude-mirror] ⚠️ 设置可能未成功:", finalLabel);
         }
     }
     catch (e) {
@@ -197,7 +214,7 @@ async function ensurePageReady(pg) {
     if ((await chatPage.locator(SEL.CHAT_INPUT).count().catch(() => 0)) === 0) {
         if (!HEADLESS)
             await chatPage.bringToFront().catch(() => { });
-        await showToast(chatPage, "🔑 请在此浏览器窗口登录 Claude 镜像站，登录完成后将自动继续…").catch(() => { });
+        let loginToastShown = false;
         for (let i = 0; i < 300; i++) {
             await sleep(1000);
             // 同时检查所有已打开的标签页
@@ -210,6 +227,27 @@ async function ensurePageReady(pg) {
             }
             if ((await chatPage.locator(SEL.CHAT_INPUT).count().catch(() => 0)) > 0)
                 break;
+            // 如果停在 dashboard，点击 Claude 的 "Use" 按钮
+            const url = chatPage.url();
+            if (url.includes("2233.ai/dashboard") || url.includes("2233.ai/claude")) {
+                // dashboard 上有两个 Use 按钮，Claude 的在 /claude/renew 旁边（第二个）
+                const useBtn = chatPage.locator('button:has-text("Use"), button:has-text("使用")').nth(1);
+                if (await useBtn.count() > 0 && await useBtn.isVisible().catch(() => false)) {
+                    await useBtn.click({ timeout: 3000 }).catch(() => { });
+                    await sleep(4000);
+                }
+                else {
+                    // 兜底：直接导航
+                    await chatPage.goto(SITE_URL, { waitUntil: "domcontentloaded", timeout: 15000 }).catch(() => { });
+                    await sleep(3000);
+                }
+                continue;
+            }
+            // 未登录才提示
+            if (!loginToastShown) {
+                loginToastShown = true;
+                await showToast(chatPage, "🔑 请在此浏览器窗口登录 Claude 镜像站，登录完成后将自动继续…").catch(() => { });
+            }
         }
     }
     if ((await chatPage.locator(SEL.CHAT_INPUT).count().catch(() => 0)) === 0) {
@@ -269,26 +307,25 @@ async function takeScreenshot(pg, question, attachments) {
 async function askClaude(question, attachments) {
     const { page: pg } = await ensureBrowser();
     await ensurePageReady(pg);
+    // 使用全局 page（可能已切换到新标签页）
+    const chatPg = page || pg;
     if (attachments?.length)
-        await uploadFiles(pg, attachments);
-    // 发送消息：设置文本 + 尝试多种发送方式
-    await showToast(pg, "📤 发送中...");
-    await pg.locator(SEL.CHAT_INPUT).first().evaluate((el, t) => { el.innerText = t; el.dispatchEvent(new Event("input", { bubbles: true })); }, question);
+        await uploadFiles(chatPg, attachments);
+    await showToast(chatPg, "📤 发送中...");
+    await chatPg.locator(SEL.CHAT_INPUT).first().evaluate((el, t) => { el.innerText = t; el.dispatchEvent(new Event("input", { bubbles: true })); }, question);
     await sleep(500);
-    // 依次尝试 Enter、Ctrl+Enter、查找发送按钮
     let sent = false;
     for (const method of ["Enter", "Control+Enter"]) {
-        await pg.keyboard.press(method);
+        await chatPg.keyboard.press(method);
         await sleep(800);
-        const txt = await pg.locator(SEL.CHAT_INPUT).first().evaluate((el) => el.innerText).catch(() => "");
+        const txt = await chatPg.locator(SEL.CHAT_INPUT).first().evaluate((el) => el.innerText).catch(() => "");
         if (!txt || txt.length < 5) {
             sent = true;
             break;
         }
     }
     if (!sent) {
-        // 兜底：找页面上所有可能的发送按钮
-        await pg.evaluate(() => {
+        await chatPg.evaluate(() => {
             const btns = [...document.querySelectorAll("button")];
             const sendBtn = btns.find(b => b.textContent?.includes("Send") || b.textContent?.includes("发送") ||
                 b.getAttribute("aria-label")?.toLowerCase().includes("send"));
@@ -297,31 +334,27 @@ async function askClaude(question, attachments) {
         }).catch(() => { });
         await sleep(500);
     }
-    // 等回复
-    await showToast(pg, "⏳ 等待回答...");
-    const oldLen = await pg.evaluate(() => document.body.innerText.length);
+    await showToast(chatPg, "⏳ 等待回答...");
+    // 等新消息出现
+    // 等页面内容增长（新回答出现）
+    const oldLen = await chatPg.evaluate(() => document.body.innerText.length);
     for (let i = 0; i < 180; i++) {
         await sleep(1000);
-        const curLen = await pg.evaluate(() => document.body.innerText.length);
-        if (curLen > oldLen + 20) {
-            // 内容开始增长，等稳定
-            for (let s = 0; s < 5; s++) {
-                await sleep(1000);
-                const after = await pg.evaluate(() => document.body.innerText.length);
-                if (after === curLen)
-                    break;
-            }
+        const curLen = await chatPg.evaluate(() => document.body.innerText.length);
+        if (curLen > oldLen + 80) {
+            // 再等 2 秒确认内容稳定
+            await sleep(2000);
             break;
         }
     }
-    const answer = await pg.evaluate(() => {
-        const msgs = [...document.querySelectorAll('[class*="message"], [class*="chat"], article, [role="article"]')];
+    const answer = await chatPg.evaluate(() => {
+        const msgs = [...document.querySelectorAll('[data-message-author-role="assistant"], [class*="message-content"], article')];
         const last = msgs[msgs.length - 1];
-        return last ? last.textContent?.trim() || "" : document.body.innerText.slice(-2000);
+        return last ? last.textContent?.trim() || "" : "";
     });
     if (!answer)
         throw new Error("Failed to extract answer");
-    await showToast(pg, "✅ 回答完成", 2000);
+    await showToast(chatPg, "✅ 回答完成", 2000);
     return answer;
 }
 const server = new Server({ name: "claude-mirror-mcp", version: "1.0.0" }, { capabilities: { tools: {} } });
