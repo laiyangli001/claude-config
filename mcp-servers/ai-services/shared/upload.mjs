@@ -45,7 +45,7 @@ export async function uploadFiles(page, filePaths, opts = {}) {
   }
 
   await fileInput.setInputFiles(filePaths);
-  await fileInput.evaluate((el) => el.dispatchEvent(new Event("change", { bubbles: true })));
+  // setInputFiles 会自动触发 change 事件，无需手动 dispatch
 
   // 处理重复文件对话框
   if (opts.duplicateBtnSelector) {
