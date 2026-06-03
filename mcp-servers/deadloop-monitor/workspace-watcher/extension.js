@@ -305,10 +305,7 @@ function verifyPending() {
 
 function checkPermissionDialog() {
   try {
-    if (fs.existsSync(PENDING_FLAG)) {
-      if (verifyPending()) beep();
-      else try { fs.unlinkSync(PENDING_FLAG); } catch {}
-    }
+    if (verifyPending()) beep();
   } catch {}
 }
 
@@ -320,7 +317,7 @@ function togglePermissionBeeper(statusBar) {
     vscode.window.showInformationMessage("🔇 权限提示音已关闭");
   } else {
     checkPermissionDialog();
-    permissionBeeperInterval = setInterval(checkPermissionDialog, 30000);
+    permissionBeeperInterval = setInterval(checkPermissionDialog, 5000);
     permissionBeeperActive = true;
     vscode.window.showInformationMessage("🔔 权限提示音已开启（每 30 秒检测，随机播放）");
   }
