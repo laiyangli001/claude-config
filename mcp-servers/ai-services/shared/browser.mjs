@@ -117,13 +117,7 @@ export async function withRetry(fn, opts = {}) {
  * @param {string} profileDir
  */
 function removeLockFiles(profileDir) {
-  // 先确认没有对应 Chrome 进程再删锁
-  try {
-    execSync(`wmic process where "name='chrome.exe' and commandline like '%${sanitizePath(profileDir).replace(/\\/g, '\\\\')}%'" get processid /format:csv 2>nul`, { timeout: 5000, encoding: "utf8" })
-      .trim().split(/\s*\n\s*/).slice(1).filter(id => id && id !== "ProcessId").length > 0;
-    log("profile 仍有进程运行，跳过删锁");
-    return;
-  } catch {}
+  // 无条件删所有锁文件（不检查进程，避免误判导致锁残留）
   const lockFiles = [
     "lockfile", "SingletonLock", "SingletonCookie", "SingletonSocket",
     "SingletonLock.tmp", "SingletonCookie.tmp",
