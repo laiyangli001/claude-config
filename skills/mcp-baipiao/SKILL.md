@@ -27,7 +27,7 @@ description: |
 | 4 | 简单任务 | 批量处理/格式转换/文本整理/代码高亮 | deepseek → chatgpt-official | `format_task` |
 | 5 | 多模态视觉 | 截图/图片/PPT生成 | chatgpt-mirror → claude-mirror → chatgpt-official → doubao | `vision_analysis` |
 
-**调用说明：** 按降级链依次调用，失败时自动尝试下一级（最多重试 2 次，间隔 1-2 秒）。附件通过 `attachments` 参数上传。全部服务失败时给出明确提示。
+**调用说明：** 按降级链依次调用。**每个服务最多重试 3 次**（间隔 2-3 秒），全部失败后才尝试下一级。附件通过 `attachments` 参数上传。全部服务失败时给出明确提示。
 
 **复合任务检测**：若用户输入包含两个及以上明显动作（如"审查这段代码并把注释翻译成中文"），进入复合任务流程。每个子任务独立走降级链。
 
