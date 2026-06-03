@@ -95,10 +95,22 @@ async function askChatGPT(question, attachments) {
     if (!isPageReady) {
         await withRetry(() => navigateWithToast(pg, SEL.CHAT_URL, "ChatGPT 镜像站"));
         await sleep(3000);
-        // 如果被重定向到 /list（历史列表），导航到聊天页
+        // 如果被重定向到 /list（历史列表），点击第一条对话或新建
         if (pg.url().includes("/list")) {
-            await pg.goto("https://chatgpt.2233.ai/chat", { waitUntil: "domcontentloaded", timeout: 15000 }).catch(() => { });
-            await sleep(2000);
+            await showToast(pg, "正在进入对话…");
+            // 先点"New chat"按钮（如果有）
+            const newChat = pg.locator('a:has-text("New chat"), button:has-text("New chat")').first();
+            if (await newChat.isVisible({ timeout: 2000 }).catch(() => false)) {
+                await newChat.click({ timeout: 3000 }).catch(() => { });
+            }
+            else {
+                // 没有 New chat，点第一条对话
+                const firstChat = pg.locator('[class*="chat-item"], [class*="conversation"], a[href*="/chat/"]').first();
+                if (await firstChat.isVisible({ timeout: 2000 }).catch(() => false)) {
+                    await firstChat.click({ timeout: 3000 }).catch(() => { });
+                }
+            }
+            await sleep(3000);
         }
         // 等待聊天输入框出现
         await pg.locator(SEL.CHAT_INPUT).waitFor({ state: "visible", timeout: 60000 }).catch(() => { });
