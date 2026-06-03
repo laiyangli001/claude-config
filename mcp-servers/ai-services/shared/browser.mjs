@@ -33,15 +33,12 @@ function sanitizePath(p) { return p.replace(/[^a-zA-Z0-9:_\\\/.\-]/g, ''); }
 async function killOrphanChrome(profileDir) {
   try {
     const safeDir = sanitizePath(profileDir);
-    // 用 wmic 找 profile 对应的所有 chrome 进程（含子进程），全杀
-    const result = execSync(
-      `wmic process where "name='chrome.exe' and commandline like '%${safeDir.replace(/\\/g, '\\\\')}%'" get processid /format:csv 2>nul`,
-      { encoding: "utf8", timeout: 10000 }
-    );
-    const pids = result.trim().split(/\s*\n\s*/).slice(1)
-      .filter(id => id && id !== "ProcessId")
-      .map(l => (l.split(",").pop() || "").trim())
-      .filter(id => /^\d+$/.test(id));
+    // 用 PowerShell 找 profile 对应的所有 chrome 进程，wmic 可能查不到长命令行
+    const psCmd = `Get-CimInstance Win32_Process -Filter "name='chrome.exe'" | Where-Object { $_.CommandLine -like '*${safeDir.replace(/\\/g, '\\\\')}*' } | Select-Object -ExpandProperty ProcessId`;
+    const result = execSync(`powershell -NoProfile -Command "${psCmd}"`, {
+      encoding: "utf8", timeout: 15000
+    });
+    const pids = result.trim().split(/\s*\n\s*/).filter(id => /^\d+$/.test(id));
     for (const pid of pids) {
       try { execSync("taskkill /f /t /pid " + pid + " 2>nul", { timeout: 5000 }); log("杀孤儿进程树:", pid); } catch {}
     }
