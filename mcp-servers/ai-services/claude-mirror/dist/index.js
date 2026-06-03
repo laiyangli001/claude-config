@@ -370,14 +370,20 @@ async function askClaude(question, attachments) {
                 break;
         }
     }
-    // 提取回复：取最后一条 font-claude-message 消息的内容
-    const answer = await chatPg.evaluate(() => {
-        const msgs = document.querySelectorAll('.font-claude-message .whitespace-pre-wrap');
-        const last = msgs[msgs.length - 1];
-        const text = last ? last.textContent?.trim() || "" : "";
-        return text.length > 10 ? text : "";
-    });
-    if (!answer || answer.length < 10)
+    // 取 body 文本，用问题定位回复
+    const answer = await chatPg.evaluate((q) => {
+        const body = document.body.innerText;
+        // 找问题在文本中的位置
+        const idx = body.lastIndexOf(q.slice(0, 15));
+        if (idx > 0) {
+            const after = body.slice(idx + q.slice(0, 15).length).trim();
+            // 取"用量"行之前的内容（即回复本体）
+            const usageIdx = after.indexOf("用量");
+            return (usageIdx > 0 ? after.slice(0, usageIdx) : after).trim();
+        }
+        return body.slice(-1500);
+    }, question);
+    if (!answer || answer.length < 5)
         throw new Error("Failed to extract answer");
     await showToast(chatPg, "✅ 回答完成", 2000);
     return answer;
