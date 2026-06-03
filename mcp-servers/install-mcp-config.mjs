@@ -50,15 +50,6 @@ try {
 // 合并模式：保留已有服务，新增/覆盖本项目定义的服务
 config.mcpServers = { ...config.mcpServers, ...mcpServers };
 
-// 清理残留的旧 D: 盘配置
-for (const [key, val] of Object.entries(config.mcpServers)) {
-  const args = val.args || [];
-  if (args.some((a) => typeof a === "string" && /^d:\/claude_mcp/i.test(a.replace(/\\/g, "/")))) {
-    delete config.mcpServers[key];
-    console.log(`  [cleanup] removed stale D: drive entry: ${key}`);
-  }
-}
-
 // 写入 hooks.Stop（死循环监控），保留已有 hooks
 config.hooks = {
   ...config.hooks,
