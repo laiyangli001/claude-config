@@ -398,6 +398,11 @@ async function askClaude(question, attachments) {
     const answer = await chatPg.evaluate(() => document.body.innerText.trim());
     if (!answer || answer.length < 5)
         throw new Error("Failed to extract answer");
+    // 检查用量上限等错误
+    const quotaMsg = ["用量已达到上限", "token 用量", "购买扩展包", "请购买"];
+    if (quotaMsg.some(m => answer.includes(m))) {
+        throw new Error("CLAUDE_MIRROR_QUOTA_EXCEEDED: " + quotaMsg.find(m => answer.includes(m)));
+    }
     await showToast(chatPg, "✅ 回答完成", 2000);
     return answer;
 }
