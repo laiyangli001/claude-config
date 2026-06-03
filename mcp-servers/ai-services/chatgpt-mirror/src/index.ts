@@ -86,22 +86,18 @@ async function askChatGPT(question: string, attachments?: string[]): Promise<str
       await sleep(3000);
     }
 
-    // 如果跳到 dashboard，刷新后点 ChatGPT 的 "Use" 或 "使用"
-    if (pg.url().includes("/dashboard") || pg.url().includes("2233.ai/?redirect")) {
+    // 如果跳到 dashboard，先刷新确保状态，再点"使用"或 a[href="/chatgtp"]
+    if (pg.url().includes("2233.ai") && !pg.url().includes("claude")) {
       await showToast(pg, "正在进入 ChatGPT…");
       await pg.goto("https://2233.ai/dashboard", { waitUntil: "domcontentloaded", timeout: 15000 }).catch(() => {});
-      await sleep(2000);
-      // 找到 ChatGPT 旁边的 "Use" / "使用" 按钮
-      const chaturl = pg.locator('a[href*="chatgpt"], a[href*="chat"]').first();
-      if (await chaturl.isVisible({ timeout: 2000 }).catch(() => false)) {
-        // 点 ChatGPT 链接
-        await chaturl.click({ timeout: 3000 }).catch(() => {});
+      await sleep(3000);
+      // 先找"使用"/"Use"按钮（dashboard 上每个服务旁的按钮）
+      const useBtn = pg.locator('button:has-text("使用"), button:has-text("Use")').first();
+      if (await useBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+        await useBtn.click({ timeout: 3000 }).catch(() => {});
       } else {
-        // 兜底：找页面上任意 Use/使用 按钮
-        const useBtn = pg.locator('button:has-text("Use"), button:has-text("使用")').first();
-        if (await useBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
-          await useBtn.click({ timeout: 3000 }).catch(() => {});
-        }
+        // 兜底：点 ChatGPT 链接
+        await pg.locator('a[href="/chatgtp"]').first().evaluate((el: HTMLElement) => el.click()).catch(() => {});
       }
       await sleep(4000);
     }
