@@ -367,7 +367,7 @@ async function askClaude(question: string, attachments?: string[]): Promise<stri
   // 等待回答：检测 "用户消息" 后面的内容开始增长
   const questionHead = question.slice(0, 10);
   let lastAfterLen = 0, stableCount = 0;
-  for (let i = 0; i < 120; i++) {
+  for (let i = 0; i < 180; i++) {
     await sleep(1000);
     const body = await chatPg.evaluate(() => document.body.innerText);
     const idx = body.lastIndexOf(questionHead);
@@ -376,7 +376,7 @@ async function askClaude(question: string, attachments?: string[]): Promise<stri
     if (after.length <= 5) continue; // 回复还没来
     if (after.length === lastAfterLen) stableCount++;
     else { stableCount = 0; lastAfterLen = after.length; }
-    if (stableCount >= 5) break; // 连续 5 秒无变化，回复完成
+    if (stableCount >= 20) break; // 连续 20 秒无变化，回复完成
   }
 
   // 返回 body 全部文本
