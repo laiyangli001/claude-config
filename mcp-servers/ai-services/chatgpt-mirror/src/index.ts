@@ -78,9 +78,13 @@ async function askChatGPT(question: string, attachments?: string[]): Promise<str
   const { page: pg } = await ensureBrowser();
 
   if (!isPageReady) {
-    await withRetry(() => navigateWithToast(pg, SEL.CHAT_URL, "ChatGPT 镜像站"));
-    await sleep(3000);
-
+    await withRetry(() => navigateWithToast(pg, SEL.INVITE_URL, "ChatGPT 镜像站"));
+    // 点 START_BTN（中文或英文）
+    const startBtn = pg.locator(SEL.START_BTN);
+    if ((await startBtn.count()) > 0 && (await startBtn.isVisible())) {
+      await startBtn.first().click({ timeout: 3000 }).catch(() => {});
+      await sleep(2000);
+    }
     // 如果被重定向到 /list（车队列表），点击第一个"访问"按钮
     if (pg.url().includes("/list")) {
       await showToast(pg, "正在进入对话…");
