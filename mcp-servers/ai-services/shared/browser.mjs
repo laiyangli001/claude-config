@@ -1,6 +1,7 @@
 // 共享：浏览器生命周期管理
 import { execSync } from "child_process";
 import * as fs from "fs";
+import * as os from "os";
 import https from "https";
 import http from "http";
 
@@ -33,11 +34,15 @@ function sanitizePath(p) { return p.replace(/[^a-zA-Z0-9:_\\\/.\-]/g, ''); }
 async function killOrphanChrome(profileDir) {
   try {
     const safeDir = sanitizePath(profileDir);
-    // 用 PowerShell 找 profile 对应的所有 chrome 进程，wmic 可能查不到长命令行
-    const psCmd = `Get-CimInstance Win32_Process -Filter "name='chrome.exe'" | Where-Object { $_.CommandLine -like '*${safeDir.replace(/\\/g, '\\\\')}*' } | Select-Object -ExpandProperty ProcessId`;
-    const result = execSync(`powershell -NoProfile -Command "${psCmd}"`, {
-      encoding: "utf8", timeout: 15000
-    });
+    // 写临时 .ps1 文件，避免 shell 引号转义问题
+    const tmpFile = path.join(os.tmpdir(), "_kill_chrome_" + Date.now() + ".ps1");
+    const psContent = 'Get-CimInstance Win32_Process -Filter "name=\'chrome.exe\'" | Where-Object { $_.CommandLine -like \'*' + safeDir.replace(/\\/g, '\\\\') + '*\' } | Select-Object -ExpandProperty ProcessId';
+    fs.writeFileSync(tmpFile, psContent, "utf-8");
+    const result = execSync(
+      `powershell -NoProfile -File "${tmpFile}"`,
+      { encoding: "utf8", timeout: 15000 }
+    );
+    try { fs.unlinkSync(tmpFile); } catch {}
     const pids = result.trim().split(/\s*\n\s*/).filter(id => /^\d+$/.test(id));
     for (const pid of pids) {
       try { execSync("taskkill /f /t /pid " + pid + " 2>nul", { timeout: 5000 }); log("杀孤儿进程树:", pid); } catch {}
