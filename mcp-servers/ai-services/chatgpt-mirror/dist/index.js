@@ -105,7 +105,18 @@ async function askChatGPT(question, attachments) {
             await showToast(pg, "正在进入 ChatGPT…");
             await pg.goto("https://2233.ai/dashboard", { waitUntil: "domcontentloaded", timeout: 15000 }).catch(() => { });
             await sleep(3000);
-            // 先找"使用"/"Use"按钮（dashboard 上每个服务旁的按钮）
+            // 监听新标签页（"使用"按钮可能在新 tab 打开聊天页）
+            let chatPage = pg;
+            browserContext.on("page", (newPg) => {
+                setTimeout(async () => {
+                    const url = newPg.url();
+                    if (url.includes("chatgpt.2233.ai")) {
+                        chatPage = newPg;
+                        page = newPg;
+                    }
+                }, 1000);
+            });
+            // 先找"使用"/"Use"按钮
             const useBtn = pg.locator('button:has-text("使用"), button:has-text("Use")').first();
             if (await useBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
                 await useBtn.click({ timeout: 3000 }).catch(() => { });
@@ -114,36 +125,37 @@ async function askChatGPT(question, attachments) {
                 // 兜底：点 ChatGPT 链接
                 await pg.locator('a[href="/chatgtp"]').first().evaluate((el) => el.click()).catch(() => { });
             }
-            await sleep(4000);
+            await sleep(5000);
         }
+        // 使用聊天标签页（page 可能已被 listener 更新为新标签页）
+        const chatPg = page || pg;
         // 如果跳到 /list（车队列表），点第一个"访问"
-        if (pg.url().includes("/list") || pg.url().includes("/team")) {
-            await showToast(pg, "正在进入对话…");
+        if (chatPg.url().includes("/list") || chatPg.url().includes("/team")) {
+            await showToast(chatPg, "正在进入对话…");
             const visitBtn = pg.locator('button:has-text("访问"), button:has-text("Access")').first();
             if (await visitBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
                 await visitBtn.click({ timeout: 3000 }).catch(() => { });
                 await sleep(4000);
             }
         }
-        // 等待聊天输入框出现
-        await pg.locator(SEL.CHAT_INPUT).waitFor({ state: "visible", timeout: 60000 }).catch(() => { });
-        // Cookie 检测登录态
+        // 等待聊天输入框出现（使用可能已切换的标签页）
+        await chatPg.locator(SEL.CHAT_INPUT).waitFor({ state: "visible", timeout: 60000 }).catch(() => { });
         const cookies = await browserContext.cookies();
         const hasSession = cookies.some(c => c.name.includes("session") && c.value.length > 10);
         if (!hasSession) {
             if (!HEADLESS)
-                await pg.bringToFront();
-            await showToast(pg, "🔑 请登录镜像站（登录后自动继续）");
-            await pg.locator(SEL.CHAT_INPUT).waitFor({ state: "visible", timeout: 180000 });
+                await chatPg.bringToFront();
+            await showToast(chatPg, "🔑 请登录镜像站（登录后自动继续）");
+            await chatPg.locator(SEL.CHAT_INPUT).waitFor({ state: "visible", timeout: 180000 });
         }
-        if (!(await pg.locator(SEL.CHAT_INPUT).waitFor({ state: "visible", timeout: 30000 }).then(() => true).catch(() => false))) {
+        if (!(await chatPg.locator(SEL.CHAT_INPUT).waitFor({ state: "visible", timeout: 30000 }).then(() => true).catch(() => false))) {
             throw new Error("Cannot access ChatGPT mirror.");
         }
         isPageReady = true;
     }
+    const activePg = page || pg;
     if (attachments?.length)
-        await uploadFiles(pg, attachments, { fileInputSelector: SEL.FILE_INPUT, duplicateBtnSelector: SEL.DUPLICATE_BTN });
-    await showToast(pg, "📤 发送中...");
+        await uploadFiles(activePg, attachments, { fileInputSelector: SEL.FILE_INPUT, duplicateBtnSelector: SEL.DUPLICATE_BTN });
     const answerSel = '[data-message-author-role="assistant"]';
     let prev = await pg.locator(answerSel).count();
     await pg.locator(SEL.CHAT_INPUT).first().evaluate((el, t) => { el.innerText = t; el.dispatchEvent(new Event("input", { bubbles: true })); }, question);

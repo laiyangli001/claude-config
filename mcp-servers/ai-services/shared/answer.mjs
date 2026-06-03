@@ -105,5 +105,5 @@ export async function showToast(page, msg, duration = 0) {
         d._timer = setTimeout(() => { d.style.opacity = "0"; }, duration);
       }
     }, { msg, duration });
-  } catch {}
+  } catch (e) { console.error("[toast] error:", e.message); }
 }
