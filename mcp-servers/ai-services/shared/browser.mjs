@@ -5,6 +5,7 @@ import https from "https";
 import http from "http";
 
 function log(...args) { console.error("[browser]", ...args); }
+function escapeHtml(s) { return (s+"").replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]); }
 
 // ── 网络检测（走系统代理需各服务自行处理）──
 
@@ -26,10 +27,14 @@ export async function checkSite(url, timeout = 10000) {
 // ── 孤儿进程清理 ──
 
 /** @param {string} profileDir */
+function sanitizePath(p) { return p.replace(/[^a-zA-Z0-9:_\\\/.\-]/g, ''); }
+
+/** @param {string} profileDir */
 async function killOrphanChrome(profileDir) {
   try {
+    const safeDir = sanitizePath(profileDir);
     const result = execSync(
-      `wmic process where "name='chrome.exe' and commandline like '%${profileDir.replace(/\\/g, '\\\\')}%'" get processid /format:csv 2>nul`,
+      `wmic process where "name='chrome.exe' and commandline like '%${safeDir.replace(/\\/g, '\\\\')}%'" get processid /format:csv 2>nul`,
       { encoding: "utf8", timeout: 10000 }
     );
     const pids = result.trim().split(/\s*\n\s*/).slice(1)
@@ -51,7 +56,7 @@ async function killOrphanChrome(profileDir) {
  */
 export function isTransientError(err) {
   const msg = (err && err.message) || "";
-  return /ECONNRESET|ETIMEDOUT|ESOCKETTIMEDOUT|EPIPE|ENETUNREACH|closed|timeout|net::ERR_/i.test(msg);
+  return /ECONNRESET|ETIMEDOUT|ESOCKETTIMEDOUT|EPIPE|ENETUNREACH|net::ERR_CONNECTION|net::ERR_TIMEOUT|net::ERR_NAME_NOT_RESOLVED/i.test(msg);
 }
 
 /**
@@ -92,7 +97,7 @@ export async function withRetry(fn, opts = {}) {
       if (attempt >= maxAttempts) break;
 
       if (isRateLimitError(err)) {
-        await new Promise(r => setTimeout(r, 60000));
+        await new Promise(r => setTimeout(r, 60000 + Math.random() * 10000));
         continue;
       }
       if (!isTransientError(err)) break;
@@ -111,31 +116,33 @@ export async function withRetry(fn, opts = {}) {
  * @param {string} profileDir
  */
 function removeLockFiles(profileDir) {
+  // 先确认没有对应 Chrome 进程再删锁
+  try {
+    execSync(`wmic process where "name='chrome.exe' and commandline like '%${sanitizePath(profileDir).replace(/\\/g, '\\\\')}%'" get processid /format:csv 2>nul`, { timeout: 5000, encoding: "utf8" })
+      .trim().split(/\s*\n\s*/).slice(1).filter(id => id && id !== "ProcessId").length > 0;
+    log("profile 仍有进程运行，跳过删锁");
+    return;
+  } catch {}
   const lockFiles = [
     "lockfile", "SingletonLock", "SingletonCookie", "SingletonSocket",
     "SingletonLock.tmp", "SingletonCookie.tmp",
     "First Run", "First Last",
   ];
   for (const f of lockFiles) {
-    try { const p = profileDir + "/" + f; if (fs.existsSync(p)) { fs.unlinkSync(p); log("删锁:", f); } } catch (e) { log("删锁失败:", f, e.message); }
+    try { const p = path.join(profileDir, f); if (fs.existsSync(p)) { fs.unlinkSync(p); log("删锁:", f); } } catch (e) { log("删锁失败:", f, e.message); }
   }
-  // 也尝试删整个 Singleton 目录（如果存在）
   try {
-    const singDir = profileDir + "/Singleton";
+    const singDir = path.join(profileDir, "Singleton");
     if (fs.existsSync(singDir)) { fs.rmSync(singDir, { recursive: true, force: true }); log("删 Singleton 目录"); }
   } catch {}
 }
 
 /**
- * 激进清理：杀所有 Chrome 进程 + 删锁文件
+ * 激进清理：按 profile 定向杀进程 + 删锁文件（不杀用户其他 Chrome）
  */
 async function aggressiveCleanup(profileDir) {
-  // 杀所有 Chrome 进程（宽泛匹配，宁杀错不放过）
-  try { execSync("taskkill /f /im chrome.exe 2>nul", { timeout: 5000 }); } catch {}
-  await new Promise(r => setTimeout(r, 2000));
-  // 再按 profile 定向杀一次
   await killOrphanChrome(profileDir);
-  // 删锁文件
+  await new Promise(r => setTimeout(r, 1500));
   removeLockFiles(profileDir);
   await new Promise(r => setTimeout(r, 1000));
 }
@@ -200,10 +207,11 @@ export async function launchBrowser(chromium, profileDir, headless = false) {
       log("浏览器启动失败:", msg);
       if (attempt >= 2) throw err;
       // 判断是否为 profile 被占用的错误 → 激进清理后重试
-      if (msg.includes("Target page, context or browser has been closed") ||
-          msg.includes("已被占用") || msg.includes("in use") ||
-          msg.includes("already in use") || msg.includes("锁")) {
-        log("profile 被占用，执行激进清理后重试...");
+      const profileLocked = msg.includes("已被占用") || msg.includes("in use") ||
+        msg.includes("already in use") || msg.includes("锁");
+      const browserClosed = msg.includes("Target page, context or browser has been closed");
+      if (profileLocked || (browserClosed && attempt === 1)) {
+        log("profile 被占用或浏览器异常关闭，执行清理后重试...");
         await aggressiveCleanup(profileDir);
         continue;
       }
@@ -245,11 +253,10 @@ export async function navigateWithToast(page, url, label = "") {
     try {
       const ctx = page.context();
       const errPage = await ctx.newPage();
-      await errPage.setContent(`<html><head><meta charset="utf-8"></head><body style="background:#1a1a2e;color:#fff;font-family:system-ui;display:flex;align-items:center;justify-content:center;height:100vh;margin:0"><div style="text-align:center;padding:40px"><div style="font-size:48px;margin-bottom:16px">⚠️</div><div style="font-size:22px;font-weight:600">${siteName} 连接失败</div><div style="font-size:16px;color:#f87171;margin-top:16px">${hint}</div><div style="font-size:13px;color:#888;margin-top:32px">请关闭此标签页并重试</div></div></body></html>`);
+      await errPage.setContent(`<html><head><meta charset="utf-8"></head><body style="background:#1a1a2e;color:#fff;font-family:system-ui;display:flex;align-items:center;justify-content:center;height:100vh;margin:0"><div style="text-align:center;padding:40px"><div style="font-size:48px;margin-bottom:16px">⚠️</div><div style="font-size:22px;font-weight:600">${escapeHtml(siteName)} 连接失败</div><div style="font-size:16px;color:#f87171;margin-top:16px">${escapeHtml(hint)}</div><div style="font-size:13px;color:#888;margin-top:32px">请关闭此标签页并重试</div></div></body></html>`);
       try { await errPage.bringToFront(); } catch {}
-      // 关闭旧的错误页（如果还活着）
-      try { await page.close(); } catch {}
-    } catch {}
+      // 不关闭调用方的 page，由调用方自己管理生命周期
+    } catch (e) { log("navigateWithToast 错误页创建失败:", e.message); }
     throw new Error(`${siteName} 不可达: ${hint}`);
   }
 }
@@ -303,13 +310,17 @@ export async function closeBrowser(ctx) {
       if (proc) pid = proc.pid;
     }
   } catch {}
-  try { await ctx.close(); } catch {}
-  // 确保 Chrome 进程被杀死，不留孤儿
+  try { await ctx.close({ timeout: 10000 }); } catch (e) { log("closeBrowser close error:", e.message); }
+  // 等进程自然退出
   if (pid) {
     try {
-      execSync("taskkill /f /pid " + pid + " 2>nul", { timeout: 5000 });
-      // 等进程完全退出，释放文件锁
-      await new Promise(r => setTimeout(r, 1000));
+      for (let i = 0; i < 10; i++) {
+        try { process.kill(pid, 0); await new Promise(r => setTimeout(r, 500)); } catch { pid = null; break; }
+      }
     } catch {}
+    if (pid) {
+      try { execSync("taskkill /f /pid " + pid + " 2>nul", { timeout: 5000 }); } catch (e) { log("closeBrowser kill error:", e.message); }
+      await new Promise(r => setTimeout(r, 1000));
+    }
   }
 }
