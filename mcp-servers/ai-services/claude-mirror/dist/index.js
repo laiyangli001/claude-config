@@ -269,48 +269,58 @@ async function ensurePageReady(pg) {
 }
 async function takeScreenshot(pg, question, attachments) {
     await ensurePageReady(pg);
-    // 使用全局 page（可能已切换到新标签页）
     const chatPg = page || pg;
     if (attachments?.length) {
         await uploadFiles(chatPg, attachments);
         await sleep(1000);
     }
-    // 2. 设置问题文本（如果有）
+    // 设置问题文本
     if (question) {
         await chatPg.locator(SEL.CHAT_INPUT).first().evaluate((el, t) => { el.innerText = t; el.dispatchEvent(new Event("input", { bubbles: true })); }, question);
         await sleep(500);
     }
-    // 3. 点击截图按钮（失败也不报错，提示用户手动操作）
+    // 点击截图按钮
     const btn = chatPg.locator(SEL.SCREENSHOT_BTN).first();
     const btnFound = (await btn.count()) > 0;
     if (btnFound) {
+        // 关弹窗遮罩
+        await chatPg.evaluate(() => {
+            document.querySelectorAll('[data-slot="dialog-overlay"]').forEach(o => o.remove());
+        }).catch(() => { });
         await btn.click({ force: true, timeout: 3000 }).catch(() => { });
     }
     await showToast(chatPg, btnFound
         ? "📸 请选择窗口 → 点击「分享」→ 截图上传后点击「发送」"
         : "📸 请手动点击截图按钮 → 选择窗口 → 点击「分享」→ 截图上传后点击「发送」");
-    // 4. 等用户手动完成：检测页面内容增长（新回答出现）
+    // 等回答：用户消息后内容增长 + 稳定
     await showToast(chatPg, "⏳ 等待回答...");
-    const oldBodyLen = await chatPg.evaluate(() => document.body.innerText.length).catch(() => 0);
-    for (let i = 0; i < 180; i++) {
-        await sleep(1000);
-        const curLen = await chatPg.evaluate(() => document.body.innerText.length).catch(() => 0);
-        if (curLen > oldBodyLen + 50) {
-            for (let s = 0; s < 10; s++) {
-                await sleep(1000);
-                const after = await chatPg.evaluate(() => document.body.innerText.length).catch(() => 0);
-                if (after === curLen)
+    if (question) {
+        const qHead = question.slice(0, 10);
+        let lastAfterLen = 0, stable = 0;
+        for (let i = 0; i < 180; i++) {
+            await sleep(1000);
+            const body = await chatPg.evaluate(() => document.body.innerText);
+            const idx = body.lastIndexOf(qHead);
+            if (idx < 0)
+                continue;
+            const after = body.slice(idx + qHead.length);
+            if (after.length <= 5)
+                continue;
+            if (after.length === lastAfterLen) {
+                stable++;
+                if (stable >= 20)
                     break;
             }
-            break;
+            else {
+                stable = 0;
+                lastAfterLen = after.length;
+            }
         }
     }
-    // 5. 提取回答
-    const answer = await chatPg.evaluate(() => {
-        const msgs = [...document.querySelectorAll('[class*="message"], [class*="chat"], article, [role="article"]')];
-        const last = msgs[msgs.length - 1];
-        return last ? last.textContent?.trim() || "" : document.body.innerText.slice(-2000);
-    });
+    else {
+        await sleep(30000);
+    }
+    const answer = await chatPg.evaluate(() => document.body.innerText.trim());
     await showToast(chatPg, "✅ 回答完成", 2000);
     return answer || "screenshot_captured";
 }
