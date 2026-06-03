@@ -14,6 +14,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(__dirname, "..");
 const PROFILE_DIR = path.join(PROJECT_ROOT, ".doubao-profile");
 const HEADLESS = process.env.DOUBDAO_HEADLESS === "true";
+const CDP_PORT = 9222;
 const TEMPLATES_DIR = path.resolve(__dirname, "../../shared/templates");
 const SEL = {
     CHAT_INPUT: 'textarea[placeholder*="发消息"]',
@@ -71,16 +72,26 @@ async function ensureBrowser() {
         return initPromise;
     initPromise = (async () => {
         await closeB();
-        browserContext = await launchBrowser(chromium, PROFILE_DIR, HEADLESS);
+        browserContext = await launchBrowser(chromium, PROFILE_DIR, HEADLESS, CDP_PORT);
         const existing = browserContext.pages();
-        page = existing[0] || await browserContext.newPage();
-        for (let i = 1; i < existing.length; i++)
+        // 扫描已有聊天页复用（CDP 不关用户其他页）
+        let found = false;
+        for (const p of existing) {
             try {
-                await existing[i].close();
+                if (!p.isClosed() && (await p.locator(SEL.CHAT_INPUT).count()) > 0) {
+                    page = p;
+                    isPageReady = true;
+                    found = true;
+                    break;
+                }
             }
             catch { }
-        setupPageErrorMonitor(page);
-        isPageReady = false;
+        }
+        if (!found) {
+            page = await browserContext.newPage();
+            setupPageErrorMonitor(page);
+            isPageReady = false;
+        }
         return { page: page, context: browserContext };
     })();
     return initPromise;

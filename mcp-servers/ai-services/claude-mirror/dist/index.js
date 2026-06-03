@@ -15,8 +15,9 @@ import { loadTemplate } from "../../shared/role.mjs";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(__dirname, "..");
 const PROFILE_DIR = path.join(PROJECT_ROOT, ".claude-mirror-profile");
-const SITE_URL = "https://claude.2233.ai/new";
+const SITE_URL = "https://claude.2233.ai/";
 const HEADLESS = process.env.CLAUDE_MIRROR_HEADLESS === "true";
+const CDP_PORT = 9222;
 const TEMPLATES_DIR = path.resolve(__dirname, "../../shared/templates");
 const SEL = {
     CHAT_INPUT: "div.ProseMirror",
@@ -91,10 +92,28 @@ async function ensureBrowser() {
         return initPromise;
     initPromise = (async () => {
         await closeB();
-        browserContext = await launchBrowser(chromium, PROFILE_DIR, HEADLESS);
+        browserContext = await launchBrowser(chromium, PROFILE_DIR, HEADLESS, CDP_PORT);
         const existing = browserContext.pages();
-        page = existing[0] || await browserContext.newPage();
-        isPageReady = false;
+        // 扫描已有聊天页复用（CDP 连的是用户已有浏览器，不关其他页）
+        let found = false;
+        for (const p of existing) {
+            try {
+                if (!p.isClosed() && p.url().includes("claude.2233.ai") && (await p.locator(SEL.CHAT_INPUT).count()) > 0) {
+                    page = p;
+                    isPageReady = true;
+                    found = true;
+                    break;
+                }
+            }
+            catch { }
+        }
+        if (!found) {
+            // 复用已有页（第一个可导航的普通页面，避免新建标签页）
+            let domainPage = null;
+            let regularPage = null;
+            page = await browserContext.newPage();
+            isPageReady = false;
+        }
         return { page: page, context: browserContext };
     })();
     return initPromise;

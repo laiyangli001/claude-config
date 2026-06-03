@@ -18,6 +18,7 @@ const PROJECT_ROOT = path.resolve(__dirname, "..");
 const PROFILE_DIR = path.join(PROJECT_ROOT, ".deepseek-browser-profile");
 const SITE_URL = "https://chat.deepseek.com/";
 const HEADLESS = process.env.DEEPSEEK_HEADLESS === "true";
+const CDP_PORT = 9222;
 const TEMPLATES_DIR = path.resolve(__dirname, "../../shared/templates");
 
 const INPUT_SEL = 'textarea, [contenteditable="true"]';
@@ -61,9 +62,19 @@ async function ensureBrowser() {
     browserContext = null; page = null; isPageReady = false;
   }
   if (browserContext) await closeBrowser(browserContext);
-  browserContext = await launchBrowser(chromium, PROFILE_DIR, HEADLESS);
-  page = await browserContext!.newPage();
-  isPageReady = false;
+  browserContext = await launchBrowser(chromium, PROFILE_DIR, HEADLESS, CDP_PORT);
+  const existing = browserContext!.pages();
+  // 扫描已有聊天页复用（CDP 不关用户其他页）
+  let found = false;
+  for (const p of existing) {
+    try { if (!p.isClosed() && p.url().includes("deepseek.com") && (await p.locator(INPUT_SEL).count()) > 0) { page = p; isPageReady = true; found = true; break; } } catch {}
+  }
+  if (!found) {
+    let domainPage = null;
+    let regularPage = null;
+    page = await browserContext!.newPage();
+    isPageReady = false;
+  }
   return { page: page!, context: browserContext! };
 }
 

@@ -17,6 +17,7 @@ const PROJECT_ROOT = path.resolve(__dirname, "..");
 const PROFILE_DIR = path.join(PROJECT_ROOT, ".chatgpt-mirror-profile");
 const SITE_URL = "https://chatgpt.2233.ai/";
 const HEADLESS = process.env.CHATGPT_HEADLESS === "true";
+const CDP_PORT = 9222;
 const TEMPLATES_DIR = path.resolve(__dirname, "../../shared/templates");
 const SEL = {
     CHAT_INPUT: "#prompt-textarea",
@@ -77,15 +78,28 @@ async function ensureBrowser() {
         return initPromise;
     initPromise = (async () => {
         await closeB();
-        browserContext = await launchBrowser(chromium, PROFILE_DIR, HEADLESS);
+        browserContext = await launchBrowser(chromium, PROFILE_DIR, HEADLESS, CDP_PORT);
         const existing = browserContext.pages();
-        page = existing[0] || await browserContext.newPage();
-        for (let i = 1; i < existing.length; i++)
+        // 扫描已有聊天页并复用，不关其他页（CDP 连的是用户浏览器）
+        let found = false;
+        for (const p of existing) {
             try {
-                await existing[i].close();
+                if (!p.isClosed() && p.url().includes("chatgpt.2233.ai") && (await p.locator(SEL.CHAT_INPUT).count()) > 0) {
+                    page = p;
+                    isPageReady = true;
+                    found = true;
+                    break;
+                }
             }
             catch { }
-        isPageReady = false;
+        }
+        if (!found) {
+            // 检查是否有 2233.ai 域名的页，用来导航
+            let domainPage = null;
+            let regularPage = null;
+            page = await browserContext.newPage();
+            isPageReady = false;
+        }
         return { page: page, context: browserContext };
     })();
     return initPromise;
@@ -100,34 +114,13 @@ async function askChatGPT(question, attachments) {
             await startBtn.first().click({ timeout: 3000 }).catch(() => { });
             await sleep(3000);
         }
-        // 如果跳到 dashboard，先刷新确保状态，再点"使用"或 a[href="/chatgtp"]
-        if (pg.url().includes("2233.ai") && !pg.url().includes("claude")) {
+        // 如果跳到 dashboard，直接导航到聊天页（同标签页）
+        if (pg.url().includes("2233.ai") && !pg.url().includes("chatgpt.2233.ai")) {
             await showToast(pg, "正在进入 ChatGPT…");
-            await pg.goto("https://2233.ai/dashboard", { waitUntil: "domcontentloaded", timeout: 15000 }).catch(() => { });
-            await sleep(3000);
-            // 监听新标签页（"使用"按钮可能在新 tab 打开聊天页）
-            let chatPage = pg;
-            browserContext.on("page", (newPg) => {
-                setTimeout(async () => {
-                    const url = newPg.url();
-                    if (url.includes("chatgpt.2233.ai")) {
-                        chatPage = newPg;
-                        page = newPg;
-                    }
-                }, 1000);
-            });
-            // 先找"使用"/"Use"按钮
-            const useBtn = pg.locator('button:has-text("使用"), button:has-text("Use")').first();
-            if (await useBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
-                await useBtn.click({ timeout: 3000 }).catch(() => { });
-            }
-            else {
-                // 兜底：点 ChatGPT 链接
-                await pg.locator('a[href="/chatgtp"]').first().evaluate((el) => el.click()).catch(() => { });
-            }
-            await sleep(5000);
+            await pg.goto("https://chatgpt.2233.ai/", { waitUntil: "domcontentloaded", timeout: 30000 }).catch(() => { });
+            await sleep(4000);
         }
-        // 使用聊天标签页（page 可能已被 listener 更新为新标签页）
+        // 使用聊天标签页（page 可能已被更新为新标签页）
         const chatPg = page || pg;
         // 如果跳到 /list（车队列表），点第一个"访问"
         if (chatPg.url().includes("/list") || chatPg.url().includes("/team")) {
@@ -157,21 +150,21 @@ async function askChatGPT(question, attachments) {
     if (attachments?.length)
         await uploadFiles(activePg, attachments, { fileInputSelector: SEL.FILE_INPUT, duplicateBtnSelector: SEL.DUPLICATE_BTN });
     const answerSel = '[data-message-author-role="assistant"]';
-    let prev = await pg.locator(answerSel).count();
-    await pg.locator(SEL.CHAT_INPUT).first().evaluate((el, t) => { el.innerText = t; el.dispatchEvent(new Event("input", { bubbles: true })); }, question);
-    const sb = pg.locator(SEL.SEND_BTN).first();
+    let prev = await activePg.locator(answerSel).count();
+    await activePg.locator(SEL.CHAT_INPUT).first().evaluate((el, t) => { el.innerText = t; el.dispatchEvent(new Event("input", { bubbles: true })); }, question);
+    const sb = activePg.locator(SEL.SEND_BTN).first();
     if ((await sb.count()) > 0 && (await sb.isVisible()))
         await sb.click();
     else
-        await pg.keyboard.press("Enter");
-    await showToast(pg, "⏳ 等待回答...");
-    await waitForNewMessage(pg, answerSel, prev);
-    await waitForAnswer(pg, answerSel, SEL.STOP_BTN);
+        await activePg.keyboard.press("Enter");
+    await showToast(activePg, "⏳ 等待回答...");
+    await waitForNewMessage(activePg, answerSel, prev);
+    await waitForAnswer(activePg, answerSel, SEL.STOP_BTN);
     // 等 stop 消失 + 内容稳定 3 秒
-    let stable = 0, lastLen = await pg.evaluate(() => document.body.innerText.length);
+    let stable = 0, lastLen = await activePg.evaluate(() => document.body.innerText.length);
     for (let i = 0; i < 30; i++) {
         await sleep(1000);
-        const curLen = await pg.evaluate(() => document.body.innerText.length);
+        const curLen = await activePg.evaluate(() => document.body.innerText.length);
         if (curLen === lastLen) {
             stable++;
             if (stable >= 3)
@@ -182,10 +175,10 @@ async function askChatGPT(question, attachments) {
             lastLen = curLen;
         }
     }
-    const answer = await extractNewAnswers(pg, answerSel, prev);
+    const answer = await extractNewAnswers(activePg, answerSel, prev);
     if (!answer)
         throw new Error("Failed to extract answer");
-    await showToast(pg, "✅ 回答完成", 2000);
+    await showToast(activePg, "✅ 回答完成", 2000);
     return answer;
 }
 const server = new Server({ name: "chatgpt-mirror-mcp", version: "1.0.0" }, { capabilities: { tools: {} } });

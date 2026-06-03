@@ -145,9 +145,33 @@ async function aggressiveCleanup(profileDir) {
 }
 
 /**
- * 启动浏览器（不包含网络检测，各服务自行导航时走系统代理）
+ * 尝试连接已运行的 Chrome（CDP 端口）
  */
-export async function launchBrowser(chromium, profileDir, headless = false) {
+export async function tryConnectCDP(chromium, port = 9222) {
+  try {
+    const browser = await chromium.connectOverCDP(`http://localhost:${port}`, { timeout: 3000 });
+    const ctxs = browser.contexts();
+    const ctx = ctxs[0] || await browser.newContext();
+    log(`已连接到运行中的 Chrome (端口 ${port})`);
+    return { ctx, connected: true, browser };
+  } catch (e) {
+    log(`端口 ${port} 无 Chrome 运行`);
+    return { ctx: null, connected: false, browser: null };
+  }
+}
+
+/**
+ * 启动浏览器（不包含网络检测，各服务自行导航时走系统代理）
+ * @param {object} opts
+ * @param {number} [opts.cdpPort] - 指定 CDP 端口，非零时尝试连接已有 Chrome
+ */
+export async function launchBrowser(chromium, profileDir, headless = false, cdpPort = 0) {
+  // 如果指定了 CDP 端口，先尝试连接已有 Chrome
+  if (cdpPort) {
+    const { ctx, connected } = await tryConnectCDP(chromium, cdpPort);
+    if (connected && ctx) return ctx;
+  }
+
   log("正在清理旧进程...");
   removeLockFiles(profileDir);
   await killOrphanChrome(profileDir);
@@ -155,57 +179,20 @@ export async function launchBrowser(chromium, profileDir, headless = false) {
   for (let attempt = 1; attempt <= 2; attempt++) {
     log(`正在启动浏览器(尝试 ${attempt})...`);
     try {
+      const launchArgs = ['--disable-blink-features=AutomationControlled'];
+      if (cdpPort) launchArgs.push(`--remote-debugging-port=${cdpPort}`);
       const ctx = await chromium.launchPersistentContext(profileDir, {
         headless,
         viewport: { width: 1280, height: 800 },
-        userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36",
-        args: [
-          "--disable-blink-features=AutomationControlled",
-          "--no-sandbox",
-          "--disable-infobars",
-          "--disable-dev-shm-usage",
-          "--disable-gpu",
-          "--no-first-run",
-          "--no-default-browser-check",
-          "--disable-notifications",
-          "--disable-popup-blocking",
-          "--window-size=1280,800",
-          "--lang=zh-CN,zh;q=0.9,en;q=0.8",
-          "--disable-features=IsolateOrigins,site-per-process",
-          "--flag-switches-begin",
-          "--flag-switches-end",
-          "--test-type",
-          "--no-zygote",
-          "--disable-features=ChromeCleanup",
-        ],
-        locale: "zh-CN",
-        timezoneId: "Asia/Shanghai",
-        colorScheme: "dark",
-        extraHTTPHeaders: {
-          "accept-language": "zh-CN,zh;q=0.9,en;q=0.8",
-        },
+        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36',
+        args: launchArgs,
       });
-      log("浏览器已启动");
-      // 注入反检测脚本：覆盖 navigator.webdriver 等指纹
-      await ctx.addInitScript(() => {
-        Object.defineProperty(navigator, "webdriver", { get: () => undefined });
-        Object.defineProperty(navigator, "plugins", { get: () => [1, 2, 3, 4, 5] });
-        Object.defineProperty(navigator, "languages", { get: () => ["zh-CN", "zh", "en"] });
-        window.chrome = { runtime: {}, loadTimes: () => {}, csi: () => {}, app: {} };
-        const origQuery = window.navigator.permissions?.query;
-        if (origQuery) {
-          window.navigator.permissions.query = (params) =>
-            params.name === "notifications"
-              ? Promise.resolve({ state: Notification.permission })
-              : origQuery(params);
-        }
-      });
+      log('浏览器已启动' + (cdpPort ? ` (CDP 端口 ${cdpPort})` : ''));
       return ctx;
     } catch (err) {
       const msg = (err && err.message) || "";
       log("浏览器启动失败:", msg);
       if (attempt >= 2) throw err;
-      // 判断是否为 profile 被占用的错误 → 激进清理后重试
       const profileLocked = msg.includes("已被占用") || msg.includes("in use") ||
         msg.includes("already in use") || msg.includes("锁");
       const browserClosed = msg.includes("Target page, context or browser has been closed");
