@@ -135,18 +135,22 @@
 
 ### MCP 任务技能
 
-使用 `/mcp-baipiao` 或 `/mcp-office-tool` 快速调用，不需要手动拼参数。
-直接描述需求即可，AI 会自动判断场景、选模板、选服务。
+**硬性规则：涉及以下场景时，必须使用对应的 skill 调用，禁止直接调用 MCP 工具。**
 
-**触发模式示例**（当用户说以下内容时，应建议使用对应的 skill）：
-- `/mcp-baipiao` — “审查这个文件” / “帮我看下这段代码”
-- `/mcp-baipiao` — “帮我总结这个文档” / “分析这个日志”
-- `/mcp-baipiao` — “处理这个文件” / “把这个表格整理一下”
-- `/mcp-baipiao` — “翻译这个” / “解释一下这段代码”
-- `/mcp-office-tool` — “把这个 Markdown 导出成 PDF”
-- `/mcp-office-tool` — “合并这两个 PDF” / “给 PDF 加水印”
-- `/mcp-office-tool` — “读取这个 Word/PDF 文档”
-- `/mcp-office-tool` — “帮我看看这个文件里的表格和公式”
+| 场景 | 必须使用 | 为什么 |
+|------|---------|--------|
+| 代码审查、分析、解释代码 | `/mcp-baipiao` | 自动选模板、选服务、降级链 |
+| 长文本分析、总结文档 | `/mcp-baipiao` | 自动匹配 deepseek 处理 |
+| 图片识别/界面分析 | `/mcp-baipiao` | 自动选多模态服务 |
+| 批量格式化/转换 | `/mcp-baipiao` | 自动选最优服务 |
+| Markdown→PDF、PDF操作 | `/mcp-office-tool` | 调用本地脚本 |
+| 文档读取（OCR/解析） | `/mcp-office-tool` | 自动调 MinerU |
+
+在 **Skill 失败或返回不可用**后，才允许直接调用 MCP 工具作为降级。
+
+**触发词示例：**
+- `/mcp-baipiao` — “审查这个文件” / “帮我看下这段代码” / “代码分析”
+- `/mcp-office-tool` — “把这个 Markdown 导出成 PDF” / “合并这两个 PDF”
 
 
 AutoIt 编译和死循环监控的详细规则见 `rules/` 目录下对应文件。
