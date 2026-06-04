@@ -2,10 +2,21 @@
 name: mcp-baipiao
 description: |
   MCP 任务助手。当用户需要分析代码、审查文件、处理文档、识别图片等需要 MCP 服务时使用。
-  自动匹配场景、选模板、调服务，省去手动拼参数的麻烦。
+  自动匹配场景、选模板、调用外部AI服务，省去手动拼参数的麻烦,并达到节省token的目的。
 ---
 
 > ⚠️ **硬性规则**：涉及代码审查、文档分析、图片处理等场景时，**必须调用本 skill**，禁止直接调用 MCP 工具。多次执行也需通过 `/mcp-baipiao` 重新调用。
+
+## 目录
+
+- [第 1 步：收集需求](#第-1-步收集需求)
+- [第 2 步：场景分类](#第-2-步场景分类)
+- [第 3 步：二次确认](#第-3-步二次确认)
+- [第 4 步：角色自动检测](#第-4-步角色自动检测)
+- [第 5 步：加载模板 + 变量插值](#第-5-步加载模板--变量插值)
+- [第 6 步：返回结果 + 反馈闭环](#第-6-步返回结果--反馈闭环)
+- [第 7 步：日志记录](#第-7-步日志记录)
+- [第 8 步：帮助系统](#第-8-步帮助系统)
 
 ## 执行步骤
 
@@ -23,11 +34,11 @@ description: |
 
 | # | 场景 | 触发条件 | 服务降级链 | 模板 |
 |---|------|---------|-----------|------|
-| 1 | 代码审查（复杂/深层） | 多文件、跨模块、异步、>500行 | claude-mirror → chatgpt-mirror → chatgpt-official → deepseek | `code_review` |
-| 2 | 代码审查（一般） | 单文件、<500行、常规逻辑 | chatgpt-mirror → claude-mirror → chatgpt-official → deepseek | `code_review` |
-| 3 | 长文本分析 | 纯文档、>10k token、日志/纪要 | deepseek → claude-mirror → chatgpt-mirror → chatgpt-official  | `long_text` |
-| 4 | 简单任务 | 批量处理/格式转换/文本整理/代码高亮 | deepseek → chatgpt-official | `format_task` |
-| 5 | 多模态视觉 | 截图/图片/PPT生成 | chatgpt-mirror → claude-mirror → chatgpt-official → doubao | `vision_analysis` |
+| 1 | 代码审查（复杂/深层） | 多文件、跨模块、异步、>500行 | `claude-mirror:ask_claude_mirror` → `chatgpt-mirror:ask_chatgpt_mirror` → `chatgpt-official:ask_chatgpt_official` → `deepseek:ask_deepseek` | `code_review` |
+| 2 | 代码审查（一般） | 单文件、<500行、常规逻辑 | `chatgpt-mirror:ask_chatgpt_mirror` → `claude-mirror:ask_claude_mirror` → `chatgpt-official:ask_chatgpt_official` → `deepseek:ask_deepseek` | `code_review` |
+| 3 | 长文本分析 | 纯文档、>10k token、日志/纪要 | `deepseek:ask_deepseek` → `claude-mirror:ask_claude_mirror` → `chatgpt-mirror:ask_chatgpt_mirror` → `chatgpt-official:ask_chatgpt_official` | `long_text` |
+| 4 | 简单任务 | 批量处理/格式转换/文本整理/代码高亮 | `deepseek:ask_deepseek` → `chatgpt-official:ask_chatgpt_official` | `format_task` |
+| 5 | 多模态视觉 | 截图/图片/PPT生成 | `chatgpt-mirror:ask_chatgpt_mirror` → `claude-mirror:ask_claude_mirror` → `chatgpt-official:ask_chatgpt_official` → `doubao:ask_doubao` | `vision_analysis` |
 
 **调用说明：** 按降级链依次调用。**每个服务最多重试 3 次**（间隔 2-3 秒），全部失败后才尝试下一级。附件通过 `attachments` 参数上传。全部服务失败时给出明确提示。
 
@@ -68,15 +79,31 @@ description: |
 
 如果需要模板，调用 `loadTemplate('shared/templates', templateName)` 加载。
 
-模板中预定义占位符（双花括号避免冲突）：
+所有代码审查任务（包括自行审查和委托 MCP 审查）**必须**在 prompt 中附带完整的运行环境信息。
+
+审查 prompt 开头必须包含以下标准化声明：
 
 ```text
 ## 运行环境
-{{environment}}
+- Python: 3.12.13
+- OS: Windows 11 Pro for Workstations (10.0.26200)
+- 框架: Flet 0.85.1
+- asyncio: Python 3.12 原生（注意 Task GC 行为）
+- OpenXR: pyopenxr
+- 图形: ModernGL + OpenGL (GLFW)
+- 窗口系统: Win32 API
+- 架构: x64
+- 子进程管理: subprocess.Popen（Windows，不可用 asyncio.create_subprocess_exec）
 
-## 代码审查要求
-- 关注点：{{user_concern}}
-- 文件：{{file_name}}
+## 问题要求
+模板中预定义占位符（双花括号避免冲突）：
+{{user_concern}} → 用户关注点
+{{file_name}} → 文件名（如果有）
+{{code_snippet}} → 代码片段（如果有）
+{{document_excerpt}} → 文档摘录（如果有）
+{{image_description}} → 图片描述（如果有）
+
+## 审查结果输出格式：
 
 请按以下格式输出：
 严重度（严重/重要/一般/建议）：问题简述
@@ -85,7 +112,7 @@ description: |
 风险：...
 建议：...
 ```
-
+**问题要求**:尽量上传源代码附件，特别是禁止将大量源代码以文字形式直接放在 prompt 中，避免触发 token 限制。模板中的 `{{code_snippet}}` 仅用于小段代码示例，不能替代完整代码文件的上传。 
 加载后执行字符串替换，再将模板内容拼接到 question 前（用 `\n\n---\n\n` 分隔）。
 
 ### 第 6 步：返回结果 + 反馈闭环
