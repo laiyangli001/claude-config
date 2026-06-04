@@ -10,45 +10,27 @@ description: |
 
 用户描述一个前端操作场景（如"打开登录页，输入账号密码，点击登录，验证跳转"）。
 
-## 中断恢复机制
+## 目录
 
-本技能可能因 VS Code Reload、会话超时等意外中断。每完成一步会将 checkpoint
-写入持久化文件，新会话启动时自动检测并恢复进度。
+- [第 0 步：检测中断恢复](#第-0-步检测中断恢复)
+- [第 1 步：理解需求](#第-1-步理解需求)
+- [第 2 步：导航与初始化](#第-2-步导航与初始化)
+- [第 3 步：分步操作循环](#第-3-步分步操作循环)
+- [第 4 步：视觉需求兜底](#第-4-步视觉需求兜底)
+- [第 5 步：长耗时操作监控](#第-5-步长耗时操作监控)
+- [第 6 步：编译回归测试](#第-6-步编译回归测试)
+- [第 7 步：交付并清理](#第-7-步交付并清理)
+- [中断恢复机制](CHECKPOINT.md)
 
-### Checkpoint 文件格式
+## 中断恢复
 
-路径：`.claude/projects/checkpoints/blind-frontend-tester.json`
-
-```json
-{
-  "skill": "blind-frontend-tester",
-  "url": "https://example.com/login",
-  "step": 3,
-  "completed": ["打开页面", "输入账号"],
-  "failed": ["点击登录"],
-  "selectors": { "username": "#username" },
-  "testFile": "login-flow.spec.ts",
-  "updatedAt": "2026-06-03T10:30:00.000Z"
-}
-```
-
-### 恢复流程
-
-执行任何步骤前先检测 checkpoint：
-
-1. 检查 `.claude/projects/checkpoints/blind-frontend-tester.json` 是否存在
-2. 若存在，读取并解析进度
-3. 向用户报告中断位置，询问是否恢复
-4. 用户确认 -> 跳过已完成步骤，从失败步骤重试
-5. 用户拒绝 -> 删除 checkpoint，从头开始
-
-## 执行步骤
+中断恢复机制请参阅 [CHECKPOINT.md](CHECKPOINT.md)。
 
 ### 第 0 步：检测中断恢复
 
-- 若 checkpoint 存在 -> 读取进度，展示给用户，请求确认是否恢复
-- 用户确认 -> 跳转到对应 `第 N 步`，跳过 `completed` 中的步骤
-- 用户拒绝 -> 删除 checkpoint，执行 `第 1 步`
+- 若 checkpoint 存在 → 读取进度，展示给用户，请求确认是否恢复
+- 用户确认 → 跳转到对应 `第 N 步`，跳过 `completed` 中的步骤
+- 用户拒绝 → 删除 checkpoint，执行 `第 1 步`
 
 ### 第 1 步：理解需求
 
