@@ -1,3 +1,8 @@
+---
+name: unity-mcp-setup-sop
+description: 从零配置 Unity MCP Bridge，让 Claude Code 控制 Unity 编辑器的完整 SOP
+---
+
 # SOP: Unity MCP Bridge 从零配置
 
 **版本：** 1.0

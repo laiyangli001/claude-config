@@ -1,5 +1,5 @@
 ---
-name: feedback-mcp-reload
+name: reload-window-remind
 description: 修改 MCP 服务源码后必须先提醒用户 reload window，不得连续盲目测试
 metadata:
   type: feedback

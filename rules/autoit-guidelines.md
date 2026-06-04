@@ -1,3 +1,8 @@
+---
+name: autoit-guidelines
+description: AutoIt3 脚本编译规范，适用于需要模拟鼠标键盘、发送按键、自动化控制外部程序的场景
+---
+
 # AutoIt3 脚本编译规范
 
 ## 适用场景
