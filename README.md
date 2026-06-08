@@ -210,9 +210,11 @@ node mcp-servers/install-mcp-config.mjs
 #### 安装
 
 ```bash
-npm install -g @colbymchenry/codegraph
-codegraph install    # 自动检测并连接 Claude Code
+cd ~/.claude
+npm install    # 已包含在 package.json 的 devDependencies 中
 ```
+
+已在 `.claude.json` 中用绝对路径注册。克隆到新机器后执行 `npm install` + Reload Window 即可。
 
 #### 使用
 
