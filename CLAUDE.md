@@ -142,8 +142,15 @@
 
 ### 使用规则
 
-- **grep 替代**：找函数定义/引用 → `codegraph_search` 或 `codegraph_explore`，不要 grep
-- **改前必查影响**：修改代码前先 `codegraph_impact` 看影响范围
-- **理解代码优先**：不知道一段代码干嘛的 → `codegraph_explore`
-- **信任结果**：CodeGraph 返回的源码视为已读，不再 grep 验证
-- **索引可能过期**：如果返回结果带"stale"标记，运行 `codegraph init -i` 重建索引
+**工作流（按顺序降级）：**
+1. **知道符号名** → `codegraph_node`（含所有重载）
+2. **查关系/流程/架构** → `codegraph_explore`（一个调用通常够）
+3. **找符号位置** → `codegraph_search`
+4. **列文件里所有符号** → `codegraph_file_symbols`
+5. **以上都找不到** → 才用 grep
+
+**硬性规则：**
+- **不要 grep**：找函数定义/引用一律走 CodeGraph
+- **改前必查影响**：改代码前 `codegraph_impact`
+- **信任结果**：CodeGraph 返回的源码视为已读，不再 Read 验证
+- **索引可能过期**：结果带"stale"标记时，运行 `codegraph init -i` 重建
