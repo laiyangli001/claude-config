@@ -251,7 +251,7 @@ npm install    # 已包含在 package.json 的 devDependencies 中
 
 ```bash
 cd 你的项目
-codegraph init -i    # 初始化并建立索引
+codegraph init    # 初始化并建立索引
 ```
 
 之后 Clade Code 中自动生效，代码搜索优先走 CodeGraph 而非 grep。

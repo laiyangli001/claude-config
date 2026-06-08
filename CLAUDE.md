@@ -153,4 +153,4 @@
 - **不要 grep**：找函数定义/引用一律走 CodeGraph
 - **改前必查影响**：改代码前 `codegraph_impact`
 - **信任结果**：CodeGraph 返回的源码视为已读，不再 Read 验证
-- **索引可能过期**：结果带"stale"标记时，运行 `codegraph init -i` 重建
+- **索引可能过期**：结果带"stale"标记时，运行 `codegraph index` 重建
