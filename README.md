@@ -57,12 +57,23 @@ copy ~\.claude\settings.json.example ~\.claude\settings.json
 ```bash
 cd ~/.claude
 npx playwright install chromium
-node mcp-servers/install-mcp-config.mjs
 ```
+
+### 5. 注册 MCP 服务
+
+将仓库内的 MCP 配置复制到全局位置，Claude Code 才能加载：
+
+```bash
+copy .claude.json %USERPROFILE%\.claude.json
+```
+
+> `.claude.json` 已清理为通用配置，不含个人数据。
+> 路径使用 `%USERPROFILE%` 自动适配当前用户名。
+> MinerU 需要额外配 `MINERU_API_TOKEN` 环境变量。
 
 完成后 **Reload Window**（`Ctrl+Shift+P` → `Developer: Reload Window`）。
 
-### 5. 基础命令与工作流
+### 6. 基础命令与工作流
 
 | 命令 | 用途 | 示例 |
 |------|------|------|
@@ -73,11 +84,11 @@ node mcp-servers/install-mcp-config.mjs
 | `/mcp-office-tool` | PDF 操作/导出 | `/mcp-office-tool 导出 PDF` |
 | `/multi-ai-coder` | 多 AI 协作编程 | `/multi-ai-coder 写个贪吃蛇` |
 
-### 6. 记忆系统
+### 7. 记忆系统
 
 Claude Code 自动保存关键信息到 `projects/<slug>/memory/`，跨对话持久化。记忆文件通过 git 同步。
 
-### 7. Reload Window
+### 8. Reload Window
 
 修改配置或安装新组件后需要 Reload。可用 `Aut2Exe/reload-vscode.exe` 自动执行，或手动：
 
@@ -193,12 +204,12 @@ cmd //c "Aut2Exe/Aut2exe_x64.exe /in <脚本路径> /out <输出路径> /console
 3. Reload 后自动复用，进程不积累
 4. 没有现成聊天页时新建标签页，不占用用户已有网页
 
-### MCP 注册脚本
+### 注册 MCP 配置
 
-`install-mcp-config.mjs` 自动将 MCP 服务写入 `~/.claude.json`，同时注册 hooks.Stop（死循环监控）。
+仓库内的 `.claude.json` 包含所有 MCP 服务配置和 hooks，复制到全局位置即可：
 
 ```bash
-node mcp-servers/install-mcp-config.mjs
+copy .claude.json %USERPROFILE%\.claude.json
 ```
 
 执行后需 Reload Window 生效。
