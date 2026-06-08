@@ -22,6 +22,16 @@ Then Reload Window (`Ctrl+Shift+P` → `Developer: Reload Window`).
 
 ### Config note
 
-`.claude.json` MCP entry for codegraph must use absolute path —
-`"node C:\\Users\\LaiYangLi\\.claude\\node_modules\\@colbymchenry\\codegraph\\npm-shim.js"`
-— rather than bare `codegraph`, which is not in `PATH`.
+`.claude.json` MCP entry for codegraph should use `%USERPROFILE%` so it
+works on any machine:
+
+```json
+"codegraph": {
+  "command": "cmd",
+  "args": [
+    "/c", "node",
+    "%USERPROFILE%\\.claude\\node_modules\\@colbymchenry\\codegraph\\npm-shim.js",
+    "mcp"
+  ]
+}
+```

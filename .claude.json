@@ -550,9 +550,8 @@
       "args": [
         "/c",
         "node",
-        "C:\\Users\\LaiYangLi\\.claude\\node_modules\\@colbymchenry\\codegraph\\npm-shim.js",
-        "serve",
-        "--mcp"
+        "%USERPROFILE%\\.claude\\node_modules\\@colbymchenry\\codegraph\\npm-shim.js",
+        "mcp"
       ]
     },
     "doubao": {
