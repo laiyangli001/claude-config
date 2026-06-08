@@ -24,6 +24,7 @@ git clone https://github.com/laiyangli001/claude-config.git ~/.claude
 |------|------|------|
 | **全局 CLAUDE.md** | `CLAUDE.md` | 身份定义、行为边界、skill 使用指南 |
 | **设置** | `settings.json` | API 端点、模型、权限、环境变量 |
+| **CodeGraph 代码图谱** | `codegraph`（MCP 工具） | 预索引代码搜索，替代 grep，58% 更少工具调用 |
 | **AI 服务（MCP）** | `mcp-servers/ai-services/` | ChatGPT/DeepSeek/Claude/豆包等 AI 网页版 MCP |
 | **MinerU 文档解析** | `mineru-open-mcp`（MCP 工具） | PDF/图片/Office → Markdown，支持 OCR |
 | **PDF 工具** | `pdf-toolkit`（MCP 工具） | 合并/拆分/加密/水印/压缩 PDF |
@@ -201,3 +202,29 @@ node mcp-servers/install-mcp-config.mjs
 ```
 
 执行后需 Reload Window 生效。
+
+### CodeGraph 代码知识图谱
+
+预索引的代码搜索工具，通过 MCP 服务给 Claude Code 提供语义代码智能。~16% 更便宜 · ~58% 更少工具调用 · 100% 本地运行。
+
+#### 安装
+
+```bash
+npm install -g @colbymchenry/codegraph
+codegraph install    # 自动检测并连接 Claude Code
+```
+
+#### 使用
+
+```bash
+cd 你的项目
+codegraph init -i    # 初始化并建立索引
+```
+
+之后 Clade Code 中自动生效，代码搜索优先走 CodeGraph 而非 grep。
+
+#### 自动排除
+
+- 默认跳过 `node_modules`、`dist`、`build`、`target`、`.venv` 等
+- 自动遵循 `.gitignore`（含非 git 项目）
+- 自定义排除：编辑项目 `.gitignore` 添加需跳过的目录

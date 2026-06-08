@@ -121,3 +121,28 @@
 | `/user-guide-creation` | 用户要求写使用手册、教程、帮助文档 | 直接提醒 |
 | `/web-design-guidelines` | 用户要求审查 UI 设计、检查可访问性、审核前端代码 | 主动询问 |
 | `/find-skills` | 用户问"有没有什么 skill 能做 X"、"怎么实现 Y" | 直接使用 |
+
+## CodeGraph 代码搜索
+
+已安装 CodeGraph MCP（`codegraph serve --mcp`），提供预索引的代码知识图谱。**代码搜索优先用 CodeGraph，不 grep。**
+
+### 可用工具
+
+| 工具 | 用途 | 何时使用 |
+|------|------|---------|
+| `codegraph_explore` | **主力**。在文件级别返回相关符号源码+关系图 | "这个怎么工作"、"这个流程怎么走"、"这块代码是干嘛的" |
+| `codegraph_search` | 跨代码库按名称找符号 | "找这个函数/类在哪"、"有哪些类似的" |
+| `codegraph_callers` | 找到谁调用了某个函数 | "这个函数被谁调用" |
+| `codegraph_callees` | 找到某个函数调用了谁 | "这个函数内部怎么实现的" |
+| `codegraph_impact` | 改符号前分析影响范围 | "改了这里会影响什么" |
+| `codegraph_node` | 取一个符号完整源码（含所有重载） | 需要看完整函数实现 |
+| `codegraph_files` | 获取文件结构（比遍历快） | "看看目录结构" |
+| `codegraph_status` | 检查索引健康度 | "索引进度/状态" |
+
+### 使用规则
+
+- **grep 替代**：找函数定义/引用 → `codegraph_search` 或 `codegraph_explore`，不要 grep
+- **改前必查影响**：修改代码前先 `codegraph_impact` 看影响范围
+- **理解代码优先**：不知道一段代码干嘛的 → `codegraph_explore`
+- **信任结果**：CodeGraph 返回的源码视为已读，不再 grep 验证
+- **索引可能过期**：如果返回结果带"stale"标记，运行 `codegraph init -i` 重建索引
