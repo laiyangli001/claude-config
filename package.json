@@ -1,4 +1,7 @@
 {
+  "scripts": {
+    "postinstall": "node patches/codegraph-file-symbols.mjs"
+  },
   "devDependencies": {
     "@colbymchenry/codegraph": "^0.9.9",
     "@playwright/test": "^1.60.0"

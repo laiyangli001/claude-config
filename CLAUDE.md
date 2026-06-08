@@ -137,6 +137,7 @@
 | `codegraph_impact` | 改符号前分析影响范围 | "改了这里会影响什么" |
 | `codegraph_node` | 取一个符号完整源码（含所有重载） | 需要看完整函数实现 |
 | `codegraph_files` | 获取文件结构（比遍历快） | "看看目录结构" |
+| `codegraph_file_symbols` | 列出文件内所有符号及其行号，支持按类型过滤 | "xrviewer.py 有哪些函数"、"列出 main.js 的方法" |
 | `codegraph_status` | 检查索引健康度 | "索引进度/状态" |
 
 ### 使用规则
