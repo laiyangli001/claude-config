@@ -212,9 +212,29 @@ node mcp-servers/install-mcp-config.mjs
 ```bash
 cd ~/.claude
 npm install    # 已包含在 package.json 的 devDependencies 中
+              # 装完后自动触发 postinstall → 打 codegraph_file_symbols 补丁
 ```
 
-已在 `.claude.json` 中用绝对路径注册。克隆到新机器后执行 `npm install` + Reload Window 即可。
+已在 `.claude.json` 中用 `%USERPROFILE%` 注册，克隆到新机器后执行 `npm install` + Reload Window 即可。
+
+#### 工具列表
+
+| 工具 | 用途 |
+|------|------|
+| `codegraph_explore` | **主力** — 自然语言或符号名查源码+关系图 |
+| `codegraph_search` | 跨代码库按名称搜符号 |
+| `codegraph_node` | 取一个符号完整源码（含所有重载） |
+| `codegraph_files` | 获取文件结构树 |
+| `codegraph_file_symbols` | **列出单文件所有符号**（函数/类/变量），支持按类型过滤 |
+| `codegraph_callers` / `codegraph_callees` | 调用链追踪 |
+| `codegraph_impact` | 改符号前分析影响范围 |
+| `codegraph_status` | 索引健康度 |
+
+> `codegraph_file_symbols` 通过补丁脚本 (`patches/codegraph-file-symbols.mjs`) 注入，
+> `npm install` 后自动生效。若手动覆盖了 `node_modules`，重新执行：
+> ```bash
+> node patches/codegraph-file-symbols.mjs
+> ```
 
 #### 使用
 
