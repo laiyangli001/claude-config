@@ -1,6 +1,10 @@
 {
   "scripts": {
-    "postinstall": "node patches/codegraph-file-symbols.mjs"
+    "postinstall": "node patches/codegraph-file-symbols.mjs",
+    "count-tokens": "node scripts/count-tokens.mjs"
+  },
+  "dependencies": {
+    "tiktoken": "^1.0.22"
   },
   "devDependencies": {
     "@colbymchenry/codegraph": "^0.9.9",
