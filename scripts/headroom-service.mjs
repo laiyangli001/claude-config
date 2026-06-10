@@ -70,8 +70,8 @@ function startProxy(targetUrl) {
 const config = readSettings();
 const target = config.env?.ANTHROPIC_BASE_URL;
 if (!target || target.includes("localhost:8787")) {
-  console.error("settings.json 中未找到有效的 ANTHROPIC_BASE_URL");
-  process.exit(1);
+  // 已是代理模式，不重复启动
+  process.exit(0);
 }
 
 // 保存原始地址，指向本地代理
