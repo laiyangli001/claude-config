@@ -16,6 +16,15 @@ import os from "os";
 const SETTINGS = path.join(os.homedir(), ".claude", "settings.json");
 const PORT = 8787;
 const PID_FILE = path.join(os.homedir(), ".claude", ".headroom-service.pid");
+const SERVICE_LOG = path.join(os.homedir(), ".claude", ".headroom-service.log");
+
+function log(message) {
+  const line = `[${new Date().toISOString()}] ${message}\n`;
+  try {
+    fs.appendFileSync(SERVICE_LOG, line, "utf-8");
+  } catch {}
+  console.log(message);
+}
 
 function readSettings() {
   return JSON.parse(fs.readFileSync(SETTINGS, "utf-8"));
@@ -51,7 +60,7 @@ function startProxy(targetUrl) {
     proxyProcess.kill("SIGTERM");
     proxyProcess = null;
   }
-  console.log(`[headroom] 启动 proxy → ${targetUrl}`);
+  log(`[headroom] 启动 proxy -> ${targetUrl}`);
   const LOG_FILE = path.join(os.homedir(), ".claude", ".headroom-proxy.log");
   proxyProcess = spawn("headroom", [
     "proxy", "--port", String(PORT),
@@ -59,31 +68,37 @@ function startProxy(targetUrl) {
     "--code-aware",
     "--log-file", LOG_FILE,
     "--log-messages",
-  ], { stdio: "inherit", detached: false });
+  ], { stdio: "ignore", windowsHide: true, detached: true });
+  proxyProcess.unref();
+  proxyProcess.on("error", (error) => {
+    log(`[headroom] proxy 启动失败: ${error.message}`);
+    proxyProcess = null;
+  });
   proxyProcess.on("exit", (code) => {
-    console.log(`[headroom] proxy 退出 (code=${code})`);
+    log(`[headroom] proxy 退出 (code=${code})`);
     proxyProcess = null;
   });
 }
 
 // 初次启动
 const config = readSettings();
-const target = config.env?.ANTHROPIC_BASE_URL;
+const currentBaseUrl = config.env?.ANTHROPIC_BASE_URL;
+const target = config.env?._HEADROOM_ORIGINAL_URL || currentBaseUrl;
 if (!target || target.includes("localhost:8787")) {
-  // 已是代理模式，不重复启动
+  // Already in proxy mode without a saved upstream target.
   process.exit(0);
 }
 
 // 保存原始地址，指向本地代理
 config.env._HEADROOM_ORIGINAL_URL = target;
-config.env.ANTHROPIC_BASE_URL = `http://localhost:${PORT}/v1`;
+config.env.ANTHROPIC_BASE_URL = `http://localhost:${PORT}`;
 writeSettings(config);
 
 startProxy(target);
 
 // 写 PID 文件
 fs.writeFileSync(PID_FILE, String(process.pid), "utf-8");
-console.log(`[headroom] 服务已启动 (PID: ${process.pid}), 监听 settings.json 变化...`);
+log(`[headroom] 服务已启动 (PID: ${process.pid}), 监听 settings.json 变化...`);
 
 // 监听 settings.json 变化
 let lastMtime = fs.statSync(SETTINGS).mtimeMs;
@@ -96,10 +111,10 @@ setInterval(() => {
     const c = readSettings();
     const newTarget = c.env?.ANTHROPIC_BASE_URL;
     if (newTarget && !newTarget.includes("localhost:8787") && newTarget !== target) {
-      console.log(`[headroom] 检测到 URL 变更: ${target} → ${newTarget}`);
+      log(`[headroom] 检测到 URL 变更: ${target} -> ${newTarget}`);
       // 更新保存的原始地址
       c.env._HEADROOM_ORIGINAL_URL = newTarget;
-      c.env.ANTHROPIC_BASE_URL = `http://localhost:${PORT}/v1`;
+      c.env.ANTHROPIC_BASE_URL = `http://localhost:${PORT}`;
       writeSettings(c);
       startProxy(newTarget);
     }
