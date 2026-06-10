@@ -52,10 +52,13 @@ function startProxy(targetUrl) {
     proxyProcess = null;
   }
   console.log(`[headroom] 启动 proxy → ${targetUrl}`);
+  const LOG_FILE = path.join(os.homedir(), ".claude", ".headroom-proxy.log");
   proxyProcess = spawn("headroom", [
     "proxy", "--port", String(PORT),
     "--anthropic-api-url", targetUrl,
     "--code-aware",
+    "--log-file", LOG_FILE,
+    "--log-messages",
   ], { stdio: "inherit", detached: false });
   proxyProcess.on("exit", (code) => {
     console.log(`[headroom] proxy 退出 (code=${code})`);
