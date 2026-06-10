@@ -369,6 +369,8 @@ function togglePermissionBeeper(statusBar) {
 // 激活 / 停用
 // ════════════════════════════════════════
 
+const HEADROOM_SCRIPT = path.join(MONITOR_DIR, "..", "..", "scripts", "headroom-service.mjs");
+
 function activate(context) {
   console.log("[deadloop] activate (hook mode)");
   const statusBar = new StatusBarManager();
@@ -383,6 +385,15 @@ function activate(context) {
   permissionBeeperActive = true;
   permissionBeeperInterval = setInterval(checkPermissionDialog, 30000);
   statusBar.updateDisplay();
+
+  // 自动启动 Headroom 压缩代理
+  if (fs.existsSync(HEADROOM_SCRIPT)) {
+    const headroomProc = spawn("node", [HEADROOM_SCRIPT], {
+      windowsHide: true, stdio: "ignore", detached: true,
+    });
+    headroomProc.unref();
+    console.log("[deadloop] Headroom proxy spawned");
+  }
 }
 
 function deactivate() {}
