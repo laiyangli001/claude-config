@@ -386,13 +386,18 @@ function activate(context) {
   permissionBeeperInterval = setInterval(checkPermissionDialog, 30000);
   statusBar.updateDisplay();
 
-  // 自动启动 Headroom 压缩代理
+  // 自动启动 Headroom 压缩代理（需已安装 headroom-ai）
   if (fs.existsSync(HEADROOM_SCRIPT)) {
-    const headroomProc = spawn("node", [HEADROOM_SCRIPT], {
-      windowsHide: true, stdio: "ignore", detached: true,
-    });
-    headroomProc.unref();
-    console.log("[deadloop] Headroom proxy spawned");
+    try {
+      require("child_process").execSync("headroom --version", { stdio: "ignore" });
+      const headroomProc = spawn("node", [HEADROOM_SCRIPT], {
+        windowsHide: true, stdio: "ignore", detached: true,
+      });
+      headroomProc.unref();
+      console.log("[deadloop] Headroom proxy spawned");
+    } catch (e) {
+      console.log("[deadloop] Headroom not installed, skipping proxy");
+    }
   }
 }
 
