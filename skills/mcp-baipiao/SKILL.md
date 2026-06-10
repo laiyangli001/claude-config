@@ -35,11 +35,11 @@ description: |
 
 | # | 场景 | 触发条件 | 服务降级链 | 模板 |
 |---|------|---------|-----------|------|
-| 1 | 代码审查（复杂/深层） | 多文件、跨模块、异步、>500行 | `claude-mirror:ask_claude_mirror` → `chatgpt-mirror:ask_chatgpt_mirror` → `chatgpt-official:ask_chatgpt_official` → `deepseek:ask_deepseek` | `code_review` |
-| 2 | 代码审查（一般） | 单文件、<500行、常规逻辑 | `chatgpt-mirror:ask_chatgpt_mirror` → `claude-mirror:ask_claude_mirror` → `chatgpt-official:ask_chatgpt_official` → `deepseek:ask_deepseek` | `code_review` |
-| 3 | 长文本分析 | 纯文档、>10k token、日志/纪要 | `deepseek:ask_deepseek` → `claude-mirror:ask_claude_mirror` → `chatgpt-mirror:ask_chatgpt_mirror` → `chatgpt-official:ask_chatgpt_official` | `long_text` |
-| 4 | 简单任务 | 批量处理/格式转换/文本整理/代码高亮 | `deepseek:ask_deepseek` → `chatgpt-official:ask_chatgpt_official` | `format_task` |
-| 5 | 多模态视觉 | 截图/图片/PPT生成 | `chatgpt-mirror:ask_chatgpt_mirror` → `claude-mirror:ask_claude_mirror` → `chatgpt-official:ask_chatgpt_official` → `doubao:ask_doubao` | `vision_analysis` |
+| 1 | 代码审查（复杂/深层） | 多文件、跨模块、异步、>500行 | `chatgpt-official:ask_chatgpt_official` → `claude-mirror:ask_claude_mirror` → `chatgpt-mirror:ask_chatgpt_mirror` → `deepseek:ask_deepseek` | `code_review` |
+| 2 | 代码审查（一般） | 单文件、<500行、常规逻辑 | `chatgpt-official:ask_chatgpt_official` → `chatgpt-mirror:ask_chatgpt_mirror` → `claude-mirror:ask_claude_mirror` → `deepseek:ask_deepseek` | `code_review` |
+| 3 | 长文本分析 | 纯文档、>10k token、日志/纪要 | `chatgpt-official:ask_chatgpt_official` → `deepseek:ask_deepseek` → `claude-mirror:ask_claude_mirror` → `chatgpt-mirror:ask_chatgpt_mirror` | `long_text` |
+| 4 | 简单任务 | 批量处理/格式转换/文本整理/代码高亮 | `chatgpt-official:ask_chatgpt_official` → `deepseek:ask_deepseek` | `format_task` |
+| 5 | 多模态视觉 | 截图/图片/PPT生成 | `chatgpt-official:ask_chatgpt_official` → `chatgpt-mirror:ask_chatgpt_mirror` → `claude-mirror:ask_claude_mirror` → `doubao:ask_doubao` | `vision_analysis` |
 
 **调用说明：** 按降级链依次调用。**每个服务最多重试 3 次**（间隔 2-3 秒），全部失败后才尝试下一级。附件通过 `attachments` 参数上传。全部服务失败时给出明确提示。
 
