@@ -57,6 +57,13 @@ projects/**/tool-results/
 *.pending_permission
 .hook_debug.log
 
+# Headroom 运行时文件
+.headroom-proxy.log
+.headroom-service.*.log
+.headroom-service.pid
+.headroom-service.log
+_release.json
+
 # Playwright test output
 test-results/
 
