@@ -67,15 +67,6 @@
 
 所有具体的 MCP 工具调用逻辑（如 `ask_xxx`、`MinerU`、`pdf-toolkit` 等）已由对应 skill 封装，你可阅读 skill 的描述说明和目录，以便了解 skill 的应用场景，其它具体的内容不需要阅读。
 
-**大内容压缩**：每次发送内容给 LLM（包括工具调用结果、搜索结果、文件内容等）时，如果单块文本超过 3000 字符，先用 Headroom 压缩。短文本自动跳过，`compress.mjs` 内部有阈值判断。
-```bash
-node -e "
-const { compress } = require('./mcp-servers/ai-services/shared/compress.mjs');
-const c = require('fs').readFileSync(0,'utf8');
-process.stdout.write(compress(c) || c);
-" < 内容.txt
-```
-
 ### 核心原则
 
 1. 遇到匹配的触发场景，**主动提醒用户**使用对应 skill。

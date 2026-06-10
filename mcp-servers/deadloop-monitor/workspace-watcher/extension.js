@@ -369,8 +369,6 @@ function togglePermissionBeeper(statusBar) {
 // 激活 / 停用
 // ════════════════════════════════════════
 
-const HEADROOM_SCRIPT = path.join(MONITOR_DIR, "..", "..", "scripts", "headroom-service.mjs");
-
 function activate(context) {
   console.log("[deadloop] activate (hook mode)");
   const statusBar = new StatusBarManager();
