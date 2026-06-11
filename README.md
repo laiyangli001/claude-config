@@ -52,10 +52,11 @@ copy ~\.claude\settings.json.example ~\.claude\settings.json
 
 **安全提醒：** `settings.json` 已在 `.gitignore` 中排除，不会上传到 GitHub。
 
-### 4. 安装 MCP 依赖
+### 4. 安装依赖
 
 ```bash
 cd ~/.claude
+npm install
 npx playwright install chromium
 ```
 
@@ -71,9 +72,17 @@ copy .claude.json %USERPROFILE%\.claude.json
 > 路径使用 `%USERPROFILE%` 自动适配当前用户名。
 > MinerU 需要额外配 `MINERU_API_TOKEN` 环境变量。
 
-完成后 **Reload Window**（`Ctrl+Shift+P` → `Developer: Reload Window`）。
+### 6. 安装 CodeGraph 代码搜索
 
-### 6. 基础命令与工作流
+自动配置 MCP 服务和系统 PATH：
+
+```bash
+npx @colbymchenry/codegraph install --yes
+```
+
+`--yes` 参数自动完成：检测 agent、加入 PATH、写入 MCP 配置、放行权限。
+
+### 7. 基础命令与工作流
 
 | 命令 | 用途 | 示例 |
 |------|------|------|
@@ -84,11 +93,11 @@ copy .claude.json %USERPROFILE%\.claude.json
 | `/mcp-office-tool` | PDF 操作/导出 | `/mcp-office-tool 导出 PDF` |
 | `/multi-ai-coder` | 多 AI 协作编程 | `/multi-ai-coder 写个贪吃蛇` |
 
-### 7. 记忆系统
+### 8. 记忆系统
 
 Claude Code 自动保存关键信息到 `projects/<slug>/memory/`，跨对话持久化。记忆文件通过 git 同步。
 
-### 8. Reload Window
+### 9. Reload Window
 
 修改配置或安装新组件后需要 Reload。可用 `Aut2Exe/reload-vscode.exe` 自动执行，或手动：
 
@@ -206,27 +215,23 @@ cmd //c "Aut2Exe/Aut2exe_x64.exe /in <脚本路径> /out <输出路径> /console
 
 ### 注册 MCP 配置
 
-仓库内的 `.claude.json` 包含所有 MCP 服务配置和 hooks，复制到全局位置即可：
-
-```bash
-copy .claude.json %USERPROFILE%\.claude.json
-```
-
-执行后需 Reload Window 生效。
+仓库内的 `.claude.json` 包含所有 MCP 服务配置和 hooks。复制方法见[基础设置 · 注册 MCP 服务](#5-注册-mcp-服务)，执行后需 Reload Window 生效。
 
 ### CodeGraph 代码知识图谱
 
 预索引的代码搜索工具，通过 MCP 服务给 Claude Code 提供语义代码智能。~16% 更便宜 · ~58% 更少工具调用 · 100% 本地运行。
 
-#### 安装
+（安装步骤见[基础设置 · 安装 CodeGraph](#6-安装-codegraph-代码搜索)）
+
+#### 初始化项目索引
+
+在要使用 CodeGraph 的项目目录中：
 
 ```bash
-cd ~/.claude
-npm install    # 已包含在 package.json 的 devDependencies 中
-              # 装完后自动触发 postinstall → 打 codegraph_file_symbols 补丁
+codegraph init
 ```
 
-已在 `.claude.json` 中用 `%USERPROFILE%` 注册，克隆到新机器后执行 `npm install` + Reload Window 即可。
+之后 Claude Code 中自动生效，代码搜索优先走 CodeGraph 而非 grep。
 
 #### 工具列表
 
@@ -242,19 +247,10 @@ npm install    # 已包含在 package.json 的 devDependencies 中
 | `codegraph_status` | 索引健康度 |
 
 > `codegraph_file_symbols` 通过补丁脚本 (`patches/codegraph-file-symbols.mjs`) 注入，
-> `npm install` 后自动生效。若手动覆盖了 `node_modules`，重新执行：
+> `npm install` 后自动触发。若手动覆盖了 `node_modules`，重新执行：
 > ```bash
 > node patches/codegraph-file-symbols.mjs
 > ```
-
-#### 使用
-
-```bash
-cd 你的项目
-codegraph init    # 初始化并建立索引
-```
-
-之后 Clade Code 中自动生效，代码搜索优先走 CodeGraph 而非 grep。
 
 #### 自动排除
 
