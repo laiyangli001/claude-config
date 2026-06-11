@@ -51,7 +51,17 @@
   以下 skill 可根据场景需要，自己调用：
   - `/mcp-baipiao`
 
-## 版本控制（Git）规则
+## 版本控制（Git + GitHub CLI）规则
+
+### 工具分工
+
+| 场景 | 工具 |
+|------|------|
+| 本地操作（commit、branch、status、diff、stash、log、rebase） | `git` |
+| GitHub 操作（PR、issue、查看/clone 仓库、release） | `gh` |
+| push / fetch / pull | `git`（`gh` 为辅） |
+
+### Git 规则
 
 - 修改前先了解当前分支状态（`git status`）
 - 提交信息使用约定式提交格式：
@@ -62,6 +72,11 @@
   - `chore:` 杂项
 - Commit 前确认所有修改都是预期的
 - 不自动 push（除非用户明确要求）
+
+### GitHub CLI（gh）规则
+
+- 涉及 GitHub 的操作优先用 `gh`，不用浏览器或 REST API 手动调用
+- 命令行调用路径：`"C:\Program Files\GitHub CLI\gh.exe"`（如 `gh` 不在 PATH 中）
 
 ## Skill 使用指南
 
