@@ -1,4 +1,4 @@
-# CLAUDE.md
+# AGENTS.md
 
 ## ⚠️ 语言要求（最高优先级）
 
@@ -15,7 +15,7 @@
 |------|------|
 | `/mcp-baipiao` | MCP 白嫖助手——自动分析任务类型，选最优 AI 服务和模板，执行降级链 |
 | `/mcp-office-tool` | 办公文档处理——Markdown 导出 PDF、PDF 合并/拆分/加密/水印、读取文档 |
-| `/multi-ai-coder` | 多 AI 协作编程——DeepSeek 统筹，ChatGPT 出计划+审查，Claude 写代码+修复 |
+| `/multi-ai-coder` | 多 AI 协作编程——DeepSeek 统筹，ChatGPT 出计划+审查，Codex 写代码+修复 |
 | `/blind-fontend-tester` | 盲测前端——通过浏览器自动化逐步验证交互逻辑，生成回归测试 |
 | `/skill-review` | 技能审查——对指定 skill 进行结构化审查和优化建议 |
 | `/slide-creator` | HTML 幻灯片生成——制作 16:9 演示文稿并导出 PDF |
@@ -51,17 +51,7 @@
   以下 skill 可根据场景需要，自己调用：
   - `/mcp-baipiao`
 
-## 版本控制（Git + GitHub CLI）规则
-
-### 工具分工
-
-| 场景 | 工具 |
-|------|------|
-| 本地操作（commit、branch、status、diff、stash、log、rebase） | `git` |
-| GitHub 操作（PR、issue、查看/clone 仓库、release） | `gh` |
-| push / fetch / pull | `git`（`gh` 为辅） |
-
-### Git 规则
+## 版本控制（Git）规则
 
 - 修改前先了解当前分支状态（`git status`）
 - 提交信息使用约定式提交格式：
@@ -73,31 +63,9 @@
 - Commit 前确认所有修改都是预期的
 - 不自动 push（除非用户明确要求）
 
-### GitHub CLI（gh）规则
-
-- 涉及 GitHub 的操作优先用 `gh`，不用浏览器或 REST API 手动调用
-- 命令行调用路径：`"C:\Program Files\GitHub CLI\gh.exe"`（如 `gh` 不在 PATH 中）
-
 ## Skill 使用指南
 
 所有具体的 MCP 工具调用逻辑（如 `ask_xxx`、`MinerU`、`pdf-toolkit` 等）已由对应 skill 封装，你可阅读 skill 的描述说明和目录，以便了解 skill 的应用场景，其它具体的内容不需要阅读。
-
-## Headroom MCP 使用策略
-
-已安装 Headroom MCP。只在大上下文场景按需使用，不要常规压缩每轮对话。
-
-调用 `headroom_compress` 的条件：
-- 工具输出超过约 3000 tokens 或 200 行
-- 搜索结果、日志、JSON、依赖列表、批量诊断输出较大
-- 当前任务只需要理解结构、定位重点、提取异常，而不是逐字修改
-
-不要压缩：
-- 即将编辑的代码
-- 需要精确行号、缩进、diff、配置值的内容
-- 小段错误信息或小文件
-- 密钥、token、凭据等敏感内容
-
-压缩后如果需要原文细节，使用 `headroom_retrieve` 按 hash 取回；需要精确修改前必须查看原文。
 
 ### 核心原则
 
@@ -132,7 +100,7 @@
 
 ### `/multi-ai-coder` — 多 AI 协作编程
 
-**功能**：DeepSeek 统筹，ChatGPT 出计划+审查，Claude 写代码+修复。适用于较完整的项目功能开发。
+**功能**：DeepSeek 统筹，ChatGPT 出计划+审查，Codex 写代码+修复。适用于较完整的项目功能开发。
 
 **触发场景**：
 - "帮我写一个 [完整功能]"（如贪吃蛇、文件搜索工具、爬虫）
