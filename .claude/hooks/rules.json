@@ -33,8 +33,12 @@
   ],
   "Bash": [
     {
-      "blockWhen": "cmdMatch:^(cat|head|tail|echo|sed|awk)\\s",
-      "msg": "文件操作用 file_system，不要用 Bash"
+      "blockWhen": "cmdMatch:(?:^|&&\\s*|;\\s*|\\|\\s*)\\s*(?:cat|head|tail|echo|sed|awk|find|type)\\s",
+      "msg": "文件操作用 file_system，不要用 Bash 读写文件"
+    },
+    {
+      "blockWhen": "cmdMatch:(?:^|&&\\s*|;\\s*)\\s*grep\\s",
+      "msg": "搜代码用 codegraph，不要用 Bash grep"
     }
   ],
   "Grep": [
@@ -42,5 +46,8 @@
       "blockWhen": "always",
       "msg": "查代码用 codegraph_explore/search/node，不要用 Grep"
     }
+  ],
+  "_reminders": [
+    "思考过程必须使用中文。所有思考、推理、分析、内部对话一律使用中文。"
   ]
 }
