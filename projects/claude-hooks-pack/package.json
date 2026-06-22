@@ -1,0 +1,15 @@
+{
+  "name": "claude-hooks-mcp-guard",
+  "version": "1.0.0",
+  "description": "Claude Code PreToolUse hooks — 强制代理使用 MCP 替代内置工具（file_system / codegraph / mineru / pdf-toolkit）",
+  "keywords": ["claude-code", "mcp", "hooks", "claude", "anthropic"],
+  "license": "MIT",
+  "type": "module",
+  "files": [
+    "hooks/"
+  ],
+  "scripts": {
+    "install": "node hooks/install-hooks.mjs",
+    "update": "node hooks/install-hooks.mjs --update"
+  }
+}

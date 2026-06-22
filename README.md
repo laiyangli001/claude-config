@@ -28,6 +28,7 @@ git clone https://github.com/laiyangli001/claude-config.git ~/.claude
 | **AI 服务（MCP）** | `mcp-servers/ai-services/` | ChatGPT/DeepSeek/Claude/豆包等 AI 网页版 MCP |
 | **MinerU 文档解析** | `mineru-open-mcp`（MCP 工具） | PDF/图片/Office → Markdown，支持 OCR |
 | **PDF 工具** | `pdf-toolkit`（MCP 工具） | 合并/拆分/加密/水印/压缩 PDF |
+| **MCP 监督钩子** | `hooks/` | PreToolUse 钩子拦截内置工具，强制走 MCP |
 | **死循环监控** | `mcp-servers/deadloop-monitor/` | 检测输出死循环 → 打断 → 摘要求助 |
 | **办公工具** | `mcp-servers/office-tools/` | Markdown → PDF（7 套主题） |
 | **技能** | `skills/` | 11 个技能（mcp-baipiao、multi-ai-coder 等） |
@@ -257,3 +258,40 @@ codegraph init
 - 默认跳过 `node_modules`、`dist`、`build`、`target`、`.venv` 等
 - 自动遵循 `.gitignore`（含非 git 项目）
 - 自定义排除：编辑项目 `.gitignore` 添加需跳过的目录
+
+### MCP 监督钩子
+
+**PreToolUse 钩子**在每次工具调用前拦截，强制代理使用 MCP 替代内置工具。
+
+**监督范围：**
+
+| 内置工具 | 拦截条件 | 替代 MCP |
+|----------|---------|----------|
+| `Read` | 项目内的文件 | `file_system read_text_file` |
+| `Read` | 扩展名 .pdf/.docx/.pptx/.xlsx | `mineru parse_documents` / `pdf-toolkit` |
+| `Edit` | 项目内的文件 | `file_system edit_file` |
+| `Write` | 项目内的文件 | `file_system write_file` |
+| `Glob` | 总是拦截 | `file_system search_files` |
+| `Grep` | 总是拦截 | `codegraph_explore/search/node` |
+| `Bash` | cat/head/tail/echo/sed/awk 命令 | `file_system` |
+
+#### 在项目启用
+
+```
+# 1. 解压到 ~/.claude/ 目录（克隆本仓库后已存在）
+# 2. 让 Claude 按照 INSTALL.md 自动安装
+#    对 Claude 说：「按照 INSTALL.md 自动安装 hooks」
+```
+
+Claude 会自动：扫描 MCP 服务 → 生成规则 → 写入项目配置 → 提醒 Reload。
+
+#### 更新规则
+
+MCP 服务变化后，运行 `node ~/.claude/hooks/install-hooks.mjs --update`，
+或重启 Claude Code（SessionStart 钩子自动更新）。
+
+#### 工作原理
+
+`hooks/install-hooks.mjs` 读取 `~/.claude.json` 的 MCP 配置，对照内置映射表生成
+`~/.claude/hooks/rules.json`。`tool-check-hook.js` 在每次工具调用前检查该规则文件，
+命中的调用直接拒绝并提示改用对应 MCP 工具。
