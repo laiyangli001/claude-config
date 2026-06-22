@@ -50,14 +50,9 @@ Claude Code 有多个方式访问文件：内置 `Read``Write``Edit``Glob`、Bas
    ```bash
    node ~/.claude/hooks/install-hooks.mjs
    ```
-   脚本会自动扫描 MCP 服务、生成规则和钩子配置。
+   脚本会自动扫描 MCP 服务、生成规则，并将 PreToolUse 钩子写入 `~/.claude/settings.json`。
 
-3. **追加 `.gitignore`**（如脚本未自动完成）：
-   ```
-   .claude/settings.local.json
-   ```
-
-4. **通知用户 Reload Window**：
+3. **通知用户 Reload Window**：
    ```
    已安装完成，需要 Reload Window（Ctrl+Shift+P → Developer: Reload Window）让新代码生效。
    ```
@@ -202,6 +197,5 @@ codegraph index
 1. 读取 `~/.claude.json` 的 `mcpServers`，记录已安装的 MCP
 2. 根据映射关系生成 `.claude/hooks/rules.json`
 3. 确保 `.claude/hooks/tool-check-hook.js` 已存在
-4. 生成 `.claude/settings.local.json`（含 SessionStart 和 PreToolUse）
-5. 将 `.claude/settings.local.json` 加入 `.gitignore`
-6. 通知用户 Reload Window
+4. 将 PreToolUse 和 SessionStart 钩子写入 `~/.claude/settings.json` 的 `hooks` 下
+5. 通知用户 Reload Window

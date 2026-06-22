@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-import { writeFileSync, appendFileSync, readFileSync, mkdirSync, existsSync } from "fs";
-import { resolve, dirname, basename } from "path";
+import { writeFileSync, readFileSync, existsSync } from "fs";
+import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
 import { homedir } from "os";
 import { execSync } from "child_process";
@@ -10,10 +10,8 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectDir = process.cwd();
 const hookScript = resolve(__dirname, "tool-check-hook.js");
 const rulesFile = resolve(__dirname, "rules.json");
-const claudeDir = basename(projectDir) === ".claude" ? projectDir : resolve(projectDir, ".claude");
-const settingsFile = resolve(claudeDir, "settings.local.json");
-const gitignoreFile = resolve(projectDir, ".gitignore");
 const globalConfigPath = resolve(homedir(), ".claude.json");
+const settingsPath = resolve(homedir(), ".claude", "settings.json");
 
 // ── 读取全局 .claude.json ──
 let globalConfig = { mcpServers: {} };
@@ -65,12 +63,12 @@ if (!hasMcp("codegraph")) {
   console.log("[SKIP] codegraph MCP already configured");
 }
 
-// ── 写入 .claude.json ──
-const globalConfigChanged = JSON.stringify(globalConfig) !==
-  (existsSync(globalConfigPath) ? readFileSync(globalConfigPath, "utf-8") : "");
-if (globalConfigChanged) {
-  writeFileSync(globalConfigPath, JSON.stringify(globalConfig, null, 2) + "\n");
-  console.log("[OK] ~/.claude.json updated");
+// ── 写入 MCP 服务到 .claude.json（不在这里写 hooks，等 rules 生成后一起合并）──
+const mcpOnlyRaw = JSON.stringify(globalConfig, null, 2) + "\n";
+const prevRaw = existsSync(globalConfigPath) ? readFileSync(globalConfigPath, "utf-8") : "";
+if (mcpOnlyRaw !== prevRaw) {
+  writeFileSync(globalConfigPath, mcpOnlyRaw);
+  console.log("[OK] ~/.claude.json MCP servers updated");
 }
 
 console.log("\n[2] === 检测 MCP 服务 ===");
@@ -139,6 +137,14 @@ if (unknown.length > 0) {
   if (existsSync(marker)) try { writeFileSync(marker, "[]\n"); } catch {}
 }
 
+// ── 非 MCP 工具的重定向规则（始终添加，不依赖 MCP 服务是否存在）──
+rules.WebSearch = [
+  {
+    blockWhen: "always",
+    msg: "联网搜索用 /mcp-baipiao，它会自动选最佳 AI 服务，不要用 WebSearch",
+  },
+];
+
 const toolNames = Object.keys(rules);
 if (toolNames.length === 0) {
   console.log("[SKIP] No supervised MCP servers. Nothing to install.");
@@ -154,35 +160,38 @@ rules._reminders = [
 writeFileSync(rulesFile, JSON.stringify(rules, null, 2) + "\n");
 console.log(`[OK] rules.json (${toolNames.length} rules)`);
 
-// ── 写入 settings.local.json ──
-const installScript = fileURLToPath(import.meta.url);
+// ── 读取 user settings.json ──
+let userSettings = {};
+if (existsSync(settingsPath)) {
+  userSettings = JSON.parse(readFileSync(settingsPath, "utf-8"));
+}
+userSettings.hooks = userSettings.hooks || {};
 
-const settings = {
-  hooks: {
-    SessionStart: [
-      {
-        hooks: [
-          { type: "command", command: "node", args: [installScript, "--update"], timeout: 30 },
-        ],
-      },
+// ── 写 SessionStart ──
+userSettings.hooks.SessionStart = [
+  {
+    hooks: [
+      { type: "command", command: "node", args: [fileURLToPath(import.meta.url), "--update"], timeout: 30 },
     ],
-    PreToolUse: toolNames.map((matcher) => ({
-      matcher,
-      hooks: [
-        { type: "command", command: "node", args: [hookScript], timeout: 5 },
-      ],
-    })),
   },
-};
-writeFileSync(settingsFile, JSON.stringify(settings, null, 2) + "\n");
-console.log(`[OK] settings.local.json (${toolNames.length} matchers)`);
+];
 
-// ── .gitignore ──
-if (!readFileSync(gitignoreFile, "utf-8").includes(".claude/settings.local.json")) {
-  appendFileSync(gitignoreFile, "\n.claude/settings.local.json\n");
-  console.log("[OK] Added to .gitignore");
+// ── 写 PreToolUse ──
+userSettings.hooks.PreToolUse = [
+  {
+    hooks: [
+      { type: "command", command: "node", args: [hookScript], timeout: 5 },
+    ],
+  },
+];
+
+const hooksConfigRaw = JSON.stringify(userSettings, null, 2) + "\n";
+const currentConfigRaw = existsSync(settingsPath) ? readFileSync(settingsPath, "utf-8") : "";
+if (hooksConfigRaw !== currentConfigRaw) {
+  writeFileSync(settingsPath, hooksConfigRaw);
+  console.log("[OK] ~/.claude/settings.json hooks updated (SessionStart + PreToolUse)");
 } else {
-  console.log("[SKIP] Already in .gitignore");
+  console.log("[SKIP] ~/.claude/settings.json hooks unchanged");
 }
 
 const mode = isUpdate ? "UPDATE" : "INSTALL";

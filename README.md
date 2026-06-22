@@ -216,7 +216,7 @@ cmd //c "Aut2Exe/Aut2exe_x64.exe /in <脚本路径> /out <输出路径> /console
 
 ### 注册 MCP 配置
 
-仓库内的 `.claude.json` 包含所有 MCP 服务配置和 hooks。复制方法见[基础设置 · 注册 MCP 服务](#5-注册-mcp-服务)，执行后需 Reload Window 生效。
+仓库内的 `.claude.json` 包含所有 MCP 服务配置（hooks 已移入 `settings.json`）。复制方法见[基础设置 · 注册 MCP 服务](#5-注册-mcp-服务)，执行后需 Reload Window 生效。
 
 ### CodeGraph 代码知识图谱
 
@@ -296,5 +296,6 @@ MCP 服务变化后，运行 `node ~/.claude/hooks/install-hooks.mjs --update`�
 #### 工作原理
 
 `hooks/install-hooks.mjs` 读取 `~/.claude.json` 的 MCP 配置，对照内置映射表生成
-`~/.claude/hooks/rules.json`。`tool-check-hook.js` 在每次工具调用前检查该规则文件，
+`~/.claude/hooks/rules.json`，并将 PreToolUse 钩子写入 `~/.claude/settings.json`。
+`tool-check-hook.js` 在每次工具调用前检查该规则文件，
 命中的调用直接拒绝并提示改用对应 MCP 工具。

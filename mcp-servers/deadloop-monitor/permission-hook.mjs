@@ -9,6 +9,9 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const FLAG = path.join(__dirname, ".pending_permission");
 const input = fs.readFileSync(0, "utf-8").trim();
 
+// dump 完整 payload
+try { fs.writeFileSync(path.join(__dirname, ".payload_dump.json"), input, "utf-8"); } catch {}
+
 let event;
 try { event = JSON.parse(input); } catch { process.exit(0); }
 
