@@ -8,8 +8,8 @@ import { execSync } from "child_process";
 const isUpdate = process.argv.includes("--update");
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectDir = process.cwd();
-const hookScript = resolve(projectDir, ".claude", "hooks", "tool-check-hook.js");
-const rulesFile = resolve(projectDir, ".claude", "hooks", "rules.json");
+const hookScript = resolve(__dirname, "tool-check-hook.js");
+const rulesFile = resolve(__dirname, "rules.json");
 const settingsFile = resolve(projectDir, ".claude", "settings.local.json");
 const gitignoreFile = resolve(projectDir, ".gitignore");
 const globalConfigPath = resolve(homedir(), ".claude.json");
@@ -130,11 +130,11 @@ if (unknown.length > 0) {
   for (const name of unknown) {
     console.log(`  ${name}`);
   }
-  writeFileSync(resolve(projectDir, ".claude", "hooks", ".unknown-mcps.json"), JSON.stringify(unknown, null, 2) + "\n");
+  writeFileSync(resolve(__dirname, ".unknown-mcps.json"), JSON.stringify(unknown, null, 2) + "\n");
   console.log("[INFO] 已写入 .unknown-mcps.json，下次工具调用时 Claude 会收到提醒");
 } else {
   // 清理旧标记
-  const marker = resolve(projectDir, ".claude", "hooks", ".unknown-mcps.json");
+  const marker = resolve(__dirname, ".unknown-mcps.json");
   if (existsSync(marker)) try { writeFileSync(marker, "[]\n"); } catch {}
 }
 
@@ -144,8 +144,12 @@ if (toolNames.length === 0) {
   process.exit(0);
 }
 
-// ── 写入 rules.json ──
-mkdirSync(resolve(projectDir, ".claude", "hooks"), { recursive: true });
+// ── 添加始终注入的提醒 ──
+rules._reminders = [
+  "思考过程必须使用中文。所有思考、推理、分析、内部对话一律使用中文。"
+];
+
+// ── 写入 rules.json（到全局 hooks 目录）──
 writeFileSync(rulesFile, JSON.stringify(rules, null, 2) + "\n");
 console.log(`[OK] rules.json (${toolNames.length} rules)`);
 

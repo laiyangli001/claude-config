@@ -14,27 +14,21 @@
 
 ## 为什么用这个 Hook
 
-Claude Code 有多个方式访问文件：内置 `Read``Write``Edit``Glob`、Bash 的 `cat/echo/sed`、以及 MCP 的 `file_system``codegraph`。
+后端模型是 DeepSeek。`CLAUDE.md` 里写得再清楚，DeepSeek 也记不住——
+像金鱼，每次工具调用都是新的开始，规则看了就忘。
 
-入口太多导致三个问题：
+全局规则对 DeepSeek 几乎无效。那就在工具调用层面硬拦：
 
-- **token 浪费** — 同样的文件用 Read 读了一遍，下次又要重新加载
-- **路径幻觉** — 内置工具容易编造不存在的路径，MCP 工具有严格的文件系统边界限制
-- **行为不一致** — 同一个项目里有时用 Read、有时用 cat、有时用 file_system，调试时很难确定是哪个工具出的问题
-
-**这个 Hook 强制统一入口：**
-
-| 操作 | 统一走 MCP | 不再用 |
-|------|-----------|--------|
+| 操作 | 强制走 MCP | 拦截内置工具 |
+|------|-----------|------------|
 | 读文件 | `file_system read_text_file` | `Read` / `cat` / `head` / `tail` |
 | 写文件 | `file_system write_file` | `Write` / `echo >` |
-| 改文件 | `file_system edit_file` | `Edit` / `sed` |
+| 改文件 | `file_system edit_file` | `Edit` / `sed` / `awk` |
 | 搜文件 | `file_system search_files` | `Glob` / `find` |
 | 查代码 | `codegraph_explore/search/node` | `Grep` / `rg` |
 
-所有文件操作走 `file_system`，代码搜索走 `codegraph`，行为一致、可审计、不浪费 token。
-
-另外，你已经在用 `file_system` MCP 了（这行文字就是它读的），但每次读项目文件时系统仍然提示要不要用 Read——这本身就是混乱的证据。装了这个 Hook，混乱消失。
+`PreToolUse` 钩子在每次工具调用前检查，命中规则直接拒绝。
+不问 DeepSeek 的意见，不给它选择——它选不了，只能走 MCP。
 
 ---
 

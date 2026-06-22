@@ -145,6 +145,11 @@ if (toolNames.length === 0) {
   process.exit(0);
 }
 
+// ── 添加始终注入的提醒 ──
+rules._reminders = [
+  "思考过程必须使用中文。所有思考、推理、分析、内部对话一律使用中文。"
+];
+
 // ── 写入 rules.json（到全局 hooks 目录）──
 writeFileSync(rulesFile, JSON.stringify(rules, null, 2) + "\n");
 console.log(`[OK] rules.json (${toolNames.length} rules)`);

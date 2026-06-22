@@ -38,7 +38,11 @@ for (const entry of entries) {
   }
 }
 
-// ── 2. 检查未处理的新 MCP ──
+// ── 2. 始终注入的提醒（rules.json 的 _reminders 数组，不拦截） ──
+const reminders = rules._reminders || [];
+let systemMsg = reminders.length > 0 ? reminders.join("\n") : "";
+
+// ── 3. 检查未处理的新 MCP ──
 const unknownFile = path.join(hookDir, ".unknown-mcps.json");
 let extra = "";
 try {
@@ -52,10 +56,14 @@ try {
 
 const out = {};
 if (extra) {
-  out.systemMessage = extra;
+  if (systemMsg) systemMsg += "\n\n";
+  systemMsg += extra;
   out.hookSpecificOutput = {
     hookEventName: "PreToolUse",
     additionalContext: extra,
   };
+}
+if (systemMsg) {
+  out.systemMessage = systemMsg;
 }
 console.log(JSON.stringify(out));
