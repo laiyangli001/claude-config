@@ -33,12 +33,8 @@
   ],
   "Bash": [
     {
-      "blockWhen": "cmdMatch:(?:^|&&\\s*|;\\s*|\\|\\s*)\\s*(?:cat|head|tail|echo|sed|awk|find|type)\\s",
-      "msg": "文件操作用 file_system，不要用 Bash 读写文件"
-    },
-    {
-      "blockWhen": "cmdMatch:(?:^|&&\\s*|;\\s*)\\s*grep\\s",
-      "msg": "搜代码用 codegraph，不要用 Bash grep"
+      "blockWhen": "cmdMatch:^(cat|head|tail|echo|sed|awk)\\s",
+      "msg": "文件操作用 file_system，不要用 Bash"
     }
   ],
   "Grep": [

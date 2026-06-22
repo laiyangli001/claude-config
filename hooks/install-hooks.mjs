@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { writeFileSync, appendFileSync, readFileSync, mkdirSync, existsSync } from "fs";
-import { resolve, dirname } from "path";
+import { resolve, dirname, basename } from "path";
 import { fileURLToPath } from "url";
 import { homedir } from "os";
 import { execSync } from "child_process";
@@ -10,7 +10,8 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectDir = process.cwd();
 const hookScript = resolve(__dirname, "tool-check-hook.js");
 const rulesFile = resolve(__dirname, "rules.json");
-const settingsFile = resolve(projectDir, ".claude", "settings.local.json");
+const claudeDir = basename(projectDir) === ".claude" ? projectDir : resolve(projectDir, ".claude");
+const settingsFile = resolve(claudeDir, "settings.local.json");
 const gitignoreFile = resolve(projectDir, ".gitignore");
 const globalConfigPath = resolve(homedir(), ".claude.json");
 
@@ -29,8 +30,8 @@ console.log("[1] === MCP 服务安装 ===");
 if (!hasMcp("file_system")) {
   console.log("[...] Installing file_system MCP...");
   try {
-    execSync("npx -y @modelcontextprotocol/server-filesystem --help", {
-      stdio: "pipe", timeout: 30000,
+    execSync("npm ls -g @modelcontextprotocol/server-filesystem", {
+      stdio: "pipe", timeout: 10000,
     });
     mcpServers.file_system = {
       command: "npx",
