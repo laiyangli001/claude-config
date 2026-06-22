@@ -169,15 +169,44 @@
 
 > 其他工具（`codegraph_impact`、`codegraph_callees`、`codegraph_files`、`codegraph_file_symbols`、`codegraph_status`）功能完好，但不在 MCP 默认列表中。设置 `CODEGRAPH_MCP_TOOLS=all` 可全部启用。`explore` 的 blast-radius 段和 `node` 的 dependents 注记已覆盖大部分需求。
 
-### 使用规则
+### ⚠️ 硬性执行规则（最高优先级！用户反复强调）
 
-**工作流（按顺序降级）：**
-1. **知道符号名或想看文件** → `codegraph_node`（支持按符号名或文件路径）
-2. **查关系/流程/架构** → `codegraph_explore`（一个调用通常够）
-3. **找符号位置** → `codegraph_search`
-4. **以上都找不到** → 才用 grep
+**Trigger-Action 映射（每次查代码必须执行）：**
 
-**硬性规则：**
-- **不要 grep**：找函数定义/引用一律走 CodeGraph
-- **信任结果**：CodeGraph 返回的源码视为已读，不再 Read 验证
-- **索引可能过期**：结果带"stale"标记时，运行 `codegraph index` 重建
+| Trigger | Action |
+|---------|--------|
+| 需要找函数/类定义位置 | → `codegraph_search` |
+| 需要看某个符号的完整源码 | → `codegraph_node` |
+| 需要理解代码关系/流程/架构 | → `codegraph_explore` |
+| 需要看谁调用了某函数 | → `codegraph_callers` / `codegraph_impact` |
+
+**执行纪律：**
+1. **必须先走 CodeGraph**：任何涉及查代码的操作，第一反应必须是 CodeGraph，不是 Read/Grep
+2. ⚠️ **不要 Read**：CodeGraph 返回的源码视为已读，不再 Read 验证。在 CodeGraph 查不到之前禁止用 Read
+3. **降级条件**：只有 CodeGraph 明确索引过期或未索引时，才降级到 Grep/Read
+4. **索引过期**：结果带"stale"标记时，运行 `codegraph index` 重建
+
+<!-- CODEGRAPH_START -->
+## CodeGraph
+
+In repositories indexed by CodeGraph (a `.codegraph/` directory exists at the repo root), reach for it BEFORE grep/find or reading files when you need to understand or locate code:
+
+- **MCP tools** (when available): `codegraph_explore` answers most code questions in one call — the relevant symbols' verbatim source plus the call paths between them. `codegraph_node` returns one symbol's source + callers, or reads a whole file with line numbers. If the tools are listed but deferred, load them by name via tool search.
+- **Shell** (always works): `codegraph explore "<symbol names or question>"` and `codegraph node <symbol-or-file>` print the same output.
+
+If there is no `.codegraph/` directory, skip CodeGraph entirely — indexing is the user's decision.
+<!-- CODEGRAPH_END -->
+
+## ⚠️ 文件操作工具使用规则（最高优先级）
+
+**读写文件必须使用专用文件工具（Read / Write / Edit / Glob / Grep），禁止用 Bash 工具执行 cat、echo >、sed、awk 等命令来读写或修改文件内容。**
+
+| 操作 | 正确工具 | 错误做法 |
+|------|----------|---------|
+| 读文件 | `Read` | `cat`, `head`, `tail` |
+| 写文件 | `Write` | `echo >`, `cat <<EOF` |
+| 改文件 | `Edit` | `sed`, `awk` |
+| 搜文件 | `Glob` | `find`, `ls -R` |
+| 搜内容 | `Grep`（仅当 CodeGraph 查不到时） | `grep`, `rg` |
+
+Bash 工具仅用于执行命令（git、npm、python、编译等），不用于文件内容的读写。

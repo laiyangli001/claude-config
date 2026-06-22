@@ -1,0 +1,1 @@
+- [⚠️ 工具使用纪律](tool-discipline.md) — trigger-action 表，最高优先级规则

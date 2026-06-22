@@ -261,12 +261,15 @@ codegraph init
 
 ### MCP 监督钩子
 
-**PreToolUse 钩子**在每次工具调用前拦截，强制代理使用 MCP 替代内置工具。
+后端模型是 DeepSeek。`CLAUDE.md` 里写得再清楚，DeepSeek 也记不住——
+像金鱼，每次工具调用都是新的开始。全局规则几乎无效。
+
+`PreToolUse` 钩子在每次工具调用前拦截，**不给 DeepSeek 选择**，命中规则直接拒绝。
 
 **监督范围：**
 
-| 内置工具 | 拦截条件 | 替代 MCP |
-|----------|---------|----------|
+| 内置工具 | 拦截条件 | 强制走 MCP |
+|----------|---------|-----------|
 | `Read` | 项目内的文件 | `file_system read_text_file` |
 | `Read` | 扩展名 .pdf/.docx/.pptx/.xlsx | `mineru parse_documents` / `pdf-toolkit` |
 | `Edit` | 项目内的文件 | `file_system edit_file` |

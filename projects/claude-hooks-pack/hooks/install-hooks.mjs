@@ -145,10 +145,13 @@ if (toolNames.length === 0) {
   process.exit(0);
 }
 
-// ── 添加始终注入的提醒 ──
-rules._reminders = [
-  "思考过程必须使用中文。所有思考、推理、分析、内部对话一律使用中文。"
-];
+// ── 添加始终注入的提醒（每条拦截规则都带上语言指令） ──
+const LANG_MSG = "【思考过程必须使用中文】";
+for (const entries of Object.values(rules)) {
+  for (const entry of entries) {
+    if (entry.msg) entry.msg += ` ${LANG_MSG}`;
+  }
+}
 
 // ── 写入 rules.json（到全局 hooks 目录）──
 writeFileSync(rulesFile, JSON.stringify(rules, null, 2) + "\n");
@@ -166,12 +169,22 @@ const settings = {
         ],
       },
     ],
-    PreToolUse: toolNames.map((matcher) => ({
-      matcher,
-      hooks: [
-        { type: "command", command: "node", args: [hookScript], timeout: 5 },
-      ],
-    })),
+    PreToolUse: [
+      // 全局提醒注入（空 matcher 匹配所有工具）
+      {
+        matcher: "",
+        hooks: [
+          { type: "command", command: "node", args: [hookScript, "--remind"], timeout: 3 },
+        ],
+      },
+      // 工具拦截规则
+      ...toolNames.map((matcher) => ({
+        matcher,
+        hooks: [
+          { type: "command", command: "node", args: [hookScript], timeout: 5 },
+        ],
+      })),
+    ],
   },
 };
 writeFileSync(settingsFile, JSON.stringify(settings, null, 2) + "\n");

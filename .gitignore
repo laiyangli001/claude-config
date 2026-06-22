@@ -72,3 +72,5 @@ _tmp_*/
 _chat_state.png
 _page_check.png
 _find_dialog.ps1
+
+.claude/settings.local.json

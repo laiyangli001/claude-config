@@ -45,13 +45,16 @@
       }
     },
     "codegraph": {
-      "command": "cmd",
+      "type": "stdio",
+      "command": "C:\\Program Files\\nodejs\\node.exe",
       "args": [
-        "/c",
-        "node",
-        "%USERPROFILE%\\.claude\\node_modules\\@colbymchenry\\codegraph\\npm-shim.js",
-        "mcp"
-      ]
+        "C:\\Users\\LaiYangLi\\.claude\\node_modules\\@colbymchenry\\codegraph\\npm-shim.js",
+        "serve",
+        "--mcp"
+      ],
+      "env": {
+        "CODEGRAPH_NO_DAEMON": "1"
+      }
     },
     "doubao": {
       "command": "cmd",

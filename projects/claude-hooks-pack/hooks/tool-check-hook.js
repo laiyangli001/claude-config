@@ -26,8 +26,11 @@ for (const entry of entries) {
     block = !!f.match(new RegExp(cond.slice(9), "i"));
   }
   if (block) {
+    const reminders = rules._reminders || [];
+    const msg = "⛔ " + entry.msg;
+    const reminderText = reminders.length > 0 ? "\n\n" + reminders.join("\n") : "";
     console.log(JSON.stringify({
-      systemMessage: "⛔ " + entry.msg,
+      systemMessage: msg + reminderText,
       hookSpecificOutput: {
         hookEventName: "PreToolUse",
         permissionDecision: "deny",

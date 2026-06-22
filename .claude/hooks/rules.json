@@ -42,8 +42,5 @@
       "blockWhen": "always",
       "msg": "查代码用 codegraph_explore/search/node，不要用 Grep"
     }
-  ],
-  "_reminders": [
-    "思考过程必须使用中文。所有思考、推理、分析、内部对话一律使用中文。"
   ]
 }
