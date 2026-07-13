@@ -1,5 +1,0 @@
-2026/06/01-14:28:07.524 41b4 Log #3: 24 ops saved to Table #4 OK
-2026/06/01-14:28:07.547 41b4 Archiving c:\Users\LaiYangLi\.claude\mcp-servers\ai-services\doubao\.doubao-profile\Default\Site Characteristics Database/000003.log: OK
-2026/06/01-14:28:07.547 41b4 Table #4: 24 entries OK
-2026/06/01-14:28:07.554 41b4 Archiving c:\Users\LaiYangLi\.claude\mcp-servers\ai-services\doubao\.doubao-profile\Default\Site Characteristics Database/MANIFEST-000001: OK
-2026/06/01-14:28:07.576 41b4 **** Repaired leveldb c:\Users\LaiYangLi\.claude\mcp-servers\ai-services\doubao\.doubao-profile\Default\Site Characteristics Database; recovered 1 files; 491 bytes. Some data may have been lost. ****

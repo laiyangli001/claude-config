@@ -48,5 +48,8 @@
       "blockWhen": "always",
       "msg": "联网搜索用 /mcp-baipiao，它会自动选最佳 AI 服务，不要用 WebSearch"
     }
+  ],
+  "_reminders": [
+    "思考过程必须使用中文。所有思考、推理、分析、内部对话一律使用中文。"
   ]
 }
