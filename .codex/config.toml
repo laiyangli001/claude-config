@@ -1,0 +1,73 @@
+[mcp_servers.chatgpt-mirror]
+command = "cmd"
+args = [
+    "/c",
+    "node",
+    '%USERPROFILE%\.claude\mcp-servers\ai-services\chatgpt-mirror\dist\index.js',
+]
+
+[mcp_servers.chatgpt-official]
+command = "cmd"
+args = [
+    "/c",
+    "node",
+    '%USERPROFILE%\.claude\mcp-servers\ai-services\chatgpt-official\dist\index.js',
+]
+
+[mcp_servers.claude-code-mcp-unity]
+command = "cmd"
+args = [
+    "/c",
+    "node",
+    '%USERPROFILE%\.claude\mcp-servers\unity-mcp\Packages\com.aiacats.unity-mcp\Server~\index.js',
+]
+
+[mcp_servers.claude-code-mcp-unity.env]
+MCP_UNITY_HTTP_URL = "http://localhost:8090"
+
+[mcp_servers.claude-mirror]
+command = "cmd"
+args = [
+    "/c",
+    "node",
+    '%USERPROFILE%\.claude\mcp-servers\ai-services\claude-mirror\dist\index.js',
+]
+
+[mcp_servers.codegraph]
+command = "cmd"
+args = [
+    "/c",
+    "node",
+    '%USERPROFILE%\.claude\node_modules\@colbymchenry\codegraph\npm-shim.js',
+    "mcp",
+]
+
+[mcp_servers.deepseek]
+command = "cmd"
+args = [
+    "/c",
+    "node",
+    "c:/Users/LaiYangLi/.claude/mcp-servers/ai-services/deepseek/dist/index.js",
+]
+
+[mcp_servers.doubao]
+command = "cmd"
+args = [
+    "/c",
+    "node",
+    '%USERPROFILE%\.claude\mcp-servers\ai-services\doubao\dist\index.js',
+]
+
+[mcp_servers.mineru-open-mcp]
+command = "uvx"
+args = ["mineru-open-mcp"]
+env_vars = ["MINERU_API_TOKEN"]
+
+[mcp_servers.pdf-toolkit]
+command = "cmd"
+args = [
+    "/c",
+    "npx",
+    "-y",
+    "@aryanbv/pdf-toolkit-mcp",
+]
