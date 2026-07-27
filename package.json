@@ -8,6 +8,7 @@
   },
   "devDependencies": {
     "@colbymchenry/codegraph": "^1.0.1",
+    "@modelcontextprotocol/server-filesystem": "^2026.1.14",
     "@playwright/test": "^1.60.0"
   }
 }

@@ -1,5 +1,12 @@
 {
   "mcpServers": {
+    "file_system": {
+      "command": "node",
+      "args": [
+        "C:/Users/LaiYangLi/.claude/node_modules/@modelcontextprotocol/server-filesystem/dist/index.js",
+        "E:/AI_2D_to_3D/4.LC700X_Desktop2Stereo"
+      ]
+    },
     "headroom": {
       "command": "headroom",
       "args": [
